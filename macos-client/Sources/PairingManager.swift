@@ -38,6 +38,9 @@ public final class PairingManager: ObservableObject {
         
         // Otherwise, present approval prompt to user with confirmation code
         self.pendingPairingRequest = payload
+        Task { @MainActor in
+            AetherWindowManager.shared.showPairingPromptWindow(request: payload)
+        }
     }
     
     public func approvePairing(_ request: PairingRequestPayload) {
@@ -47,6 +50,9 @@ public final class PairingManager: ObservableObject {
         self.isPaired = true
         self.pairedDeviceName = request.deviceName
         self.pendingPairingRequest = nil
+        Task { @MainActor in
+            AetherWindowManager.shared.closePairingPromptWindow()
+        }
         
         let token = UUID().uuidString
         let response = PairingResponsePayload(
@@ -61,6 +67,9 @@ public final class PairingManager: ObservableObject {
     
     public func rejectPairing(_ request: PairingRequestPayload) {
         self.pendingPairingRequest = nil
+        Task { @MainActor in
+            AetherWindowManager.shared.closePairingPromptWindow()
+        }
         let response = PairingResponsePayload(
             approved: false,
             token: nil,

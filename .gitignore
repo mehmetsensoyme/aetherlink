@@ -41,3 +41,4 @@ yarn-error.log*
 macos-client/Resources/bin/
 macos-client/Resources/lib/
 macos-client/Resources/share/
+**/_CodeSignature/

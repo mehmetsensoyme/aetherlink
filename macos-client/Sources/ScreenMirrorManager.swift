@@ -3,7 +3,7 @@ import SwiftUI
 import Combine
 
 @MainActor
-public final class ScreenMirrorManager: ObservableObject {
+public final class ScreenMirrorManager: NSObject, ObservableObject, NSWindowDelegate {
     public static let shared = ScreenMirrorManager()
     
     @Published public var isStreaming: Bool = false
@@ -43,7 +43,9 @@ public final class ScreenMirrorManager: ObservableObject {
         return paths.contains { FileManager.default.isExecutableFile(atPath: $0) }
     }
     
-    public init() {}
+    public override init() {
+        super.init()
+    }
     
     public func launchScrcpyMirror(wirelessIp: String? = nil) {
         if isScrcpyRunning {
@@ -195,6 +197,7 @@ public final class ScreenMirrorManager: ObservableObject {
         window.center()
         window.level = .floating
         window.isReleasedWhenClosed = false
+        window.delegate = self
         
         let wc = NSWindowController(window: window)
         self.windowController = wc
@@ -208,13 +211,17 @@ public final class ScreenMirrorManager: ObservableObject {
     public func closeScreenWindow() {
         if let win = windowController?.window {
             win.orderOut(nil)
-            win.close()
         }
         windowController = nil
         self.isWindowOpen = false
         if isStreaming {
             stopStreamRequest()
         }
+    }
+    
+    public func windowShouldClose(_ sender: NSWindow) -> Bool {
+        closeScreenWindow()
+        return false
     }
 }
 

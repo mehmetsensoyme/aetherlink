@@ -69,7 +69,7 @@ public final class UpdateChecker: ObservableObject {
             if isNewerVersion(current: currentVersion, latest: latestVer) {
                 let downloadUrl = release.assets.first(where: { $0.name.hasSuffix(".dmg") })?.browser_download_url ?? release.html_url
                 
-                self.availableUpdate = UpdateInfo(
+                let update = UpdateInfo(
                     currentVersion: currentVersion,
                     latestVersion: latestVer,
                     title: release.name ?? release.tag_name,
@@ -77,7 +77,11 @@ public final class UpdateChecker: ObservableObject {
                     downloadUrl: downloadUrl,
                     releaseDate: release.published_at.prefix(10).description
                 )
+                self.availableUpdate = update
                 self.isShowingSheet = true
+                Task { @MainActor in
+                    AetherWindowManager.shared.showUpdateWindow(updateInfo: update)
+                }
             } else if manual {
                 self.checkError = "Tebrikler! AetherLink en güncel sürümde (v\(currentVersion))."
             }

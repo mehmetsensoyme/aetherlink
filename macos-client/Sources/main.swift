@@ -53,4 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         print("[AetherLink] Application launched and running in Menu Bar.")
     }
+    
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
+    }
 }

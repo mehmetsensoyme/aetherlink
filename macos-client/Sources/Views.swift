@@ -3,6 +3,7 @@ import SwiftUI
 
 // MARK: - Pairing QR & Confirmation Code View
 public struct PairingQRView: View {
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject var pairing = PairingManager.shared
     @ObservedObject var network = NetworkManager.shared
     let onDismiss: () -> Void
@@ -17,7 +18,10 @@ public struct PairingQRView: View {
                 Text("AetherLink Cihaz Eşleştirme")
                     .font(.headline)
                 Spacer()
-                Button(action: onDismiss) {
+                Button(action: {
+                    onDismiss()
+                    dismiss()
+                }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
                 }
@@ -86,6 +90,7 @@ public struct PairingQRView: View {
 
 // MARK: - Incoming Pairing Request Prompt
 public struct PairingPromptView: View {
+    @Environment(\.dismiss) private var dismiss
     let request: PairingRequestPayload
     let onApprove: () -> Void
     let onReject: () -> Void
@@ -122,12 +127,18 @@ public struct PairingPromptView: View {
                 .multilineTextAlignment(.center)
             
             HStack(spacing: 12) {
-                Button("Reddet", role: .cancel, action: onReject)
-                    .keyboardShortcut(.cancelAction)
+                Button("Reddet", role: .cancel) {
+                    onReject()
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
                 
-                Button("Onayla ve Bağlan", action: onApprove)
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
+                Button("Onayla ve Bağlan") {
+                    onApprove()
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
@@ -277,6 +288,7 @@ public struct CallBannerView: View {
 
 // MARK: - In-App Update & Changelog Modal View
 public struct UpdateModalView: View {
+    @Environment(\.dismiss) private var dismiss
     let updateInfo: UpdateInfo
     let onDismiss: () -> Void
     
@@ -319,6 +331,7 @@ public struct UpdateModalView: View {
             HStack {
                 Button("Daha Sonra") {
                     onDismiss()
+                    dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
                 
@@ -329,6 +342,7 @@ public struct UpdateModalView: View {
                         NSWorkspace.shared.open(url)
                     }
                     onDismiss()
+                    dismiss()
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.down.circle.fill")
@@ -348,6 +362,7 @@ public struct UpdateModalView: View {
 
 // MARK: - Device Hardware & Telemetry Detail View
 public struct DeviceTelemetryDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject var telemetryMgr = DeviceTelemetryManager.shared
     @ObservedObject var network = NetworkManager.shared
     let onDismiss: () -> Void
@@ -367,7 +382,10 @@ public struct DeviceTelemetryDetailView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Button(action: onDismiss) {
+                Button(action: {
+                    onDismiss()
+                    dismiss()
+                }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
                 }
@@ -441,6 +459,7 @@ public struct DeviceTelemetryDetailView: View {
                 Button(role: .destructive, action: {
                     network.disconnectDevice(forget: false)
                     onDismiss()
+                    dismiss()
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "link.badge.slash")
@@ -575,7 +594,7 @@ public struct MenuBarContentView: View {
                 .tint((mirror.isStreaming || mirror.isScrcpyRunning) ? .red : .blue)
                 
                 Button(action: {
-                    telemetryMgr.isShowingDetailSheet = true
+                    AetherWindowManager.shared.showDeviceTelemetryWindow()
                     telemetryMgr.requestTelemetryRefresh()
                 }) {
                     HStack(spacing: 4) {
@@ -592,7 +611,7 @@ public struct MenuBarContentView: View {
             // Pairing & Disconnect Action Bar
             HStack {
                 Button(action: {
-                    pairing.isShowingQRModal = true
+                    AetherWindowManager.shared.showPairingQRWindow()
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "qrcode")
@@ -660,6 +679,13 @@ public struct MenuBarContentView: View {
             Divider()
             
             // Footer
+            if let err = updater.checkError {
+                Text(err)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+            }
+            
             HStack {
                 Button(action: {
                     Task {
@@ -693,44 +719,6 @@ public struct MenuBarContentView: View {
         }
         .padding(14)
         .frame(width: 320)
-        .sheet(isPresented: Binding(
-            get: { pairing.isShowingQRModal },
-            set: { pairing.isShowingQRModal = $0 }
-        )) {
-            PairingQRView {
-                pairing.isShowingQRModal = false
-            }
-        }
-        .sheet(isPresented: Binding(
-            get: { telemetryMgr.isShowingDetailSheet },
-            set: { telemetryMgr.isShowingDetailSheet = $0 }
-        )) {
-            DeviceTelemetryDetailView {
-                telemetryMgr.isShowingDetailSheet = false
-            }
-        }
-        .sheet(isPresented: Binding(
-            get: { updater.isShowingSheet },
-            set: { updater.isShowingSheet = $0 }
-        )) {
-            if let info = updater.availableUpdate {
-                UpdateModalView(updateInfo: info) {
-                    updater.isShowingSheet = false
-                }
-            }
-        }
-        .sheet(isPresented: Binding(
-            get: { pairing.pendingPairingRequest != nil },
-            set: { _ in }
-        )) {
-            if let req = pairing.pendingPairingRequest {
-                PairingPromptView(
-                    request: req,
-                    onApprove: { pairing.approvePairing(req) },
-                    onReject: { pairing.rejectPairing(req) }
-                )
-            }
-        }
     }
 }
 

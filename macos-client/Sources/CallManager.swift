@@ -83,6 +83,7 @@ public final class CallManager: ObservableObject {
             panel.isOpaque = false
             panel.backgroundColor = .clear
             panel.hasShadow = true
+            panel.isReleasedWhenClosed = false
             panel.contentView = NSHostingView(rootView: CallBannerView())
             self.callWindow = panel
         }
