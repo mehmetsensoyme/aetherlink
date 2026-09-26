@@ -37,3 +37,6 @@ yarn-error.log*
 .env.local
 *.keystore
 *.jks
+macos-client/Resources/bin/
+macos-client/Resources/lib/
+macos-client/Resources/share/

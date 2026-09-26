@@ -20,7 +20,25 @@ public final class ScreenMirrorManager: ObservableObject {
     private var lastFrameTime: TimeInterval = 0
     private var frameTimer: Timer?
     
+    public var embeddedScrcpyPath: String? {
+        // Look inside App Bundle Resources
+        if let resURL = Bundle.main.resourceURL {
+            let embeddedBin = resURL.appendingPathComponent("bin/scrcpy").path
+            if FileManager.default.isExecutableFile(atPath: embeddedBin) {
+                return embeddedBin
+            }
+        }
+        // Fallback relative to executable
+        let execURL = Bundle.main.executableURL?.deletingLastPathComponent()
+        if let bin = execURL?.appendingPathComponent("../Resources/bin/scrcpy").path,
+           FileManager.default.isExecutableFile(atPath: bin) {
+            return bin
+        }
+        return nil
+    }
+    
     public var hasScrcpyInstalled: Bool {
+        if embeddedScrcpyPath != nil { return true }
         let paths = ["/opt/homebrew/bin/scrcpy", "/usr/local/bin/scrcpy", "/usr/bin/scrcpy"]
         return paths.contains { FileManager.default.isExecutableFile(atPath: $0) }
     }
@@ -35,7 +53,13 @@ public final class ScreenMirrorManager: ObservableObject {
             return
         }
         
-        let paths = ["/opt/homebrew/bin/scrcpy", "/usr/local/bin/scrcpy", "/usr/bin/scrcpy"]
+        let paths = [
+            embeddedScrcpyPath,
+            "/opt/homebrew/bin/scrcpy",
+            "/usr/local/bin/scrcpy",
+            "/usr/bin/scrcpy"
+        ].compactMap { $0 }
+        
         guard let binPath = paths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
             startStreamRequest()
             return
@@ -43,6 +67,21 @@ public final class ScreenMirrorManager: ObservableObject {
         
         let p = Process()
         p.executableURL = URL(fileURLWithPath: binPath)
+        
+        // Environment with bundled scrcpy-server and adb
+        var env = ProcessInfo.processInfo.environment
+        if let resURL = Bundle.main.resourceURL {
+            let bundledServer = resURL.appendingPathComponent("share/scrcpy/scrcpy-server").path
+            if FileManager.default.fileExists(atPath: bundledServer) {
+                env["SCRCPY_SERVER_PATH"] = bundledServer
+            }
+            let bundledBinDir = resURL.appendingPathComponent("bin").path
+            let bundledLibDir = resURL.appendingPathComponent("lib").path
+            let currentPath = env["PATH"] ?? ""
+            env["PATH"] = "\(bundledBinDir):/opt/homebrew/bin:/usr/local/bin:\(currentPath)"
+            env["DYLD_FALLBACK_LIBRARY_PATH"] = bundledLibDir
+        }
+        p.environment = env
         
         var args = [
             "--always-on-top",
@@ -67,7 +106,7 @@ public final class ScreenMirrorManager: ObservableObject {
             try p.run()
             self.scrcpyProcess = p
             self.isScrcpyRunning = true
-            print("[ScreenMirrorManager] Scrcpy Pro mirroring launched successfully!")
+            print("[ScreenMirrorManager] Scrcpy Pro mirroring launched successfully via \(binPath)!")
         } catch {
             print("[ScreenMirrorManager] Could not run scrcpy: \(error), falling back to P2P")
             startStreamRequest()
