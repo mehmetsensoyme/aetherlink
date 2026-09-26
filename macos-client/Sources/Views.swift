@@ -307,6 +307,7 @@ public struct CallBannerView: View {
 // MARK: - In-App Update & Changelog Modal View
 public struct UpdateModalView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject var updater = UpdateChecker.shared
     let updateInfo: UpdateInfo
     let onDismiss: () -> Void
     
@@ -344,6 +345,34 @@ public struct UpdateModalView: View {
             .frame(height: 180)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
             
+            if updater.isDownloading {
+                VStack(alignment: .leading, spacing: 6) {
+                    ProgressView(value: updater.downloadProgress, total: 1.0)
+                        .progressViewStyle(.linear)
+                    
+                    HStack {
+                        Text(updater.installStatusText ?? "İndiriliyor...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("%\(Int(updater.downloadProgress * 100))")
+                            .font(.caption.bold())
+                            .foregroundColor(.blue)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            
+            if let error = updater.installError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            }
+            
             Divider()
             
             HStack {
@@ -351,25 +380,35 @@ public struct UpdateModalView: View {
                     onDismiss()
                     dismiss()
                 }
+                .disabled(updater.isDownloading)
                 .keyboardShortcut(.cancelAction)
                 
                 Spacer()
                 
-                Button(action: {
-                    if let url = URL(string: updateInfo.downloadUrl) {
-                        NSWorkspace.shared.open(url)
-                    }
-                    onDismiss()
-                    dismiss()
-                }) {
+                if updater.isDownloading {
                     HStack(spacing: 6) {
-                        Image(systemName: "arrow.down.circle.fill")
-                        Text("Şimdi Güncelle (.dmg)")
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Güncelleniyor...")
+                            .font(.body)
                     }
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                } else {
+                    Button(action: {
+                        Task {
+                            await updater.downloadAndInstallUpdate(update: updateInfo)
+                        }
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.down.circle.fill")
+                            Text("Şimdi Güncelle")
+                        }
+                        .padding(.horizontal, 8)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                 }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)

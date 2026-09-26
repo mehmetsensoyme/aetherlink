@@ -36,6 +36,7 @@ import org.aetherlink.screen.ScreenStreamManager
 import org.aetherlink.service.AetherCoreService
 import org.aetherlink.telemetry.DeviceTelemetryManager
 import org.aetherlink.updater.AndroidUpdateChecker
+import org.aetherlink.updater.UpdateCheckResult
 import org.aetherlink.updater.UpdateInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,6 +53,17 @@ fun MainScreen() {
     var pairingCode by remember { mutableStateOf("482 915") }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
+    var isDownloadingApk by remember { mutableStateOf(false) }
+    var apkDownloadProgress by remember { mutableStateOf(0f) }
+    var apkDownloadError by remember { mutableStateOf<String?>(null) }
+
+    // Automatic update check on app launch (silent background check)
+    LaunchedEffect(Unit) {
+        val result = AndroidUpdateChecker.check(context)
+        if (result is UpdateCheckResult.Available) {
+            updateInfo = result.info
+        }
+    }
 
     // Runtime Permission State
     var permissionStatus by remember { mutableStateOf(AetherPermissionManager.checkAllPermissions(context)) }
@@ -138,11 +150,18 @@ fun MainScreen() {
                     IconButton(onClick = {
                         coroutineScope.launch {
                             isCheckingUpdate = true
-                            val result = AndroidUpdateChecker.check()
-                            isCheckingUpdate = false
-                            if (result.hasUpdate) {
-                                updateInfo = result
+                            when (val result = AndroidUpdateChecker.check(context)) {
+                                is UpdateCheckResult.Available -> {
+                                    updateInfo = result.info
+                                }
+                                is UpdateCheckResult.UpToDate -> {
+                                    Toast.makeText(context, "AetherLink en güncel sürümde (v${result.currentVersion}).", Toast.LENGTH_SHORT).show()
+                                }
+                                is UpdateCheckResult.Error -> {
+                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                }
                             }
+                            isCheckingUpdate = false
                         }
                     }) {
                         if (isCheckingUpdate) {
@@ -705,7 +724,7 @@ fun MainScreen() {
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                "AetherLink v${AndroidUpdateChecker.CURRENT_VERSION} • Açık Kaynaklı Süreklilik Köprüsü",
+                "AetherLink v${AndroidUpdateChecker.getAppVersion(context)} • Açık Kaynaklı Süreklilik Köprüsü",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -756,7 +775,12 @@ fun MainScreen() {
     // Update Dialog Modal
     updateInfo?.let { info ->
         AlertDialog(
-            onDismissRequest = { updateInfo = null },
+            onDismissRequest = {
+                if (!isDownloadingApk) {
+                    updateInfo = null
+                    apkDownloadError = null
+                }
+            },
             icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             title = { Text(info.title) },
             text = {
@@ -764,20 +788,61 @@ fun MainScreen() {
                     Text("Yeni Sürüm: v${info.latestVersion} (Mevcut: v${info.currentVersion})", fontWeight = FontWeight.Bold)
                     Divider()
                     Text("Yenilikler (Changelog):", fontWeight = FontWeight.SemiBold)
-                    Text(info.changelog, style = MaterialTheme.typography.bodySmall)
+                    Text(info.changelog, style = MaterialTheme.typography.bodySmall, maxLines = 8)
+
+                    if (isDownloadingApk) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("İndiriliyor: %${(apkDownloadProgress * 100).toInt()}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                        LinearProgressIndicator(
+                            progress = { apkDownloadProgress },
+                            modifier = Modifier.fillMaxWidth().height(6.dp)
+                        )
+                    }
+
+                    if (apkDownloadError != null) {
+                        Text(apkDownloadError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    AndroidUpdateChecker.downloadApk(context, info.downloadUrl, info.latestVersion)
-                    updateInfo = null
-                }) {
-                    Text("İndir ve Güncelle (.apk)")
+                Button(
+                    enabled = !isDownloadingApk,
+                    onClick = {
+                        if (!AetherPermissionManager.canRequestPackageInstalls(context)) {
+                            Toast.makeText(context, "Güncellemeyi yükleyebilmek için lütfen 'Bilinmeyen Uygulamaları Yükle' iznini verin.", Toast.LENGTH_LONG).show()
+                            AetherPermissionManager.openInstallPermissionSettings(context)
+                        } else {
+                            isDownloadingApk = true
+                            apkDownloadError = null
+                            coroutineScope.launch {
+                                AndroidUpdateChecker.downloadAndInstallApk(
+                                    context = context,
+                                    downloadUrl = info.downloadUrl,
+                                    version = info.latestVersion,
+                                    onProgress = { progress ->
+                                        apkDownloadProgress = progress
+                                    },
+                                    onSuccess = {
+                                        isDownloadingApk = false
+                                        updateInfo = null
+                                    },
+                                    onError = { err ->
+                                        isDownloadingApk = false
+                                        apkDownloadError = err
+                                    }
+                                )
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (isDownloadingApk) "İndiriliyor..." else "Şimdi Güncelle (.apk)")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { updateInfo = null }) {
-                    Text("Daha Sonra")
+                if (!isDownloadingApk) {
+                    TextButton(onClick = { updateInfo = null }) {
+                        Text("Daha Sonra")
+                    }
                 }
             }
         )
