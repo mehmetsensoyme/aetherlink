@@ -10,6 +10,7 @@ class AetherLinkApplication : Application() {
     companion object {
         const val CHANNEL_CORE_SERVICE = "aetherlink_core_channel"
         const val CHANNEL_CALL_RELAY = "aetherlink_call_channel"
+        const val CHANNEL_ALERTS = "aetherlink_alerts_channel"
     }
 
     override fun onCreate() {
@@ -40,8 +41,18 @@ class AetherLinkApplication : Application() {
                 description = "Gelen aramaları Mac ekranına yansıtır."
             }
 
+            // Disconnect and alert channel
+            val alertChannel = NotificationChannel(
+                CHANNEL_ALERTS,
+                "AetherLink Uyarı ve Durum Bildirimleri",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Bağlantı kopması ve durum bildirimleri."
+            }
+
             notificationManager.createNotificationChannel(coreChannel)
             notificationManager.createNotificationChannel(callChannel)
+            notificationManager.createNotificationChannel(alertChannel)
         }
     }
 }

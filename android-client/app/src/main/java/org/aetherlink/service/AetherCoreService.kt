@@ -1,6 +1,7 @@
 package org.aetherlink.service
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
@@ -25,6 +26,7 @@ import org.aetherlink.AetherLinkApplication
 import org.aetherlink.clipboard.ClipboardSyncManager
 import org.aetherlink.telecom.AetherInCallService
 import org.aetherlink.ui.MainActivity
+import org.aetherlink.util.DeviceUtils
 import java.util.concurrent.TimeUnit
 
 data class MacBatteryData(
@@ -46,13 +48,16 @@ class AetherCoreService : Service() {
 
     companion object {
         private const val TAG = "AetherCoreService"
+        const val ACTION_DISCONNECT = "org.aetherlink.action.DISCONNECT"
         private const val NOTIFICATION_ID = 1001
+        private const val NOTIFICATION_ALERT_ID = 1002
 
         var instance: AetherCoreService? = null
             private set
 
         val macBatteryState = kotlinx.coroutines.flow.MutableStateFlow<MacBatteryData?>(null)
         val phoneBatteryState = kotlinx.coroutines.flow.MutableStateFlow(PhoneBatteryData())
+        val isConnectedState = kotlinx.coroutines.flow.MutableStateFlow(false)
 
         fun start(context: Context) {
             val intent = Intent(context, AetherCoreService::class.java)
@@ -69,6 +74,8 @@ class AetherCoreService : Service() {
     private var webSocket: WebSocket? = null
     private var isConnected = false
     private var macIpAddress: String = "127.0.0.1" // Local loopback via ADB reverse or Wi-Fi IP
+    private var connectedMacName: String = "MacBook"
+    private var isMediaProjectionRunning: Boolean = false
 
     private val okHttpClient = OkHttpClient.Builder()
         .pingInterval(15, TimeUnit.SECONDS)
@@ -92,7 +99,16 @@ class AetherCoreService : Service() {
         Log.i(TAG, "AetherCoreService started.")
     }
 
-    fun startForegroundWithType(includeMediaProjection: Boolean = false) {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_DISCONNECT) {
+            Log.i(TAG, "ACTION_DISCONNECT received from notification")
+            disconnect(userInitiated = true, forget = false)
+            return START_NOT_STICKY
+        }
+        return START_STICKY
+    }
+
+    private fun buildForegroundNotification(includeMediaProjection: Boolean): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -100,16 +116,53 @@ class AetherCoreService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (includeMediaProjection) "AetherLink Canlı Ekran Yansıtma" else "AetherLink Süreklilik Aktif"
-        val desc = if (includeMediaProjection) "Telefon ekranı Mac'e canlı olarak aktarılıyor." else "MacBook ile güvenli yerel bağlantı sürdürülüyor."
+        val title = if (includeMediaProjection) {
+            "AetherLink Canlı Ekran Yansıtma"
+        } else if (isConnected) {
+            "AetherLink Aktif - Bağlı: $connectedMacName"
+        } else {
+            "AetherLink Aktif - Bağlantı Kesildi"
+        }
 
-        val notification: Notification = NotificationCompat.Builder(this, AetherLinkApplication.CHANNEL_CORE_SERVICE)
+        val desc = if (includeMediaProjection) {
+            "Telefon ekranı Mac'e canlı olarak aktarılıyor."
+        } else if (isConnected) {
+            "Süreklilik köprüsü ve senkronizasyon devrede."
+        } else {
+            "Mac ile bağlantı sonlandırıldı veya bekleniyor."
+        }
+
+        val builder = NotificationCompat.Builder(this, AetherLinkApplication.CHANNEL_CORE_SERVICE)
             .setContentTitle(title)
             .setContentText(desc)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .build()
+            .setSilent(true)
+
+        if (isConnected) {
+            val disconnectIntent = Intent(this, AetherDisconnectReceiver::class.java).apply {
+                action = ACTION_DISCONNECT
+            }
+            val disconnectPendingIntent = PendingIntent.getBroadcast(
+                this,
+                1,
+                disconnectIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "Bağlantıyı Kes",
+                disconnectPendingIntent
+            )
+        }
+
+        return builder.build()
+    }
+
+    fun startForegroundWithType(includeMediaProjection: Boolean = false) {
+        isMediaProjectionRunning = includeMediaProjection
+        val notification = buildForegroundNotification(includeMediaProjection)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             // Android 14+ Strict Foreground Service Types
@@ -122,6 +175,36 @@ class AetherCoreService : Service() {
             startForeground(NOTIFICATION_ID, notification, finalType)
         } else {
             startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    fun updateForegroundNotification(includeMediaProjection: Boolean = isMediaProjectionRunning) {
+        isMediaProjectionRunning = includeMediaProjection
+        val notification = buildForegroundNotification(includeMediaProjection)
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager?.notify(NOTIFICATION_ID, notification)
+    }
+
+    fun showDisconnectAlert(message: String = "Mac bağlantısı kesildi") {
+        try {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            val openIntent = PendingIntent.getActivity(
+                this,
+                0,
+                Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            val alertNotification = NotificationCompat.Builder(this, AetherLinkApplication.CHANNEL_ALERTS)
+                .setSmallIcon(android.R.drawable.stat_notify_error)
+                .setContentTitle("AetherLink")
+                .setContentText(message)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(openIntent)
+                .build()
+            notificationManager?.notify(NOTIFICATION_ALERT_ID, alertNotification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing disconnect alert: ${e.message}")
         }
     }
 
@@ -231,9 +314,22 @@ class AetherCoreService : Service() {
                     override fun onOpen(webSocket: WebSocket, response: Response) {
                         isConnected = true
                         Log.i(TAG, "Connected to macOS AetherLink listener at $macIpAddress:8443")
+
+                        val infoPayload = JsonObject().apply {
+                            addProperty("deviceId", DeviceUtils.getDeviceId())
+                            addProperty("deviceName", DeviceUtils.getDeviceName())
+                            addProperty("model", Build.MODEL)
+                            addProperty("manufacturer", Build.MANUFACTURER)
+                            addProperty("androidVersion", Build.VERSION.RELEASE)
+                            addProperty("sdkInt", Build.VERSION.SDK_INT)
+                        }
+                        sendMessage("DEVICE_INFO", infoPayload)
+
                         org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
                         requestMacBattery()
                         startPeriodicTelemetry()
+                        isConnectedState.value = true
+                        updateForegroundNotification()
                     }
 
                     override fun onMessage(webSocket: WebSocket, text: String) {
@@ -242,11 +338,21 @@ class AetherCoreService : Service() {
 
                     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                         isConnected = false
+                        isConnectedState.value = false
+                        macBatteryState.value = null
+                        updateForegroundNotification()
                         Log.w(TAG, "WebSocket closing: $reason")
                     }
 
                     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                        val wasConnected = isConnected
                         isConnected = false
+                        isConnectedState.value = false
+                        macBatteryState.value = null
+                        updateForegroundNotification()
+                        if (wasConnected) {
+                            showDisconnectAlert("Mac bağlantısı kesildi")
+                        }
                         Log.w(TAG, "WebSocket connection failed: ${t.message}. Retrying in 5 seconds...")
                         serviceScope.launch {
                             delay(5000)
@@ -280,19 +386,43 @@ class AetherCoreService : Service() {
         }
     }
 
-    fun disconnect(forget: Boolean = false) {
-        val payload = JsonObject().apply {
-            addProperty("reason", if (forget) "unpair" else "user_requested")
-            addProperty("shouldForget", forget)
-            addProperty("timestamp", System.currentTimeMillis())
+    fun disconnect(userInitiated: Boolean = true, forget: Boolean = false) {
+        if (isConnected) {
+            val payload = JsonObject().apply {
+                addProperty("source", "android")
+                addProperty("reason", if (forget) "unpair" else if (userInitiated) "user_requested" else "connection_lost")
+                addProperty("shouldForget", forget)
+                addProperty("timestamp", System.currentTimeMillis())
+            }
+            sendMessage("DISCONNECT", payload)
         }
-        sendMessage("DISCONNECT", payload)
         isConnected = false
+        isConnectedState.value = false
+        macBatteryState.value = null
         telemetryJob?.cancel()
         org.aetherlink.screen.ScreenStreamManager.stopCapture()
-        webSocket?.close(1000, "User disconnected")
+        isMediaProjectionRunning = false
+        try {
+            webSocket?.close(1000, if (userInitiated) "User disconnected" else "Disconnected")
+        } catch (_: Exception) {}
         webSocket = null
-        Log.i(TAG, "Disconnected from Mac (forget: $forget)")
+        updateForegroundNotification()
+        Log.i(TAG, "Disconnected from Mac (userInitiated: $userInitiated, forget: $forget)")
+    }
+
+    private fun handleRemoteDisconnect(shouldForget: Boolean) {
+        isConnected = false
+        isConnectedState.value = false
+        macBatteryState.value = null
+        telemetryJob?.cancel()
+        org.aetherlink.screen.ScreenStreamManager.stopCapture()
+        isMediaProjectionRunning = false
+        try {
+            webSocket?.close(1000, "Remote Mac disconnected")
+        } catch (_: Exception) {}
+        webSocket = null
+        updateForegroundNotification()
+        Log.i(TAG, "Handled remote Mac disconnect (shouldForget: $shouldForget)")
     }
 
     private fun handleIncomingMacMessage(jsonString: String) {
@@ -302,6 +432,14 @@ class AetherCoreService : Service() {
             val payload = json.getAsJsonObject("payload") ?: return
 
             when (type) {
+                "MAC_HELLO" -> {
+                    val macName = payload.get("macName")?.asString
+                    if (!macName.isNullOrBlank()) {
+                        connectedMacName = macName
+                    }
+                    updateForegroundNotification()
+                    Log.i(TAG, "Received MAC_HELLO from $connectedMacName")
+                }
                 "MAC_BATTERY_UPDATE" -> {
                     val level = payload.get("batteryLevel")?.asInt ?: 100
                     val isCharging = payload.get("isCharging")?.asBoolean ?: false
@@ -334,7 +472,11 @@ class AetherCoreService : Service() {
                 }
                 "DISCONNECT" -> {
                     val shouldForget = payload.get("shouldForget")?.asBoolean ?: false
-                    disconnect(shouldForget)
+                    val source = payload.get("source")?.asString ?: "macos"
+                    if (source == "macos") {
+                        showDisconnectAlert("Mac bağlantısı kesildi")
+                    }
+                    handleRemoteDisconnect(shouldForget)
                 }
                 "BLUETOOTH_HANDSHAKE" -> {
                     org.aetherlink.bluetooth.BluetoothAudioManager.handleIncomingBluetoothHandshake(payload, this)

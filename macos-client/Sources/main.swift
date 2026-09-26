@@ -4,10 +4,19 @@ import SwiftUI
 @main
 struct AetherLinkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @ObservedObject var network = NetworkManager.shared
     
     var body: some Scene {
-        MenuBarExtra("AetherLink", systemImage: "bolt.horizontal.circle.fill") {
+        MenuBarExtra {
             MenuBarContentView()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "bolt.horizontal.circle.fill")
+                if network.isConnected, let battery = network.batteryState {
+                    Text("\(battery.batteryLevel)%")
+                    Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.75")
+                }
+            }
         }
         .menuBarExtraStyle(.window)
     }

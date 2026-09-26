@@ -140,13 +140,24 @@ public struct PairingPromptView: View {
 public struct CallBannerView: View {
     @ObservedObject var callManager = CallManager.shared
     
+    private var isOutgoing: Bool {
+        callManager.activeCall?.direction == "outgoing"
+    }
+    
     public var body: some View {
         HStack(spacing: 14) {
-            // App / Avatar Icon
+            // App / Avatar Icon with Mac-native pulse animation
             ZStack {
                 Circle()
-                    .fill(appBadgeColor.opacity(0.2))
+                    .fill(appBadgeColor.opacity(0.18))
                     .frame(width: 48, height: 48)
+                    .scaleEffect(isOutgoing && !callManager.isCallActive ? 1.08 : 1.0)
+                    .animation(
+                        isOutgoing && !callManager.isCallActive
+                            ? Animation.easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                            : .default,
+                        value: callManager.isCallActive
+                    )
                 
                 Image(systemName: appIconName)
                     .font(.system(size: 22))
@@ -166,10 +177,14 @@ public struct CallBannerView: View {
                         Text("• Bağlandı")
                             .font(.caption2)
                             .foregroundColor(.green)
+                    } else if isOutgoing {
+                        Text("• Aranıyor...")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
                     }
                 }
                 
-                Text(callManager.activeCall?.callerName ?? "Arayan")
+                Text(callManager.activeCall?.callerName ?? (isOutgoing ? "Numara Çevriliyor" : "Arayan"))
                     .font(.headline)
                     .foregroundColor(.primary)
                     .lineLimit(1)
@@ -185,7 +200,7 @@ public struct CallBannerView: View {
             
             // Action Buttons
             HStack(spacing: 10) {
-                if !callManager.isCallActive {
+                if !callManager.isCallActive && !isOutgoing {
                     Button(action: {
                         callManager.declineCall()
                     }) {
@@ -232,6 +247,7 @@ public struct CallBannerView: View {
     }
     
     private var appBadgeColor: Color {
+        if isOutgoing { return .blue }
         switch callManager.activeCall?.appType {
         case .whatsapp: return .green
         case .telegram: return .blue
@@ -243,11 +259,14 @@ public struct CallBannerView: View {
         switch callManager.activeCall?.appType {
         case .whatsapp: return "message.fill"
         case .telegram: return "paperplane.fill"
-        default: return "phone.fill"
+        default: return isOutgoing ? "phone.arrow.up.right.fill" : "phone.fill"
         }
     }
     
     private var appNameLabel: String {
+        if isOutgoing {
+            return "Giden Arama"
+        }
         switch callManager.activeCall?.appType {
         case .whatsapp: return "WhatsApp"
         case .telegram: return "Telegram"
@@ -341,9 +360,9 @@ public struct DeviceTelemetryDetailView: View {
                     .font(.title2)
                     .foregroundColor(.blue)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(telemetryMgr.telemetry?.model ?? "Galaxy S25 Ultra")
+                    Text(telemetryMgr.telemetry?.model ?? (network.connectedDeviceName.isEmpty || network.connectedDeviceName == "Bağlantı Kesildi" ? "Android Cihazı" : network.connectedDeviceName))
                         .font(.headline)
-                    Text("Android \(telemetryMgr.telemetry?.androidVersion ?? "15") • Samsung One UI")
+                    Text("Android \(telemetryMgr.telemetry?.androidVersion ?? "14+") • \(telemetryMgr.telemetry?.manufacturer ?? "Mobil")")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

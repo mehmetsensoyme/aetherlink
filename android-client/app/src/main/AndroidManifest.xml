@@ -84,6 +84,14 @@
                 android:value="Continuity bridge maintaining low-latency synchronization with user macOS device." />
         </service>
 
+        <receiver
+            android:name=".service.AetherDisconnectReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.aetherlink.action.DISCONNECT" />
+            </intent-filter>
+        </receiver>
+
         <!-- Active Call Relay Service -->
         <service
             android:name=".service.AetherCallRelayService"

@@ -41,6 +41,12 @@ class AetherInCallService : InCallService() {
         val callerHandle = details.handle?.schemeSpecificPart ?: "Bilinmeyen Numara"
         val callerName = details.callerDisplayName ?: callerHandle
 
+        val direction = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            if (details.callDirection == Call.Details.DIRECTION_OUTGOING) "outgoing" else "incoming"
+        } else {
+            if (call.state == Call.STATE_DIALING || call.state == Call.STATE_CONNECTING) "outgoing" else "incoming"
+        }
+
         val payload = JsonObject().apply {
             addProperty("callId", callId)
             addProperty("appType", "cellular")
@@ -48,15 +54,23 @@ class AetherInCallService : InCallService() {
             addProperty("phoneNumber", callerHandle)
             addProperty("timestamp", System.currentTimeMillis().toDouble())
             addProperty("hasVideo", details.hasProperty(Call.Details.PROPERTY_WIFI))
+            addProperty("direction", direction)
         }
 
         AetherCoreService.instance?.sendMessage("CALL_INCOMING", payload)
-        Log.i(TAG, "Incoming call added and relayed to Mac: $callerName ($callId)")
+        Log.i(TAG, "Call added and relayed to Mac: $callerName ($callId, direction: $direction)")
 
         call.registerCallback(object : Call.Callback() {
             override fun onStateChanged(call: Call?, state: Int) {
                 super.onStateChanged(call, state)
-                if (state == Call.STATE_DISCONNECTED) {
+                if (state == Call.STATE_ACTIVE) {
+                    val activePayload = JsonObject().apply {
+                        addProperty("callId", callId)
+                        addProperty("action", "answered")
+                        addProperty("timestamp", System.currentTimeMillis().toDouble())
+                    }
+                    AetherCoreService.instance?.sendMessage("CALL_ACTION", activePayload)
+                } else if (state == Call.STATE_DISCONNECTED) {
                     activeCalls.remove(callId)
                     val dropPayload = JsonObject().apply {
                         addProperty("callId", callId)

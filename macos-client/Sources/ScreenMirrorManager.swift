@@ -83,9 +83,12 @@ public final class ScreenMirrorManager: ObservableObject {
         }
         p.environment = env
         
+        let titleName = NetworkManager.shared.connectedDeviceName.isEmpty || NetworkManager.shared.connectedDeviceName == "Bağlantı Kesildi"
+            ? "Android Cihazı"
+            : NetworkManager.shared.connectedDeviceName
         var args = [
             "--always-on-top",
-            "--window-title=Galaxy S25 Ultra (AetherLink Pro)",
+            "--window-title=\(titleName) (AetherLink Pro)",
             "--max-fps=60",
             "--video-bit-rate=16M"
         ]
@@ -180,7 +183,10 @@ public final class ScreenMirrorManager: ObservableObject {
             defer: false
         )
         
-        window.title = "AetherLink Ekran Yansıtma (Galaxy S25 Ultra)"
+        let deviceTitle = NetworkManager.shared.connectedDeviceName.isEmpty || NetworkManager.shared.connectedDeviceName == "Bağlantı Kesildi"
+            ? "Android Cihazı"
+            : NetworkManager.shared.connectedDeviceName
+        window.title = "AetherLink Ekran Yansıtma (\(deviceTitle))"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
@@ -234,7 +240,7 @@ public struct ScreenMirrorView: View {
                         Circle()
                             .fill(mirror.currentFrame != nil ? Color.green : Color.orange)
                             .frame(width: 8, height: 8)
-                        Text(network.connectedDeviceName.isEmpty ? "Galaxy S25 Ultra" : network.connectedDeviceName)
+                        Text(network.connectedDeviceName.isEmpty || network.connectedDeviceName == "Bağlantı Kesildi" ? "Android Cihazı" : network.connectedDeviceName)
                             .font(.system(size: 13, weight: .semibold))
                     }
                     

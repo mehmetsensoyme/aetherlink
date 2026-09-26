@@ -90,16 +90,25 @@ public final class NetworkManager: ObservableObject {
                 switch state {
                 case .ready:
                     self.isConnected = true
-                    self.connectedDeviceName = "Galaxy S25 Ultra"
+                    if self.connectedDeviceName == "Bağlantı Kesildi" || self.connectedDeviceName.isEmpty {
+                        self.connectedDeviceName = "Bağlanıyor..."
+                    }
                     print("[NetworkManager] Android client connected! (Active: \(self.activeConnections.count))")
+                    
+                    let macName = Host.current().localizedName ?? "MacBook Pro"
+                    let helloPayload = MacHelloPayload(
+                        macName: macName,
+                        timestamp: Date().timeIntervalSince1970 * 1000
+                    )
+                    self.send(type: "MAC_HELLO", payload: helloPayload)
                     MacBatteryMonitor.shared.broadcastBatteryState()
                     self.receiveNextMessage(from: connection)
                 case .cancelled, .failed:
+                    let wasConnected = self.isConnected
                     self.connectionBuffers.removeValue(forKey: ObjectIdentifier(connection))
                     self.activeConnections.removeAll { $0 === connection }
                     if self.activeConnections.isEmpty {
-                        self.isConnected = false
-                        self.connectedDeviceName = "Bağlantı Kesildi"
+                        self.resetSessionState(showNotification: wasConnected, reasonText: "Telefon bağlantısı kesildi")
                     }
                     print("[NetworkManager] Client disconnected (Remaining: \(self.activeConnections.count))")
                 default:
@@ -143,9 +152,19 @@ public final class NetworkManager: ObservableObject {
         print("[NetworkManager] Received message type: \(type)")
         
         switch type {
+        case "DEVICE_INFO", "CLIENT_HANDSHAKE":
+            if let payload = json["payload"] as? [String: Any],
+               let name = payload["deviceName"] as? String, !name.isEmpty {
+                self.connectedDeviceName = name
+                print("[NetworkManager] Set connectedDeviceName from DEVICE_INFO: \(name)")
+            }
+
         case "PAIRING_REQUEST":
             if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
                let request = try? JSONDecoder().decode(PairingRequestPayload.self, from: payloadData) {
+                if !request.deviceName.isEmpty {
+                    self.connectedDeviceName = request.deviceName
+                }
                 PairingManager.shared.handleIncomingPairingRequest(request)
             }
             
@@ -184,6 +203,8 @@ public final class NetworkManager: ObservableObject {
                let action = try? JSONDecoder().decode(CallActionPayload.self, from: payloadData) {
                 if action.action == "hangup" || action.action == "decline" {
                     CallManager.shared.dismissCallBanner()
+                } else if action.action == "answered" {
+                    CallManager.shared.isCallActive = true
                 }
             }
             
@@ -191,6 +212,10 @@ public final class NetworkManager: ObservableObject {
             if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
                let tele = try? JSONDecoder().decode(DeviceTelemetryPayload.self, from: payloadData) {
                 DeviceTelemetryManager.shared.handleIncomingTelemetry(tele)
+                let name = "\(tele.manufacturer) \(tele.model)".trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty && (self.connectedDeviceName == "Bağlanıyor..." || self.connectedDeviceName.isEmpty || self.connectedDeviceName == "Bağlantı Kesildi") {
+                    self.connectedDeviceName = name
+                }
             }
             
         case "SCREEN_STREAM_FRAME":
@@ -200,12 +225,11 @@ public final class NetworkManager: ObservableObject {
             }
             
         case "DISCONNECT":
-            self.isConnected = false
-            self.connectedDeviceName = "Bağlantı Kesildi"
-            self.batteryState = nil
-            self.mediaState = nil
-            ScreenMirrorManager.shared.stopStreamRequest()
-            print("[NetworkManager] Device disconnected from remote side.")
+            let payload = json["payload"] as? [String: Any]
+            let source = payload?["source"] as? String ?? "android"
+            print("[NetworkManager] Received DISCONNECT from source: \(source)")
+            let shouldShowAlert = (source == "android")
+            self.resetSessionState(showNotification: shouldShowAlert, reasonText: "Telefon bağlantısı kesildi")
             
         case "MAC_BATTERY_REQUEST":
             MacBatteryMonitor.shared.broadcastBatteryState()
@@ -218,26 +242,63 @@ public final class NetworkManager: ObservableObject {
         }
     }
     
+    @MainActor
+    public func resetSessionState(showNotification: Bool = false, reasonText: String = "Telefon bağlantısı kesildi") {
+        self.isConnected = false
+        self.connectedDeviceName = "Bağlantı Kesildi"
+        self.batteryState = nil
+        self.mediaState = nil
+        
+        // 1. Reset screen mirror frame cache and close floating window
+        ScreenMirrorManager.shared.currentFrame = nil
+        ScreenMirrorManager.shared.frameCount = 0
+        ScreenMirrorManager.shared.fps = 0.0
+        ScreenMirrorManager.shared.streamResolution = .zero
+        ScreenMirrorManager.shared.isStreaming = false
+        ScreenMirrorManager.shared.closeScreenWindow()
+        
+        // 2. Reset device telemetry and specs
+        DeviceTelemetryManager.shared.telemetry = nil
+        
+        // 3. Post native system alert on Mac if disconnected from phone
+        if showNotification {
+            NotificationManager.shared.displayNotification(NotificationPayload(
+                id: UUID().uuidString,
+                key: "disconnect_alert",
+                packageName: "system",
+                appName: "AetherLink",
+                title: "AetherLink",
+                text: reasonText,
+                subText: nil,
+                timestamp: Date().timeIntervalSince1970 * 1000,
+                canReply: false,
+                replyPlaceholder: nil,
+                appIconBase64: nil
+            ))
+        }
+        print("[NetworkManager] Reset session state complete (Notification: \(showNotification))")
+    }
+    
     public func disconnectDevice(forget: Bool = false) {
         if forget {
             PairingManager.shared.unpair()
         }
         let payload = DisconnectPayload(
             reason: forget ? "unpair" : "user_requested",
+            source: "macos",
             shouldForget: forget,
             timestamp: Date().timeIntervalSince1970 * 1000
         )
         self.send(type: "DISCONNECT", payload: payload)
-        for conn in self.activeConnections {
-            conn.cancel()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            for conn in self.activeConnections {
+                conn.cancel()
+            }
+            self.activeConnections.removeAll()
+            self.resetSessionState(showNotification: false)
+            print("[NetworkManager] Disconnected active device from Mac (forget: \(forget))")
         }
-        self.activeConnections.removeAll()
-        self.isConnected = false
-        self.connectedDeviceName = "Bağlantı Kesildi"
-        self.batteryState = nil
-        self.mediaState = nil
-        ScreenMirrorManager.shared.stopStreamRequest()
-        print("[NetworkManager] Disconnected active device (forget: \(forget))")
     }
     
     public func send<T: Encodable>(type: String, payload: T) {

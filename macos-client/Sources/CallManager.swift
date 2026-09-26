@@ -18,10 +18,13 @@ public final class CallManager: ObservableObject {
         self.activeCall = payload
         self.isCallActive = false
         
-        // Play system ringtone
-        ringtoneSound = NSSound(named: "Glass")
-        ringtoneSound?.loops = true
-        ringtoneSound?.play()
+        let isOutgoing = (payload.direction == "outgoing")
+        if !isOutgoing {
+            // Play system ringtone for incoming calls only
+            ringtoneSound = NSSound(named: "Glass")
+            ringtoneSound?.loops = true
+            ringtoneSound?.play()
+        }
         
         showCallBanner(payload)
     }
@@ -94,12 +97,17 @@ public final class CallManager: ObservableObject {
         
         callWindow?.orderFrontRegardless()
         
+        let isOutgoing = (payload.direction == "outgoing")
+        let callTitle = isOutgoing
+            ? (payload.appType == .cellular ? "Giden Telefon Araması" : "Giden Arama")
+            : (payload.appType == .cellular ? "Gelen Telefon Araması" : "Gelen Arama")
+        
         // Post native macOS banner notification as well
         let notif = NotificationPayload(
             id: payload.callId,
             key: payload.callId,
             packageName: "telecom",
-            appName: payload.appType == .cellular ? "Gelen Telefon Araması" : "Gelen Arama",
+            appName: callTitle,
             title: payload.callerName,
             text: payload.phoneNumber ?? "Bilinmeyen Numara",
             subText: nil,

@@ -23,6 +23,11 @@ public struct PairingResponsePayload: Codable, Sendable {
     public let timestamp: Double
 }
 
+public struct MacHelloPayload: Codable, Sendable {
+    public let macName: String
+    public let timestamp: Double
+}
+
 public struct CallIncomingPayload: Codable, Sendable {
     public let callId: String
     public let appType: CallAppType
@@ -31,6 +36,7 @@ public struct CallIncomingPayload: Codable, Sendable {
     public let avatarBase64: String?
     public let timestamp: Double
     public let hasVideo: Bool
+    public let direction: String? // "incoming" or "outgoing"
 }
 
 public struct CallActionPayload: Codable, Sendable {
@@ -134,6 +140,7 @@ public struct ScreenStreamFramePayload: Codable, Sendable {
 
 public struct DisconnectPayload: Codable, Sendable {
     public let reason: String
+    public let source: String?
     public let shouldForget: Bool
     public let timestamp: Double
 }

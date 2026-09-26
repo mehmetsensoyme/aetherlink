@@ -21,8 +21,9 @@ object DeviceTelemetryManager {
         val payload = JsonObject()
 
         // 1. Device Hardware & OS Info
-        payload.addProperty("model", Build.MODEL ?: "Galaxy S25 Ultra")
-        payload.addProperty("manufacturer", Build.MANUFACTURER ?: "Samsung")
+        payload.addProperty("deviceName", org.aetherlink.util.DeviceUtils.getDeviceName())
+        payload.addProperty("model", Build.MODEL ?: "Android")
+        payload.addProperty("manufacturer", Build.MANUFACTURER ?: "Android")
         payload.addProperty("androidVersion", Build.VERSION.RELEASE ?: "15")
         payload.addProperty("sdkLevel", Build.VERSION.SDK_INT)
 

@@ -199,8 +199,8 @@ fun MainScreen() {
                             onClick = {
                                 pairingCode = String.format("%03d %03d", (100..999).random(), (100..999).random())
                                 val payload = JsonObject().apply {
-                                    addProperty("deviceId", "android_s25_ultra")
-                                    addProperty("deviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
+                                    addProperty("deviceId", org.aetherlink.util.DeviceUtils.getDeviceId())
+                                    addProperty("deviceName", org.aetherlink.util.DeviceUtils.getDeviceName())
                                     addProperty("confirmationCode", pairingCode)
                                     addProperty("timestamp", System.currentTimeMillis())
                                 }
@@ -228,8 +228,8 @@ fun MainScreen() {
                                         macIpInput = ip
                                         AetherCoreService.instance?.connectToMacWebSocket(ip)
                                         val payload = JsonObject().apply {
-                                            addProperty("deviceId", "android_s25_ultra")
-                                            addProperty("deviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
+                                            addProperty("deviceId", org.aetherlink.util.DeviceUtils.getDeviceId())
+                                            addProperty("deviceName", org.aetherlink.util.DeviceUtils.getDeviceName())
                                             addProperty("confirmationCode", code)
                                             addProperty("timestamp", System.currentTimeMillis())
                                         }
@@ -252,24 +252,43 @@ fun MainScreen() {
                         Text("Kamera ile Mac QR Kodunu Tara")
                     }
 
-                    // Disconnect Actions
+                    // Live Connection State
+                    val isServiceConnected by AetherCoreService.isConnectedState.collectAsState()
+
+                    // Disconnect / Reconnect Actions
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                AetherCoreService.instance?.disconnect(forget = false)
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF9800)),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.Default.LinkOff, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Bağlantıyı Kes", fontSize = 12.sp)
+                        if (isServiceConnected) {
+                            OutlinedButton(
+                                onClick = {
+                                    AetherCoreService.instance?.disconnect(userInitiated = true, forget = false)
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF9800)),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.LinkOff, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Bağlantıyı Kes", fontSize = 12.sp)
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    val ip = discoveredMacIp ?: macIpInput.trim()
+                                    AetherCoreService.instance?.connectToMacWebSocket(ip)
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Yeniden Bağlan", fontSize = 12.sp)
+                            }
                         }
 
                         OutlinedButton(
                             onClick = {
-                                AetherCoreService.instance?.disconnect(forget = true)
+                                AetherCoreService.instance?.disconnect(userInitiated = true, forget = true)
                             },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -372,7 +391,7 @@ fun MainScreen() {
                         }
                     }
 
-                    // Samsung Galaxy S25 Ultra Battery Row
+                    // Dynamic Phone Battery Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -393,7 +412,7 @@ fun MainScreen() {
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text("Galaxy S25 Ultra (Bu Cihaz)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text("${org.aetherlink.util.DeviceUtils.getDeviceName()} (Bu Cihaz)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                                 val phoneDesc = if (phoneBattery.isCharging) {
                                     "Şarj Oluyor (Prize Takılı)"
                                 } else if (phoneBattery.isPluggedIn) {

@@ -17,6 +17,7 @@ DerivedData/
 build/
 app/build/
 *.apk
+!release_assets/*.apk
 *.aab
 local.properties
 .idea/
