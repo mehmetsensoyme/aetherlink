@@ -15,6 +15,10 @@ struct AetherLinkApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        freopen("/tmp/aetherlink_debug.log", "a", stdout)
+        freopen("/tmp/aetherlink_debug.log", "a", stderr)
+        print("[AetherLink] applicationDidFinishLaunching triggered")
+        
         // Prevent app from showing in Dock (pure menu bar daemon)
         NSApp.setActivationPolicy(.accessory)
         
@@ -23,6 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Start Local mDNS & WebSocket Server
         NetworkManager.shared.startServer()
+        
+        // Start UDP Broadcast Discovery Responder (Port 8444)
+        UDPDiscoveryResponder.shared.start()
         
         // Start Universal Clipboard Sync
         ClipboardManager.shared.startMonitoring()

@@ -132,6 +132,8 @@ class AetherCoreService : Service() {
                     override fun onOpen(webSocket: WebSocket, response: Response) {
                         isConnected = true
                         Log.i(TAG, "Connected to macOS AetherLink listener at $macIpAddress:8443")
+                        org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
+                        startPeriodicTelemetry()
                     }
 
                     override fun onMessage(webSocket: WebSocket, text: String) {
@@ -158,6 +160,32 @@ class AetherCoreService : Service() {
         }
     }
 
+    private var telemetryJob: Job? = null
+    private fun startPeriodicTelemetry() {
+        telemetryJob?.cancel()
+        telemetryJob = serviceScope.launch {
+            while (isActive && isConnected) {
+                delay(30000)
+                org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
+            }
+        }
+    }
+
+    fun disconnect(forget: Boolean = false) {
+        val payload = JsonObject().apply {
+            addProperty("reason", if (forget) "unpair" else "user_requested")
+            addProperty("shouldForget", forget)
+            addProperty("timestamp", System.currentTimeMillis())
+        }
+        sendMessage("DISCONNECT", payload)
+        isConnected = false
+        telemetryJob?.cancel()
+        org.aetherlink.screen.ScreenStreamManager.stopCapture()
+        webSocket?.close(1000, "User disconnected")
+        webSocket = null
+        Log.i(TAG, "Disconnected from Mac (forget: $forget)")
+    }
+
     private fun handleIncomingMacMessage(jsonString: String) {
         try {
             val json = gson.fromJson(jsonString, JsonObject::class.java)
@@ -165,6 +193,21 @@ class AetherCoreService : Service() {
             val payload = json.getAsJsonObject("payload") ?: return
 
             when (type) {
+                "DEVICE_TELEMETRY_REQUEST" -> {
+                    org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this)
+                }
+                "SCREEN_STREAM_CONTROL" -> {
+                    val action = payload.get("action")?.asString ?: ""
+                    if (action == "start") {
+                        org.aetherlink.screen.ScreenStreamManager.startCapture()
+                    } else if (action == "stop") {
+                        org.aetherlink.screen.ScreenStreamManager.stopCapture()
+                    }
+                }
+                "DISCONNECT" -> {
+                    val shouldForget = payload.get("shouldForget")?.asBoolean ?: false
+                    disconnect(shouldForget)
+                }
                 "CALL_ACTION" -> {
                     val callId = payload.get("callId")?.asString ?: ""
                     val action = payload.get("action")?.asString ?: ""

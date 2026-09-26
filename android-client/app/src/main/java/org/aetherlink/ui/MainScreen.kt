@@ -3,7 +3,7 @@ package org.aetherlink.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.PowerManager
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,8 +23,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.gson.JsonObject
 import kotlinx.coroutines.launch
+import org.aetherlink.discovery.AetherNsdDiscovery
+import org.aetherlink.screen.ScreenStreamManager
 import org.aetherlink.service.AetherCoreService
+import org.aetherlink.telemetry.DeviceTelemetryManager
 import org.aetherlink.updater.AndroidUpdateChecker
 import org.aetherlink.updater.UpdateInfo
 
@@ -34,8 +38,30 @@ fun MainScreen() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var macIpInput by remember { mutableStateOf("127.0.0.1") }
+    var discoveredMacName by remember { mutableStateOf<String?>(null) }
+    var discoveredMacIp by remember { mutableStateOf<String?>(null) }
+    var isDiscovering by remember { mutableStateOf(false) }
+    var isScreenStreaming by remember { mutableStateOf(ScreenStreamManager.isStreaming) }
+    var showPairingDialog by remember { mutableStateOf(false) }
+    var pairingCode by remember { mutableStateOf("482 915") }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
+
+    // Start mDNS Discovery
+    DisposableEffect(Unit) {
+        val discovery = AetherNsdDiscovery(context) { name, host, port ->
+            discoveredMacName = name
+            discoveredMacIp = host
+            macIpInput = host
+        }
+        discovery.startDiscovery()
+        isDiscovering = true
+
+        onDispose {
+            discovery.stopDiscovery()
+            isDiscovering = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -81,6 +107,39 @@ fun MainScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Discovered Mac Banner (mDNS Bonjour)
+            if (discoveredMacName != null && discoveredMacIp != null) {
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.LaptopMac, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(discoveredMacName ?: "MacBook Pro", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Yerel Ağda Bulundu (${discoveredMacIp})", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                macIpInput = discoveredMacIp ?: "127.0.0.1"
+                                AetherCoreService.instance?.connectToMacWebSocket(macIpInput)
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Bağlan", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             // Connection Card
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -113,16 +172,174 @@ fun MainScreen() {
                         singleLine = true
                     )
 
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                AetherCoreService.instance?.connectToMacWebSocket(macIpInput)
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Bağlan")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                pairingCode = String.format("%03d %03d", (100..999).random(), (100..999).random())
+                                val payload = JsonObject().apply {
+                                    addProperty("deviceId", "android_s25_ultra")
+                                    addProperty("deviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
+                                    addProperty("confirmationCode", pairingCode)
+                                    addProperty("timestamp", System.currentTimeMillis())
+                                }
+                                AetherCoreService.instance?.sendMessage("PAIRING_REQUEST", payload)
+                                showPairingDialog = true
+                            },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Eşleştir")
+                        }
+                    }
+
+                    // Disconnect Actions
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                AetherCoreService.instance?.disconnect(forget = false)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF9800)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.LinkOff, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Bağlantıyı Kes", fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                AetherCoreService.instance?.disconnect(forget = true)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Eşleşmeyi Sil", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            // Wireless Screen Mirroring Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.CastConnected,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Kablosuz Ekran Aktarımı", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        if (isScreenStreaming) {
+                            Badge(containerColor = Color(0xFF4CAF50)) {
+                                Text("Canlı Yayında", color = Color.White, modifier = Modifier.padding(2.dp))
+                            }
+                        }
+                    }
+
+                    Text(
+                        "Telefon ekranını düşük gecikmeyle doğrudan Mac penceresine canlı olarak yansıtır.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+
                     Button(
                         onClick = {
-                            AetherCoreService.instance?.connectToMacWebSocket(macIpInput)
+                            if (ScreenStreamManager.isStreaming) {
+                                ScreenStreamManager.stopCapture()
+                                isScreenStreaming = false
+                            } else {
+                                ScreenStreamManager.startCapture()
+                                isScreenStreaming = true
+                            }
                         },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isScreenStreaming) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        ),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(Icons.Default.Link, contentDescription = null)
+                        Icon(
+                            if (isScreenStreaming) Icons.Default.Stop else Icons.Default.PlayArrow,
+                            contentDescription = null
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Mac'e Bağlan / Yenile")
+                        Text(if (isScreenStreaming) "Yayını Durdur" else "Ekranı Mac'e Yansıt")
+                    }
+                }
+            }
+
+            // Real-Time Device Telemetry Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Smartphone, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Cihaz Donanım Bilgileri", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        TextButton(onClick = {
+                            DeviceTelemetryManager.dispatchTelemetry(context)
+                        }) {
+                            Text("Mac'e Gönder", fontSize = 12.sp)
+                        }
+                    }
+
+                    Text("${Build.MANUFACTURER} ${Build.MODEL} • Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column {
+                            Text("Pil Durumu", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text("85% • 28.5°C", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
+                        Column {
+                            Text("RAM Kullanımı", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text("7.2 GB / 12 GB", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
+                        Column {
+                            Text("Depolama", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text("392 GB Boş", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
                     }
                 }
             }
@@ -182,6 +399,46 @@ fun MainScreen() {
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
         }
+    }
+
+    // Pairing Confirmation Dialog Modal
+    if (showPairingDialog) {
+        AlertDialog(
+            onDismissRequest = { showPairingDialog = false },
+            icon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Eşleştirme Onay Kodu") },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("MacBook ekranınızda da aynı kod görünüyor mu?")
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = pairingCode,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                        )
+                    }
+                    Text(
+                        "Her iki ekranda kodlar uyuşuyorsa bağlantı onaylanmıştır.",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showPairingDialog = false }) {
+                    Text("Tamam")
+                }
+            }
+        )
     }
 
     // Update Dialog Modal

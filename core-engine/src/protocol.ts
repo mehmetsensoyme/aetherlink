@@ -5,6 +5,20 @@
 
 export type CallAppType = 'cellular' | 'whatsapp' | 'telegram' | 'signal' | 'slack' | 'instagram';
 
+export interface PairingRequestPayload {
+  deviceId: string;
+  deviceName: string;
+  confirmationCode: string; // 6-digit PIN (e.g. "482 195")
+  timestamp: number;
+}
+
+export interface PairingResponsePayload {
+  approved: boolean;
+  token?: string;
+  macName: string;
+  timestamp: number;
+}
+
 export interface CallIncomingPayload {
   callId: string;
   appType: CallAppType;
@@ -68,6 +82,8 @@ export interface MediaSessionPayload {
 }
 
 export type AetherMessage = 
+  | { type: 'PAIRING_REQUEST'; payload: PairingRequestPayload }
+  | { type: 'PAIRING_RESPONSE'; payload: PairingResponsePayload }
   | { type: 'CALL_INCOMING'; payload: CallIncomingPayload }
   | { type: 'CALL_ACTION'; payload: CallActionPayload }
   | { type: 'NOTIFICATION_POSTED'; payload: NotificationPayload }
@@ -85,6 +101,14 @@ export class ProtocolValidator {
     if (typeof m.type !== 'string') return false;
 
     switch (m.type) {
+      case 'PAIRING_REQUEST': {
+        const p = m.payload as Partial<PairingRequestPayload>;
+        return !!p && typeof p.deviceId === 'string' && typeof p.confirmationCode === 'string';
+      }
+      case 'PAIRING_RESPONSE': {
+        const p = m.payload as Partial<PairingResponsePayload>;
+        return !!p && typeof p.approved === 'boolean';
+      }
       case 'CALL_INCOMING': {
         const p = m.payload as Partial<CallIncomingPayload>;
         return !!p && typeof p.callId === 'string' && typeof p.callerName === 'string';

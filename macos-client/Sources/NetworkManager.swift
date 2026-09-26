@@ -10,6 +10,31 @@ public final class NetworkManager: ObservableObject {
     @Published public var batteryState: BatteryPayload? = nil
     @Published public var mediaState: MediaSessionPayload? = nil
     
+    public var localIPAddress: String {
+        var address: String = "127.0.0.1"
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0 else { return address }
+        guard let firstAddr = ifaddr else { return address }
+        
+        for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
+            let interface = ptr.pointee
+            let addrFamily = interface.ifa_addr.pointee.sa_family
+            if addrFamily == UInt8(AF_INET) {
+                let name = String(cString: interface.ifa_name)
+                if name == "en0" || name == "en1" {
+                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                                &hostname, socklen_t(hostname.count),
+                                nil, socklen_t(0), NI_NUMERICHOST)
+                    address = String(cString: hostname)
+                    break
+                }
+            }
+        }
+        freeifaddrs(ifaddr)
+        return address
+    }
+    
     private var listener: NWListener?
     private var activeConnection: NWConnection?
     private let port: NWEndpoint.Port = 8443
@@ -32,7 +57,7 @@ public final class NetworkManager: ObservableObject {
                 Task { @MainActor in
                     switch state {
                     case .ready:
-                        print("[NetworkManager] AetherLink mDNS & WebSocket listener ready on port \(self.port)")
+                        print("[NetworkManager] AetherLink mDNS & WebSocket listener ready on port \(self.port) (IP: \(self.localIPAddress))")
                     case .failed(let error):
                         print("[NetworkManager] Listener failed: \(error)")
                     default:
@@ -48,6 +73,9 @@ public final class NetworkManager: ObservableObject {
             }
             
             listener?.start(queue: .main)
+            
+            // Start UDP Discovery Responder as well
+            UDPDiscoveryResponder.shared.start()
         } catch {
             print("[NetworkManager] Could not initialize NWListener: \(error)")
         }
@@ -93,6 +121,12 @@ public final class NetworkManager: ObservableObject {
               let type = json["type"] as? String else { return }
         
         switch type {
+        case "PAIRING_REQUEST":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let request = try? JSONDecoder().decode(PairingRequestPayload.self, from: payloadData) {
+                PairingManager.shared.handleIncomingPairingRequest(request)
+            }
+            
         case "BATTERY_UPDATE":
             if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
                let battery = try? JSONDecoder().decode(BatteryPayload.self, from: payloadData) {
@@ -123,9 +157,52 @@ public final class NetworkManager: ObservableObject {
                 CallManager.shared.handleIncomingCall(call)
             }
             
+        case "DEVICE_TELEMETRY":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let tele = try? JSONDecoder().decode(DeviceTelemetryPayload.self, from: payloadData) {
+                DeviceTelemetryManager.shared.handleIncomingTelemetry(tele)
+            }
+            
+        case "SCREEN_STREAM_FRAME":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let frame = try? JSONDecoder().decode(ScreenStreamFramePayload.self, from: payloadData) {
+                ScreenMirrorManager.shared.handleIncomingFrame(frame)
+            }
+            
+        case "DISCONNECT":
+            self.isConnected = false
+            self.connectedDeviceName = "Bağlantı Kesildi"
+            self.batteryState = nil
+            self.mediaState = nil
+            ScreenMirrorManager.shared.stopStreamRequest()
+            print("[NetworkManager] Device disconnected from remote side.")
+            
+        case "HEARTBEAT_PING":
+            self.send(type: "HEARTBEAT_PONG", payload: ["timestamp": Date().timeIntervalSince1970 * 1000])
+            
         default:
             print("[NetworkManager] Unhandled message type: \(type)")
         }
+    }
+    
+    public func disconnectDevice(forget: Bool = false) {
+        if forget {
+            PairingManager.shared.unpair()
+        }
+        let payload = DisconnectPayload(
+            reason: forget ? "unpair" : "user_requested",
+            shouldForget: forget,
+            timestamp: Date().timeIntervalSince1970 * 1000
+        )
+        self.send(type: "DISCONNECT", payload: payload)
+        self.activeConnection?.cancel()
+        self.activeConnection = nil
+        self.isConnected = false
+        self.connectedDeviceName = "Bağlantı Kesildi"
+        self.batteryState = nil
+        self.mediaState = nil
+        ScreenMirrorManager.shared.stopStreamRequest()
+        print("[NetworkManager] Disconnected active device (forget: \(forget))")
     }
     
     public func send<T: Encodable>(type: String, payload: T) {
