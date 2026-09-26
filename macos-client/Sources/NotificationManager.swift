@@ -1,9 +1,13 @@
+import AppKit
 import Foundation
 import UserNotifications
 
 @MainActor
-public final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+public final class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     public static let shared = NotificationManager()
+    
+    @Published public var isAuthorized: Bool = false
+    @Published public var authorizationStatus: UNAuthorizationStatus = .notDetermined
     
     public override init() {
         super.init()
@@ -27,11 +31,36 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         )
         
         center.setNotificationCategories([category])
+        refreshStatus()
     }
     
-    public func requestAuthorization() {
+    public func refreshStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            Task { @MainActor in
+                self.authorizationStatus = settings.authorizationStatus
+                self.isAuthorized = (settings.authorizationStatus == .authorized)
+            }
+        }
+    }
+    
+    public func requestAuthorization(completion: ((Bool) -> Void)? = nil) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            print("[NotificationManager] Notification permission granted: \(granted)")
+            Task { @MainActor in
+                self.isAuthorized = granted
+                self.refreshStatus()
+                if let error = error {
+                    print("[NotificationManager] Notification authorization error: \(error)")
+                } else {
+                    print("[NotificationManager] Notification authorization granted: \(granted)")
+                }
+                completion?(granted)
+            }
+        }
+    }
+    
+    public func openNotificationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+            NSWorkspace.shared.open(url)
         }
     }
     

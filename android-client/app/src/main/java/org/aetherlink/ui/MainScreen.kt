@@ -29,6 +29,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.aetherlink.discovery.AetherNsdDiscovery
+import org.aetherlink.permission.AetherPermissionManager
+import org.aetherlink.permission.PermissionOnboardingDialog
+import org.aetherlink.permission.PermissionStatusBanner
 import org.aetherlink.screen.ScreenStreamManager
 import org.aetherlink.service.AetherCoreService
 import org.aetherlink.telemetry.DeviceTelemetryManager
@@ -49,6 +52,24 @@ fun MainScreen() {
     var pairingCode by remember { mutableStateOf("482 915") }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
+
+    // Runtime Permission State
+    var permissionStatus by remember { mutableStateOf(AetherPermissionManager.checkAllPermissions(context)) }
+    var showPermissionDialog by remember { mutableStateOf(!permissionStatus.allCoreGranted) }
+
+    // Re-check permissions on resume (e.g. returning from app settings)
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                permissionStatus = AetherPermissionManager.checkAllPermissions(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (isActive) {
@@ -73,6 +94,19 @@ fun MainScreen() {
         }
     }
 
+    if (showPermissionDialog) {
+        PermissionOnboardingDialog(
+            status = permissionStatus,
+            onDismiss = { showPermissionDialog = false },
+            onRefresh = {
+                permissionStatus = AetherPermissionManager.checkAllPermissions(context)
+                if (permissionStatus.allCoreGranted) {
+                    showPermissionDialog = false
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -89,6 +123,18 @@ fun MainScreen() {
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showPermissionDialog = true }) {
+                        BadgedBox(
+                            badge = {
+                                if (!permissionStatus.allCoreGranted) {
+                                    Badge(containerColor = Color(0xFFE65100))
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Security, contentDescription = "İzinler ve Güvenlik")
+                        }
+                    }
+
                     IconButton(onClick = {
                         coroutineScope.launch {
                             isCheckingUpdate = true
@@ -117,6 +163,12 @@ fun MainScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Permission Status Warning Banner (Visible if any core permission is missing)
+            PermissionStatusBanner(
+                status = permissionStatus,
+                onClick = { showPermissionDialog = true }
+            )
+
             // Discovered Mac Banner (mDNS Bonjour)
             if (discoveredMacName != null && discoveredMacIp != null) {
                 Card(

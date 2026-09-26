@@ -494,6 +494,7 @@ public struct MenuBarContentView: View {
     @ObservedObject var pairing = PairingManager.shared
     @ObservedObject var mirror = ScreenMirrorManager.shared
     @ObservedObject var telemetryMgr = DeviceTelemetryManager.shared
+    @ObservedObject var notifManager = NotificationManager.shared
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -527,6 +528,29 @@ public struct MenuBarContentView: View {
                 }
             }
             .padding(.bottom, 4)
+            
+            // macOS Local Notification Permission Banner
+            if !notifManager.isAuthorized && notifManager.authorizationStatus == .denied {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.slash.fill")
+                        .foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Bildirim İzni Gerekli")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                        Text("Aramaları ve uyarıları görebilmek için izin verin.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button("Ayarları Aç") {
+                        notifManager.openNotificationSettings()
+                    }
+                    .font(.caption2)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
+            }
             
             Divider()
             
