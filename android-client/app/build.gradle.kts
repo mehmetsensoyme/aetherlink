@@ -55,5 +55,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.11.0")
 
+    // Google Play Services Code Scanner (No camera permission needed, official QR scanner)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+
     debugImplementation(libs.androidx.ui.tooling)
 }

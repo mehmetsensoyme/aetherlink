@@ -13,11 +13,66 @@ public final class ScreenMirrorManager: ObservableObject {
     @Published public var streamResolution: CGSize = .zero
     @Published public var isWindowOpen: Bool = false
     
+    @Published public var isScrcpyRunning: Bool = false
+    
     private var windowController: NSWindowController?
+    private var scrcpyProcess: Process?
     private var lastFrameTime: TimeInterval = 0
     private var frameTimer: Timer?
     
+    public var hasScrcpyInstalled: Bool {
+        let paths = ["/opt/homebrew/bin/scrcpy", "/usr/local/bin/scrcpy", "/usr/bin/scrcpy"]
+        return paths.contains { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+    
     public init() {}
+    
+    public func launchScrcpyMirror(wirelessIp: String? = nil) {
+        if isScrcpyRunning {
+            scrcpyProcess?.terminate()
+            scrcpyProcess = nil
+            isScrcpyRunning = false
+            return
+        }
+        
+        let paths = ["/opt/homebrew/bin/scrcpy", "/usr/local/bin/scrcpy", "/usr/bin/scrcpy"]
+        guard let binPath = paths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            startStreamRequest()
+            return
+        }
+        
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: binPath)
+        
+        var args = [
+            "--always-on-top",
+            "--window-title=Galaxy S25 Ultra (AetherLink Pro)",
+            "--max-fps=60",
+            "--video-bit-rate=16M"
+        ]
+        
+        if let ip = wirelessIp, !ip.isEmpty, ip != "127.0.0.1" {
+            args.append("--tcpip=\(ip):5555")
+        }
+        
+        p.arguments = args
+        p.terminationHandler = { [weak self] _ in
+            Task { @MainActor in
+                self?.isScrcpyRunning = false
+                self?.scrcpyProcess = nil
+            }
+        }
+        
+        do {
+            try p.run()
+            self.scrcpyProcess = p
+            self.isScrcpyRunning = true
+            print("[ScreenMirrorManager] Scrcpy Pro mirroring launched successfully!")
+        } catch {
+            print("[ScreenMirrorManager] Could not run scrcpy: \(error), falling back to P2P")
+            startStreamRequest()
+        }
+    }
     
     public func startStreamRequest() {
         let payload = ScreenStreamControlPayload(
@@ -32,6 +87,11 @@ public final class ScreenMirrorManager: ObservableObject {
     }
     
     public func stopStreamRequest() {
+        if isScrcpyRunning {
+            scrcpyProcess?.terminate()
+            scrcpyProcess = nil
+            isScrcpyRunning = false
+        }
         let payload = ScreenStreamControlPayload(
             action: "stop",
             quality: "high",

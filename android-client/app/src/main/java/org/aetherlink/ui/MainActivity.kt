@@ -28,6 +28,35 @@ class MainActivity : ComponentActivity() {
         fun requestScreenCapture() {
             instance?.launchScreenCapturePrompt()
         }
+
+        fun scanQrCode(onScanned: (String) -> Unit) {
+            instance?.launchQrCameraScanner(onScanned)
+        }
+    }
+
+    fun launchQrCameraScanner(onScanned: (String) -> Unit) {
+        try {
+            val options = com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build()
+            val scanner = com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this, options)
+            scanner.startScan()
+                .addOnSuccessListener { barcode ->
+                    val raw = barcode.rawValue
+                    if (!raw.isNullOrBlank()) {
+                        Log.i(TAG, "QR Code scanned successfully: $raw")
+                        onScanned(raw)
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "QR Scanner failed: ${e.message}")
+                    Toast.makeText(this, "Kamera taraması başarısız: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+        } catch (e: Exception) {
+            Log.e(TAG, "GmsBarcodeScanner not available: ${e.message}", e)
+            Toast.makeText(this, "Kamera açılırken hata oluştu: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private val screenCaptureLauncher = registerForActivityResult(

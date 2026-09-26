@@ -87,6 +87,7 @@ class AetherCoreService : Service() {
         startForegroundWithType()
         registerBatteryMonitoring()
         ClipboardSyncManager.init(this)
+        org.aetherlink.bluetooth.BluetoothAudioManager.init(this)
         connectToMacWebSocket()
         Log.i(TAG, "AetherCoreService started.")
     }
@@ -334,6 +335,9 @@ class AetherCoreService : Service() {
                 "DISCONNECT" -> {
                     val shouldForget = payload.get("shouldForget")?.asBoolean ?: false
                     disconnect(shouldForget)
+                }
+                "BLUETOOTH_HANDSHAKE" -> {
+                    org.aetherlink.bluetooth.BluetoothAudioManager.handleIncomingBluetoothHandshake(payload, this)
                 }
                 "CALL_ACTION" -> {
                     val callId = payload.get("callId")?.asString ?: ""

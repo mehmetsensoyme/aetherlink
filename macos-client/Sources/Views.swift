@@ -514,20 +514,22 @@ public struct MenuBarContentView: View {
             // Quick Continuity Actions (Screen Mirroring & Specs)
             HStack(spacing: 8) {
                 Button(action: {
-                    if mirror.isStreaming {
+                    if mirror.hasScrcpyInstalled {
+                        mirror.launchScrcpyMirror(wirelessIp: "192.168.1.4")
+                    } else if mirror.isStreaming {
                         mirror.stopStreamRequest()
                     } else {
                         mirror.startStreamRequest()
                     }
                 }) {
                     HStack(spacing: 4) {
-                        Image(systemName: mirror.isStreaming ? "display.trianglebadge.exclamationmark" : "display")
-                        Text(mirror.isStreaming ? "Yansıtmayı Durdur" : "Ekranı Yansıt")
+                        Image(systemName: (mirror.isStreaming || mirror.isScrcpyRunning) ? "display.trianglebadge.exclamationmark" : "display")
+                        Text((mirror.isStreaming || mirror.isScrcpyRunning) ? "Yansıtmayı Durdur" : (mirror.hasScrcpyInstalled ? "Ekranı Yansıt (Scrcpy 60fps)" : "Ekranı Yansıt"))
                     }
                     .font(.caption)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(mirror.isStreaming ? .red : .blue)
+                .tint((mirror.isStreaming || mirror.isScrcpyRunning) ? .red : .blue)
                 
                 Button(action: {
                     telemetryMgr.isShowingDetailSheet = true

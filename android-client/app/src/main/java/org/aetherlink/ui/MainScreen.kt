@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -214,6 +215,43 @@ fun MainScreen() {
                         }
                     }
 
+                    // Camera QR Code Scanner Button
+                    Button(
+                        onClick = {
+                            MainActivity.scanQrCode { raw ->
+                                try {
+                                    val uri = Uri.parse(raw)
+                                    if (uri.scheme == "aetherlink" && uri.host == "pair") {
+                                        val ip = uri.getQueryParameter("ip") ?: macIpInput
+                                        val code = uri.getQueryParameter("code") ?: "123456"
+                                        val name = uri.getQueryParameter("name") ?: "MacBook"
+                                        macIpInput = ip
+                                        AetherCoreService.instance?.connectToMacWebSocket(ip)
+                                        val payload = JsonObject().apply {
+                                            addProperty("deviceId", "android_s25_ultra")
+                                            addProperty("deviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
+                                            addProperty("confirmationCode", code)
+                                            addProperty("timestamp", System.currentTimeMillis())
+                                        }
+                                        AetherCoreService.instance?.sendMessage("PAIRING_REQUEST", payload)
+                                        Toast.makeText(context, "$name QR Kodu Başarıyla Tarandı ve Eşleşildi!", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Tanınmayan QR formatı: $raw", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "QR İşleme Hatası: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Kamera ile Mac QR Kodunu Tara")
+                    }
+
                     // Disconnect Actions
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
@@ -385,6 +423,57 @@ fun MainScreen() {
                                 modifier = Modifier.size(22.dp)
                             )
                         }
+                    }
+                }
+            }
+
+            // Bluetooth Audio Sync (Android Auto style)
+            val isBtPaired by org.aetherlink.bluetooth.BluetoothAudioManager.isPairedWithMac.collectAsState()
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Bluetooth,
+                                contentDescription = null,
+                                tint = Color(0xFF2196F3),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Bluetooth Ses Köprüsü", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Badge(containerColor = if (isBtPaired) Color(0xFF4CAF50) else Color(0xFFFF9800)) {
+                            Text(if (isBtPaired) "Ses Aktif" else "Eşleşme Bekleniyor", color = Color.White, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                        }
+                    }
+
+                    Text(
+                        "Telefon sesini ve aramalarını Android Auto tarzında kablosuz olarak Mac'e aktarır.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+
+                    Button(
+                        onClick = {
+                            org.aetherlink.bluetooth.BluetoothAudioManager.initiateBonding(context)
+                            val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.BluetoothSearching, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (isBtPaired) "Bluetooth Ayarlarını Yönet" else "Mac ile Bluetooth Eşleşmesi Başlat")
                     }
                 }
             }
