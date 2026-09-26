@@ -179,6 +179,14 @@ public final class NetworkManager: ObservableObject {
                 CallManager.shared.handleIncomingCall(call)
             }
             
+        case "CALL_ACTION":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let action = try? JSONDecoder().decode(CallActionPayload.self, from: payloadData) {
+                if action.action == "hangup" || action.action == "decline" {
+                    CallManager.shared.dismissCallBanner()
+                }
+            }
+            
         case "DEVICE_TELEMETRY":
             if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
                let tele = try? JSONDecoder().decode(DeviceTelemetryPayload.self, from: payloadData) {

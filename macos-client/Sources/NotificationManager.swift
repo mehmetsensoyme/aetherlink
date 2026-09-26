@@ -59,6 +59,19 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         }
     }
     
+    // Ensure notifications display even when app is active
+    public nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        if #available(macOS 11.0, *) {
+            completionHandler([.banner, .sound, .badge])
+        } else {
+            completionHandler([.alert, .sound, .badge])
+        }
+    }
+    
     // Handle inline reply entered by user on macOS
     public nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,

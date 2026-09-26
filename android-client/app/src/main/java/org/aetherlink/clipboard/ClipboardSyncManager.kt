@@ -53,9 +53,13 @@ object ClipboardSyncManager {
         lastSyncedHash = hash
 
         mainHandler.post {
-            val clip = ClipData.newPlainText("AetherLink Sync", text)
-            clipboardManager?.setPrimaryClip(clip)
-            Log.d(TAG, "Applied remote Mac clipboard to Android: ${text.take(20)}...")
+            try {
+                val clip = ClipData.newPlainText("AetherLink Sync", text)
+                clipboardManager?.setPrimaryClip(clip)
+                Log.d(TAG, "Applied remote Mac clipboard to Android: ${text.take(20)}...")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not apply remote clipboard: ${e.message}")
+            }
         }
     }
 
