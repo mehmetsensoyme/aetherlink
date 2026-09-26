@@ -50,6 +50,39 @@ class AetherNotificationListener : NotificationListenerService() {
         val title = extras.getString(Notification.EXTRA_TITLE) ?: return
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
 
+        // Check for Media Playback (Spotify / Apple Music)
+        if (pkg == "com.spotify.music" || pkg == "com.spotify.lite" || pkg == "com.apple.android.music") {
+            val trackTitle = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+            val artist = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+            val album = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
+            
+            if (trackTitle.isNotEmpty()) {
+                var isPlaying = true
+                val actionsCount = NotificationCompat.getActionCount(notification)
+                for (i in 0 until actionsCount) {
+                    val act = NotificationCompat.getAction(notification, i)
+                    val actionTitle = act?.title?.toString()?.lowercase() ?: ""
+                    if (actionTitle.contains("play") || actionTitle.contains("oynat") || actionTitle.contains("çal")) {
+                        isPlaying = false
+                        break
+                    }
+                }
+                
+                val mediaPayload = JsonObject().apply {
+                    addProperty("packageName", pkg)
+                    addProperty("trackTitle", trackTitle)
+                    addProperty("artist", artist)
+                    addProperty("album", album)
+                    addProperty("isPlaying", isPlaying)
+                    addProperty("positionMs", 0.0)
+                    addProperty("durationMs", 0.0)
+                    addProperty("artworkBase64", "")
+                }
+                AetherCoreService.instance?.sendMessage("MEDIA_UPDATE", mediaPayload)
+                Log.i(TAG, "Relayed media track to Mac: [$pkg] $trackTitle - $artist (isPlaying: $isPlaying)")
+            }
+        }
+
         // Filter system notifications or ongoing progress bars
         if ((notification.flags and Notification.FLAG_ONGOING_EVENT) != 0) return
         if (text.isEmpty() && !MESSAGING_PACKAGES.contains(pkg)) return
@@ -123,7 +156,21 @@ class AetherNotificationListener : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         super.onNotificationRemoved(sbn)
-        sbn?.key?.let { cachedActions.remove(it) }
+        val pkg = sbn?.packageName ?: return
+        sbn.key?.let { cachedActions.remove(it) }
+        if (pkg == "com.spotify.music" || pkg == "com.spotify.lite" || pkg == "com.apple.android.music") {
+            val mediaPayload = JsonObject().apply {
+                addProperty("packageName", pkg)
+                addProperty("trackTitle", "")
+                addProperty("artist", "")
+                addProperty("album", "")
+                addProperty("isPlaying", false)
+                addProperty("positionMs", 0.0)
+                addProperty("durationMs", 0.0)
+                addProperty("artworkBase64", "")
+            }
+            AetherCoreService.instance?.sendMessage("MEDIA_UPDATE", mediaPayload)
+        }
     }
 
     override fun onDestroy() {

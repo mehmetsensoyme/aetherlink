@@ -29,7 +29,7 @@ public struct UpdateInfo: Identifiable {
 public final class UpdateChecker: ObservableObject {
     public static let shared = UpdateChecker()
     
-    public let currentVersion = "1.1.0-beta.1"
+    public let currentVersion = "1.2.0"
     public let repoOwner = "mehmetsensoyme"
     public let repoName = "aetherlink"
     

@@ -184,6 +184,7 @@ public final class NetworkManager: ObservableObject {
             if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
                let media = try? JSONDecoder().decode(MediaSessionPayload.self, from: payloadData) {
                 self.mediaState = media
+                MediaContinuityManager.shared.handleIncomingMedia(media, autoOpen: true)
             }
             
         case "CLIPBOARD_SYNC":

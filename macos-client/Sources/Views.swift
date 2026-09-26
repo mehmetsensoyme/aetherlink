@@ -210,35 +210,53 @@ public struct CallBannerView: View {
             Spacer()
             
             // Action Buttons
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 if !callManager.isCallActive && !isOutgoing {
                     Button(action: {
                         callManager.declineCall()
                     }) {
-                        Image(systemName: "phone.down.fill")
-                            .foregroundColor(.white)
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(Color.red))
+                        HStack(spacing: 4) {
+                            Image(systemName: "phone.down.fill")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Reddet")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(Color.red))
                     }
                     .buttonStyle(.plain)
                     
                     Button(action: {
                         callManager.answerCall()
                     }) {
-                        Image(systemName: "phone.fill")
-                            .foregroundColor(.white)
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(Color.green))
+                        HStack(spacing: 4) {
+                            Image(systemName: "phone.fill")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Cevapla")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(Color.green))
                     }
                     .buttonStyle(.plain)
                 } else {
                     Button(action: {
                         callManager.endCall()
                     }) {
-                        Image(systemName: "phone.down.fill")
-                            .foregroundColor(.white)
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(Color.red))
+                        HStack(spacing: 4) {
+                            Image(systemName: "phone.down.fill")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Kapat")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(Color.red))
                     }
                     .buttonStyle(.plain)
                 }
@@ -254,7 +272,7 @@ public struct CallBannerView: View {
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
                 )
         )
-        .frame(width: 340)
+        .frame(width: 370)
     }
     
     private var appBadgeColor: Color {
@@ -645,23 +663,41 @@ public struct MenuBarContentView: View {
             Divider()
             
             // Media Widget
-            if let media = network.mediaState, media.isPlaying {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Image(systemName: "music.note")
-                            .foregroundColor(.pink)
-                        Text(media.trackTitle)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
+            if let media = network.mediaState, media.isPlaying && !media.trackTitle.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: media.packageName.contains("spotify") ? "play.circle.fill" : "music.note")
+                            .foregroundColor(media.packageName.contains("spotify") ? .green : .pink)
+                            .font(.system(size: 16))
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(media.trackTitle)
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .lineLimit(1)
+                            Text(media.artist.isEmpty ? (media.packageName.contains("spotify") ? "Spotify" : "Apple Music") : media.artist)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            MediaContinuityManager.shared.openCurrentMedia(media)
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.up.right.square.fill")
+                                Text(media.packageName.contains("spotify") ? "Spotify'da Aç" : "Müzik'te Aç")
+                            }
+                            .font(.caption2)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
-                    Text(media.artist)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 18)
                 }
                 .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
                 
                 Divider()
             }

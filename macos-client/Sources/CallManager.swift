@@ -72,7 +72,7 @@ public final class CallManager: ObservableObject {
     private func showCallBanner(_ payload: CallIncomingPayload) {
         if callWindow == nil {
             let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 340, height: 130),
+                contentRect: NSRect(x: 0, y: 0, width: 370, height: 130),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -86,17 +86,28 @@ public final class CallManager: ObservableObject {
             panel.isReleasedWhenClosed = false
             panel.contentView = NSHostingView(rootView: CallBannerView())
             self.callWindow = panel
+        } else {
+            callWindow?.contentView = NSHostingView(rootView: CallBannerView())
         }
         
-        // Position at top-right of main screen (like native Apple notifications/calls)
-        if let screen = NSScreen.main {
+        // Position at top-right of main screen with smooth slide-down and fade-in animation
+        if let screen = NSScreen.main, let window = callWindow {
             let screenRect = screen.visibleFrame
-            let x = screenRect.maxX - 360
-            let y = screenRect.maxY - 140
-            callWindow?.setFrameOrigin(NSPoint(x: x, y: y))
+            let x = screenRect.maxX - 390
+            let targetY = screenRect.maxY - 140
+            let startY = screenRect.maxY + 20
+            
+            window.setFrameOrigin(NSPoint(x: x, y: startY))
+            window.alphaValue = 0.0
+            window.orderFrontRegardless()
+            
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.35
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                window.animator().setFrameOrigin(NSPoint(x: x, y: targetY))
+                window.animator().alphaValue = 1.0
+            }
         }
-        
-        callWindow?.orderFrontRegardless()
         
         let isOutgoing = (payload.direction == "outgoing")
         let callTitle = isOutgoing
@@ -124,6 +135,19 @@ public final class CallManager: ObservableObject {
         ringtoneSound?.stop()
         activeCall = nil
         isCallActive = false
-        callWindow?.orderOut(nil)
+        
+        if let window = callWindow, let screen = NSScreen.main, window.isVisible {
+            let targetY = screen.visibleFrame.maxY + 30
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.25
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                window.animator().setFrameOrigin(NSPoint(x: window.frame.origin.x, y: targetY))
+                window.animator().alphaValue = 0.0
+            }, completionHandler: {
+                window.orderOut(nil)
+            })
+        } else {
+            callWindow?.orderOut(nil)
+        }
     }
 }
