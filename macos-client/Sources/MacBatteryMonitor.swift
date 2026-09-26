@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import IOKit.ps
 
 @MainActor
 public final class MacBatteryMonitor: ObservableObject {
@@ -19,7 +20,8 @@ public final class MacBatteryMonitor: ObservableObject {
     public func startMonitoring() {
         updateBatteryState()
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+        // Poll every 3 seconds for instant power plug/unplug reactivity
+        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.updateBatteryState()
                 self?.broadcastBatteryState()
@@ -28,48 +30,39 @@ public final class MacBatteryMonitor: ObservableObject {
     }
     
     public func updateBatteryState() {
-        let task = Process()
-        task.launchPath = "/usr/bin/pmset"
-        task.arguments = ["-g", "batt"]
-        let pipe = Pipe()
-        task.standardOutput = pipe
+        guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef] else {
+            return
+        }
         
-        do {
-            try task.run()
-            task.waitUntilExit()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let out = String(data: data, encoding: .utf8) ?? ""
-            
-            var level = 100
-            let isPlugged = out.contains("AC Power")
-            let isDischarging = out.contains("discharging")
-            let isCharging = (out.contains("charging") && !isDischarging) || (isPlugged && !out.contains("discharging"))
-            
-            if let match = out.range(of: "\\d+%", options: .regularExpression) {
-                let numStr = out[match].replacingOccurrences(of: "%", with: "")
-                level = Int(numStr) ?? 100
+        for ps in sources {
+            guard let desc = IOPSGetPowerSourceDescription(snapshot, ps)?.takeUnretainedValue() as? [String: Any] else {
+                continue
             }
             
+            let cur = desc[kIOPSCurrentCapacityKey as String] as? Int ?? 100
+            let max = desc[kIOPSMaxCapacityKey as String] as? Int ?? 100
+            let charging = desc[kIOPSIsChargingKey as String] as? Bool ?? false
+            let pState = desc[kIOPSPowerSourceStateKey as String] as? String ?? ""
+            let isPlugged = (pState == (kIOPSACPowerValue as String))
+            let level = max > 0 ? Int((Double(cur) / Double(max)) * 100) : cur
+            
             self.currentLevel = level
-            self.isCharging = isCharging
+            self.isCharging = charging
             self.isPluggedIn = isPlugged
             
-            if isCharging {
+            if charging {
                 self.statusDescription = "Şarj Oluyor (%\(level))"
             } else if isPlugged {
                 self.statusDescription = "Prize Takılı (%\(level))"
             } else {
                 self.statusDescription = "Pilde (%\(level))"
             }
-        } catch {
-            print("[MacBatteryMonitor] Error querying battery: \(error)")
+            return
         }
     }
     
     public func broadcastBatteryState() {
-        guard NetworkManager.shared.isConnected else { return }
-        
         let payload = MacBatteryPayload(
             batteryLevel: currentLevel,
             isCharging: isCharging,
@@ -79,6 +72,6 @@ public final class MacBatteryMonitor: ObservableObject {
         )
         
         NetworkManager.shared.send(type: "MAC_BATTERY_UPDATE", payload: payload)
-        print("[MacBatteryMonitor] Broadcasted Mac battery to Android: \(currentLevel)%, Charging: \(isCharging)")
+        print("[MacBatteryMonitor] Broadcasted real IOKit Mac battery: \(currentLevel)%, Charging: \(isCharging), Plugged: \(isPluggedIn)")
     }
 }

@@ -36,7 +36,7 @@ public final class NetworkManager: ObservableObject {
     }
     
     private var listener: NWListener?
-    private var activeConnection: NWConnection?
+    private var activeConnections: [NWConnection] = []
     private let port: NWEndpoint.Port = 8443
     
     public init() {}
@@ -82,20 +82,24 @@ public final class NetworkManager: ObservableObject {
     }
     
     private func handleNewConnection(_ connection: NWConnection) {
-        self.activeConnection = connection
-        connection.stateUpdateHandler = { [weak self] state in
+        self.activeConnections.append(connection)
+        connection.stateUpdateHandler = { [weak self, weak connection] state in
             Task { @MainActor in
+                guard let self = self, let connection = connection else { return }
                 switch state {
                 case .ready:
-                    self?.isConnected = true
-                    self?.connectedDeviceName = "Galaxy S25 Ultra"
-                    print("[NetworkManager] Android device connected successfully!")
+                    self.isConnected = true
+                    self.connectedDeviceName = "Galaxy S25 Ultra"
+                    print("[NetworkManager] Android client connected! (Active: \(self.activeConnections.count))")
                     MacBatteryMonitor.shared.broadcastBatteryState()
-                    self?.receiveNextMessage(from: connection)
+                    self.receiveNextMessage(from: connection)
                 case .cancelled, .failed:
-                    self?.isConnected = false
-                    self?.connectedDeviceName = "Bağlantı Kesildi"
-                    print("[NetworkManager] Connection dropped.")
+                    self.activeConnections.removeAll { $0 === connection }
+                    if self.activeConnections.isEmpty {
+                        self.isConnected = false
+                        self.connectedDeviceName = "Bağlantı Kesildi"
+                    }
+                    print("[NetworkManager] Client disconnected (Remaining: \(self.activeConnections.count))")
                 default:
                     break
                 }
@@ -105,13 +109,14 @@ public final class NetworkManager: ObservableObject {
     }
     
     private func receiveNextMessage(from connection: NWConnection) {
-        connection.receiveMessage { [weak self] (data, context, isComplete, error) in
+        connection.receiveMessage { [weak self, weak connection] (data, context, isComplete, error) in
             Task { @MainActor in
+                guard let self = self, let connection = connection else { return }
                 if let data = data, !data.isEmpty {
-                    self?.parseIncomingData(data)
+                    self.parseIncomingData(data)
                 }
                 if error == nil {
-                    self?.receiveNextMessage(from: connection)
+                    self.receiveNextMessage(from: connection)
                 }
             }
         }
@@ -119,7 +124,11 @@ public final class NetworkManager: ObservableObject {
     
     private func parseIncomingData(_ data: Data) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let type = json["type"] as? String else { return }
+              let type = json["type"] as? String else {
+            print("[NetworkManager] Failed to parse JSON or missing type")
+            return
+        }
+        print("[NetworkManager] Received message type: \(type)")
         
         switch type {
         case "PAIRING_REQUEST":
@@ -199,8 +208,10 @@ public final class NetworkManager: ObservableObject {
             timestamp: Date().timeIntervalSince1970 * 1000
         )
         self.send(type: "DISCONNECT", payload: payload)
-        self.activeConnection?.cancel()
-        self.activeConnection = nil
+        for conn in self.activeConnections {
+            conn.cancel()
+        }
+        self.activeConnections.removeAll()
         self.isConnected = false
         self.connectedDeviceName = "Bağlantı Kesildi"
         self.batteryState = nil
@@ -210,7 +221,7 @@ public final class NetworkManager: ObservableObject {
     }
     
     public func send<T: Encodable>(type: String, payload: T) {
-        guard let connection = activeConnection, isConnected else { return }
+        guard !activeConnections.isEmpty else { return }
         let envelope: [String: Any] = [
             "type": type,
             "payload": (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(payload))) ?? [:]
@@ -220,10 +231,13 @@ public final class NetworkManager: ObservableObject {
         let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
         let context = NWConnection.ContentContext(identifier: "wsText", metadata: [metadata])
         
-        connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed({ error in
-            if let error = error {
-                print("[NetworkManager] Send error: \(error)")
-            }
-        }))
+        print("[NetworkManager] Sending type: \(type) to \(activeConnections.count) connections")
+        for conn in activeConnections {
+            conn.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed({ error in
+                if let error = error {
+                    print("[NetworkManager] Send error to connection: \(error)")
+                }
+            }))
+        }
     }
 }

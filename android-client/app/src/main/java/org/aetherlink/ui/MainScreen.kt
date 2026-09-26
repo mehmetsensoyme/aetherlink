@@ -238,6 +238,7 @@ fun MainScreen() {
 
             // Dual Battery & Power Status Card
             val macBattery by AetherCoreService.macBatteryState.collectAsState()
+            val phoneBattery by AetherCoreService.phoneBatteryState.collectAsState()
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -291,9 +292,15 @@ fun MainScreen() {
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text("MacBook Pro", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                val desc = if (macBattery?.isCharging == true) "Şarj Oluyor (Prize Takılı)"
-                                else if (macBattery?.isPluggedIn == true) "Prize Takılı (Şarj Dolu)"
-                                else "Pilde Çalışıyor"
+                                val desc = if (macBattery == null) {
+                                    "Mac Bağlantısı Bekleniyor..."
+                                } else if (macBattery?.isCharging == true) {
+                                    "Şarj Oluyor (Prize Takılı)"
+                                } else if (macBattery?.isPluggedIn == true) {
+                                    "Prize Takılı (Şarj Dolu)"
+                                } else {
+                                    "Pilde Çalışıyor"
+                                }
                                 Text(
                                     desc,
                                     fontSize = 12.sp,
@@ -304,7 +311,7 @@ fun MainScreen() {
 
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                "%${macBattery?.level ?: 85}",
+                                if (macBattery != null) "%${macBattery?.level}" else "--",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                                 color = if (macBattery?.isCharging == true) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
@@ -340,16 +347,32 @@ fun MainScreen() {
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text("Galaxy S25 Ultra (Bu Cihaz)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                Text("Şarj Durumu Mac Menü Çubuğuna İletiliyor", fontSize = 12.sp, color = Color.Gray)
+                                val phoneDesc = if (phoneBattery.isCharging) {
+                                    "Şarj Oluyor (Prize Takılı)"
+                                } else if (phoneBattery.isPluggedIn) {
+                                    "Prize Takılı (Pil Koruması %80 Limiti)"
+                                } else {
+                                    "Pilde Çalışıyor"
+                                }
+                                Text(
+                                    phoneDesc,
+                                    fontSize = 12.sp,
+                                    color = if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Color(0xFF4CAF50) else Color.Gray
+                                )
                             }
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("%85", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "%${phoneBattery.level}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
+                            )
                             Icon(
-                                Icons.Default.BatteryFull,
+                                if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
+                                tint = if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Color(0xFF4CAF50) else Color.Gray,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -451,7 +474,7 @@ fun MainScreen() {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text("Pil Durumu", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                            Text("85% • 28.5°C", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("${phoneBattery.level}% • ${String.format(java.util.Locale.US, "%.1f", phoneBattery.temperatureCelsius)}°C", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         }
                         Column {
                             Text("RAM Kullanımı", style = MaterialTheme.typography.labelSmall, color = Color.Gray)

@@ -30,6 +30,14 @@ data class MacBatteryData(
     val statusDescription: String = "Pilde"
 )
 
+data class PhoneBatteryData(
+    val level: Int = 100,
+    val isCharging: Boolean = false,
+    val isPluggedIn: Boolean = false,
+    val temperatureCelsius: Double = 28.0,
+    val status: Int = BatteryManager.BATTERY_STATUS_UNKNOWN
+)
+
 class AetherCoreService : Service() {
 
     companion object {
@@ -40,6 +48,7 @@ class AetherCoreService : Service() {
             private set
 
         val macBatteryState = kotlinx.coroutines.flow.MutableStateFlow<MacBatteryData?>(null)
+        val phoneBatteryState = kotlinx.coroutines.flow.MutableStateFlow(PhoneBatteryData())
 
         fun start(context: Context) {
             val intent = Intent(context, AetherCoreService::class.java)
@@ -112,25 +121,44 @@ class AetherCoreService : Service() {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
         }
-        registerReceiver(batteryReceiver, filter)
+        val sticky = registerReceiver(batteryReceiver, filter)
+        if (sticky != null) {
+            dispatchBatteryUpdate(sticky)
+        }
     }
 
     private fun dispatchBatteryUpdate(intent: Intent) {
-        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        val rawLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
         val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-        val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                status == BatteryManager.BATTERY_STATUS_FULL
+        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+        val tempRaw = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 280)
+        val temp = if (tempRaw > 0) tempRaw / 10.0 else 28.0
 
-        val batteryPct = if (level >= 0 && scale > 0) ((level / scale.toFloat()) * 100).toInt() else 100
+        val batteryPct = if (rawLevel >= 0 && scale > 0) ((rawLevel / scale.toFloat()) * 100).toInt() else 100
+        val isPluggedIn = plugged != 0
+        val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                (isPluggedIn && status != BatteryManager.BATTERY_STATUS_DISCHARGING)
+
+        val data = PhoneBatteryData(
+            level = batteryPct,
+            isCharging = isCharging,
+            isPluggedIn = isPluggedIn,
+            temperatureCelsius = temp,
+            status = status
+        )
+        phoneBatteryState.value = data
 
         val payload = JsonObject().apply {
             addProperty("batteryLevel", batteryPct)
             addProperty("isCharging", isCharging)
+            addProperty("isPluggedIn", isPluggedIn)
+            addProperty("temperatureCelsius", temp)
             addProperty("powerSaveMode", false)
         }
 
         sendMessage("BATTERY_UPDATE", payload)
+        Log.i(TAG, "Dispatched Phone Battery: $batteryPct%, isCharging: $isCharging, isPlugged: $isPluggedIn, temp: $temp°C")
     }
 
     fun connectToMacWebSocket(ip: String = macIpAddress) {
@@ -178,9 +206,18 @@ class AetherCoreService : Service() {
     private fun startPeriodicTelemetry() {
         telemetryJob?.cancel()
         telemetryJob = serviceScope.launch {
+            var counter = 0
             while (isActive && isConnected) {
-                delay(30000)
-                org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
+                delay(5000)
+                counter++
+                requestMacBattery()
+                val sticky = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                if (sticky != null) {
+                    dispatchBatteryUpdate(sticky)
+                }
+                if (counter % 6 == 0) {
+                    org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
+                }
             }
         }
     }

@@ -27,20 +27,24 @@ object DeviceTelemetryManager {
         payload.addProperty("sdkLevel", Build.VERSION.SDK_INT)
 
         // 2. Battery & Temperature
+        val batteryData = AetherCoreService.phoneBatteryState.value
         val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        var level = 100
-        var isCharging = false
-        var tempCelsius = 28.0
+        var level = batteryData.level
+        var isCharging = batteryData.isCharging || batteryData.isPluggedIn
+        var tempCelsius = batteryData.temperatureCelsius
         var healthStr = "İyi"
 
         if (batteryIntent != null) {
             val rawLevel = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-            val scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            val scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
             if (rawLevel >= 0 && scale > 0) {
                 level = ((rawLevel / scale.toFloat()) * 100).toInt()
             }
             val status = batteryIntent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-            isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+            val plugged = batteryIntent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+            val isPluggedIn = plugged != 0
+            isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                    (isPluggedIn && status != BatteryManager.BATTERY_STATUS_DISCHARGING)
 
             val temp = batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
             if (temp > 0) {
