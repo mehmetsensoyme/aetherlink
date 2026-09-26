@@ -1,0 +1,24 @@
+{
+  "name": "@aetherlink/core-engine",
+  "version": "1.0.0",
+  "description": "Core protocol, encryption and update engine for AetherLink",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test test/**/*.test.mjs"
+  },
+  "keywords": [
+    "continuity",
+    "aetherlink",
+    "macos",
+    "android",
+    "p2p"
+  ],
+  "author": "Mehmet Şensoy",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2"
+  }
+}

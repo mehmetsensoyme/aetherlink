@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>AetherLink</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.aetherlink.mac</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>AetherLink</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSUIElement</key>
+    <true/> <!-- Menu Bar only application (Daemon mode) -->
+
+    <!-- macOS 15+ Sequoia Local Network Privacy Prompt -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>AetherLink requires local network access to seamlessly discover and connect with your Android phone for calls, notifications, and clipboard synchronization.</string>
+
+    <!-- mDNS Bonjour Services for Instant Peer Discovery -->
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_aetherlink._tcp</string>
+        <string>_aetherlink._udp</string>
+    </array>
+
+    <!-- Microphone Permission for Phone/VoIP Calls -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>AetherLink needs microphone access so you can speak directly from your Mac during incoming and outgoing phone calls.</string>
+
+    <!-- Camera Permission for Continuity Camera -->
+    <key>NSCameraUsageDescription</key>
+    <string>AetherLink uses your camera for Continuity Camera streaming from your Android phone.</string>
+
+    <!-- Bluetooth Low Energy for Proximity Handshake -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>AetherLink uses Bluetooth Low Energy to detect when your Android phone is near your Mac and initiate an instant connection.</string>
+</dict>
+</plist>
