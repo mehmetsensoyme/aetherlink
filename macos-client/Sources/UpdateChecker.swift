@@ -30,7 +30,7 @@ public final class UpdateChecker: ObservableObject {
     public static let shared = UpdateChecker()
     
     public let currentVersion = "1.0.0"
-    public let repoOwner = "mehmetsensoy"
+    public let repoOwner = "mehmetsensoyme"
     public let repoName = "aetherlink"
     
     @Published public var availableUpdate: UpdateInfo? = nil

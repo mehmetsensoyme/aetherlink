@@ -25,7 +25,7 @@ object AndroidUpdateChecker {
 
     private const val TAG = "AndroidUpdateChecker"
     const val CURRENT_VERSION = "1.0.0"
-    private const val REPO_OWNER = "mehmetsensoy"
+    private const val REPO_OWNER = "mehmetsensoyme"
     private const val REPO_NAME = "aetherlink"
 
     suspend fun check(): UpdateInfo = withContext(Dispatchers.IO) {

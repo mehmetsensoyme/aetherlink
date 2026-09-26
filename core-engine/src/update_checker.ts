@@ -40,7 +40,7 @@ export class AetherUpdateEngine {
   private platform: 'macOS' | 'android';
 
   constructor(
-    repoOwner: string = 'mehmetsensoy',
+    repoOwner: string = 'mehmetsensoyme',
     repoName: string = 'aetherlink',
     currentVersion: string = '1.0.0',
     platform: 'macOS' | 'android' = 'macOS'
