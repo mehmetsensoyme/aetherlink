@@ -51,10 +51,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await UpdateChecker.shared.checkForUpdates(manual: false)
         }
         
+        // Register exit and signal cleanup handlers for scrcpy process lifecycle
+        atexit {
+            ScreenMirrorManager.shared.terminateScrcpySync()
+        }
+        signal(SIGINT) { _ in
+            ScreenMirrorManager.shared.terminateScrcpySync()
+            exit(0)
+        }
+        signal(SIGTERM) { _ in
+            ScreenMirrorManager.shared.terminateScrcpySync()
+            exit(0)
+        }
+        
         print("[AetherLink] Application launched and running in Menu Bar.")
     }
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
+    }
+    
+    func applicationWillTerminate(_ notification: Notification) {
+        print("[AetherLink] Application terminating, cleaning up scrcpy processes...")
+        ScreenMirrorManager.shared.terminateScrcpy()
     }
 }

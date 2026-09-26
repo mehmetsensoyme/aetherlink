@@ -7,6 +7,7 @@ public final class NetworkManager: ObservableObject {
     
     @Published public var isConnected = false
     @Published public var connectedDeviceName: String = "Bağlı Cihaz Yok"
+    @Published public var connectedDeviceIP: String? = nil
     @Published public var batteryState: BatteryPayload? = nil
     @Published public var mediaState: MediaSessionPayload? = nil
     
@@ -92,6 +93,11 @@ public final class NetworkManager: ObservableObject {
                     self.isConnected = true
                     if self.connectedDeviceName == "Bağlantı Kesildi" || self.connectedDeviceName.isEmpty {
                         self.connectedDeviceName = "Bağlanıyor..."
+                    }
+                    if case .hostPort(let host, _) = connection.endpoint {
+                        let hostStr = "\(host)".components(separatedBy: "%").first ?? "\(host)"
+                        self.connectedDeviceIP = hostStr
+                        print("[NetworkManager] Remote client endpoint IP: \(hostStr)")
                     }
                     print("[NetworkManager] Android client connected! (Active: \(self.activeConnections.count))")
                     
@@ -219,10 +225,8 @@ public final class NetworkManager: ObservableObject {
             }
             
         case "SCREEN_STREAM_FRAME":
-            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
-               let frame = try? JSONDecoder().decode(ScreenStreamFramePayload.self, from: payloadData) {
-                ScreenMirrorManager.shared.handleIncomingFrame(frame)
-            }
+            // Deprecated: screen mirroring is now handled directly via scrcpy
+            break
             
         case "DISCONNECT":
             let payload = json["payload"] as? [String: Any]
@@ -246,16 +250,12 @@ public final class NetworkManager: ObservableObject {
     public func resetSessionState(showNotification: Bool = false, reasonText: String = "Telefon bağlantısı kesildi") {
         self.isConnected = false
         self.connectedDeviceName = "Bağlantı Kesildi"
+        self.connectedDeviceIP = nil
         self.batteryState = nil
         self.mediaState = nil
         
-        // 1. Reset screen mirror frame cache and close floating window
-        ScreenMirrorManager.shared.currentFrame = nil
-        ScreenMirrorManager.shared.frameCount = 0
-        ScreenMirrorManager.shared.fps = 0.0
-        ScreenMirrorManager.shared.streamResolution = .zero
-        ScreenMirrorManager.shared.isStreaming = false
-        ScreenMirrorManager.shared.closeScreenWindow()
+        // 1. Terminate scrcpy process and clean up mirroring lifecycle
+        ScreenMirrorManager.shared.terminateScrcpy()
         
         // 2. Reset device telemetry and specs
         DeviceTelemetryManager.shared.telemetry = nil
@@ -280,6 +280,7 @@ public final class NetworkManager: ObservableObject {
     }
     
     public func disconnectDevice(forget: Bool = false) {
+        ScreenMirrorManager.shared.terminateScrcpy()
         if forget {
             PairingManager.shared.unpair()
         }

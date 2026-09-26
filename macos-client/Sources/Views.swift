@@ -576,22 +576,20 @@ public struct MenuBarContentView: View {
             // Quick Continuity Actions (Screen Mirroring & Specs)
             HStack(spacing: 8) {
                 Button(action: {
-                    if mirror.hasScrcpyInstalled {
-                        mirror.launchScrcpyMirror(wirelessIp: "192.168.1.4")
-                    } else if mirror.isStreaming {
-                        mirror.stopStreamRequest()
+                    if mirror.isScrcpyRunning {
+                        mirror.stopMirroring()
                     } else {
-                        mirror.startStreamRequest()
+                        mirror.startMirroring()
                     }
                 }) {
                     HStack(spacing: 4) {
-                        Image(systemName: (mirror.isStreaming || mirror.isScrcpyRunning) ? "display.trianglebadge.exclamationmark" : "display")
-                        Text((mirror.isStreaming || mirror.isScrcpyRunning) ? "Yansıtmayı Durdur" : (mirror.hasScrcpyInstalled ? "Ekranı Yansıt (Ultra HD 60 FPS)" : "Ekranı Yansıt"))
+                        Image(systemName: mirror.isScrcpyRunning ? "display.trianglebadge.exclamationmark" : "display")
+                        Text(mirror.isScrcpyRunning ? "Yansıtmayı Durdur" : "Ekranı Yansıt")
                     }
                     .font(.caption)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint((mirror.isStreaming || mirror.isScrcpyRunning) ? .red : .blue)
+                .tint(mirror.isScrcpyRunning ? .red : .blue)
                 
                 Button(action: {
                     AetherWindowManager.shared.showDeviceTelemetryWindow()
@@ -670,7 +668,7 @@ public struct MenuBarContentView: View {
             
             // Feature Quick Status
             VStack(spacing: 6) {
-                FeatureRow(icon: "display", title: "Kablosuz Ekran Yansıtma", status: mirror.isStreaming ? "Aktif" : "Hazır")
+                FeatureRow(icon: "display", title: "Kablosuz Ekran Yansıtma", status: mirror.isScrcpyRunning ? "Aktif (scrcpy 60 FPS)" : "Hazır")
                 FeatureRow(icon: "doc.on.clipboard", title: "Evrensel Pano", status: "Aktif")
                 FeatureRow(icon: "bell.badge", title: "Bildirimler & Cevap", status: "Aktif")
                 FeatureRow(icon: "phone.fill", title: "Arama Yansıtma", status: "Hazır")

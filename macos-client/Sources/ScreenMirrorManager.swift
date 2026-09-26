@@ -3,22 +3,14 @@ import SwiftUI
 import Combine
 
 @MainActor
-public final class ScreenMirrorManager: NSObject, ObservableObject, NSWindowDelegate {
+public final class ScreenMirrorManager: NSObject, ObservableObject {
     public static let shared = ScreenMirrorManager()
     
-    @Published public var isStreaming: Bool = false
-    @Published public var currentFrame: NSImage? = nil
-    @Published public var frameCount: Int = 0
-    @Published public var fps: Double = 0.0
-    @Published public var streamResolution: CGSize = .zero
-    @Published public var isWindowOpen: Bool = false
-    
     @Published public var isScrcpyRunning: Bool = false
+    @Published public var scrcpyPID: pid_t? = nil
+    @Published public var lastErrorMessage: String? = nil
     
-    private var windowController: NSWindowController?
     private var scrcpyProcess: Process?
-    private var lastFrameTime: TimeInterval = 0
-    private var frameTimer: Timer?
     
     public var embeddedScrcpyPath: String? {
         // Look inside App Bundle Resources
@@ -37,6 +29,21 @@ public final class ScreenMirrorManager: NSObject, ObservableObject, NSWindowDele
         return nil
     }
     
+    public var embeddedAdbPath: String? {
+        if let resURL = Bundle.main.resourceURL {
+            let embeddedBin = resURL.appendingPathComponent("bin/adb").path
+            if FileManager.default.isExecutableFile(atPath: embeddedBin) {
+                return embeddedBin
+            }
+        }
+        let execURL = Bundle.main.executableURL?.deletingLastPathComponent()
+        if let bin = execURL?.appendingPathComponent("../Resources/bin/adb").path,
+           FileManager.default.isExecutableFile(atPath: bin) {
+            return bin
+        }
+        return nil
+    }
+    
     public var hasScrcpyInstalled: Bool {
         if embeddedScrcpyPath != nil { return true }
         let paths = ["/opt/homebrew/bin/scrcpy", "/usr/local/bin/scrcpy", "/usr/bin/scrcpy"]
@@ -47,11 +54,10 @@ public final class ScreenMirrorManager: NSObject, ObservableObject, NSWindowDele
         super.init()
     }
     
-    public func launchScrcpyMirror(wirelessIp: String? = nil) {
+    // MARK: - Direct Scrcpy Mirroring Process Launch
+    public func startMirroring(wirelessIp: String? = nil) {
         if isScrcpyRunning {
-            scrcpyProcess?.terminate()
-            scrcpyProcess = nil
-            isScrcpyRunning = false
+            terminateScrcpy()
             return
         }
         
@@ -63,14 +69,18 @@ public final class ScreenMirrorManager: NSObject, ObservableObject, NSWindowDele
         ].compactMap { $0 }
         
         guard let binPath = paths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-            startStreamRequest()
+            print("[ScreenMirrorManager] Error: scrcpy binary not found in system or bundle!")
+            self.lastErrorMessage = "scrcpy ikili dosyası bulunamadı."
             return
         }
+        
+        // Determine target device IP or active adb wireless connection
+        let targetIP = wirelessIp ?? NetworkManager.shared.connectedDeviceIP ?? detectWirelessOrAdbIP()
         
         let p = Process()
         p.executableURL = URL(fileURLWithPath: binPath)
         
-        // Environment with bundled scrcpy-server and adb
+        // Setup bundled environment for dynamic libraries and server
         var env = ProcessInfo.processInfo.environment
         if let resURL = Bundle.main.resourceURL {
             let bundledServer = resURL.appendingPathComponent("share/scrcpy/scrcpy-server").path
@@ -85,266 +95,164 @@ public final class ScreenMirrorManager: NSObject, ObservableObject, NSWindowDele
         }
         p.environment = env
         
-        let titleName = NetworkManager.shared.connectedDeviceName.isEmpty || NetworkManager.shared.connectedDeviceName == "Bağlantı Kesildi"
+        let deviceTitle = NetworkManager.shared.connectedDeviceName.isEmpty || NetworkManager.shared.connectedDeviceName == "Bağlantı Kesildi"
             ? "Android Cihazı"
             : NetworkManager.shared.connectedDeviceName
+            
+        // Scrcpy arguments optimized for wireless low-latency, 60fps, Opus audio & device playback suppression:
+        // - Video bit rate: 8M
+        // - Frame rate: 60 fps
+        // - Video codec: h264
+        // - Audio codec: opus
+        // - Audio buffer: 50 ms
+        // - Audio playback suppression on device: --audio-source=output (and --no-audio-playback-on-device if supported)
         var args = [
-            "--always-on-top",
-            "--window-title=\(titleName) (AetherLink Pro)",
+            "--video-bit-rate=8M",
             "--max-fps=60",
-            "--video-bit-rate=16M"
+            "--video-codec=h264",
+            "--audio-codec=opus",
+            "--audio-buffer=50",
+            "--audio-source=output",
+            "--always-on-top",
+            "--window-title=\(deviceTitle) (AetherLink)"
         ]
         
-        if let ip = wirelessIp, !ip.isEmpty, ip != "127.0.0.1" {
+        // Check if scrcpy binary supports the explicit --no-audio-playback-on-device flag
+        if checkFlagSupport("--no-audio-playback-on-device", binPath: binPath) {
+            args.append("--no-audio-playback-on-device")
+        }
+        
+        if let ip = targetIP, !ip.isEmpty, ip != "127.0.0.1" {
             args.append("--tcpip=\(ip):5555")
         }
         
         p.arguments = args
-        p.terminationHandler = { [weak self] _ in
+        
+        p.terminationHandler = { [weak self] proc in
             Task { @MainActor in
+                print("[ScreenMirrorManager] scrcpy process (PID: \(proc.processIdentifier)) terminated with status: \(proc.terminationStatus)")
                 self?.isScrcpyRunning = false
                 self?.scrcpyProcess = nil
+                self?.scrcpyPID = nil
             }
         }
         
         do {
             try p.run()
             self.scrcpyProcess = p
+            self.scrcpyPID = p.processIdentifier
             self.isScrcpyRunning = true
-            print("[ScreenMirrorManager] Scrcpy Pro mirroring launched successfully via \(binPath)!")
+            self.lastErrorMessage = nil
+            print("[ScreenMirrorManager] scrcpy mirroring started successfully with PID: \(p.processIdentifier) (Device: \(targetIP ?? "default"))")
         } catch {
-            print("[ScreenMirrorManager] Could not run scrcpy: \(error), falling back to P2P")
-            startStreamRequest()
+            print("[ScreenMirrorManager] Failed to launch scrcpy: \(error)")
+            self.lastErrorMessage = error.localizedDescription
+            self.isScrcpyRunning = false
+            self.scrcpyProcess = nil
+            self.scrcpyPID = nil
         }
     }
     
-    public func startStreamRequest() {
-        let payload = ScreenStreamControlPayload(
-            action: "start",
-            quality: "high",
-            fps: 30,
-            timestamp: Date().timeIntervalSince1970 * 1000
-        )
-        NetworkManager.shared.send(type: "SCREEN_STREAM_CONTROL", payload: payload)
-        self.isStreaming = true
-        openScreenWindow()
+    // MARK: - Lifecycle Management & Process Termination
+    public func stopMirroring() {
+        terminateScrcpy()
     }
     
-    public func stopStreamRequest() {
-        if isScrcpyRunning {
-            scrcpyProcess?.terminate()
-            scrcpyProcess = nil
-            isScrcpyRunning = false
-        }
-        let payload = ScreenStreamControlPayload(
-            action: "stop",
-            quality: "high",
-            fps: 0,
-            timestamp: Date().timeIntervalSince1970 * 1000
-        )
-        NetworkManager.shared.send(type: "SCREEN_STREAM_CONTROL", payload: payload)
-        self.isStreaming = false
-        self.currentFrame = nil
-    }
-    
-    public func handleIncomingFrame(_ frame: ScreenStreamFramePayload) {
-        guard let data = Data(base64Encoded: frame.base64Data),
-              let image = NSImage(data: data) else {
+    public func terminateScrcpy() {
+        guard let p = scrcpyProcess else {
+            // Cleanup any orphaned scrcpy processes associated with AetherLink
+            cleanupOrphanedProcesses()
+            self.isScrcpyRunning = false
+            self.scrcpyPID = nil
             return
         }
         
-        self.currentFrame = image
-        self.frameCount += 1
-        self.streamResolution = CGSize(width: frame.width, height: frame.height)
+        let pid = p.processIdentifier
+        print("[ScreenMirrorManager] Terminating scrcpy process (PID: \(pid))...")
+        p.terminate()
         
-        let now = Date().timeIntervalSince1970
-        if lastFrameTime > 0 {
-            let delta = now - lastFrameTime
-            if delta > 0 {
-                self.fps = (1.0 / delta) * 0.3 + self.fps * 0.7
+        // Verify and force kill if still running after brief grace period
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.5) {
+            if kill(pid, 0) == 0 {
+                print("[ScreenMirrorManager] Force killing scrcpy process (PID: \(pid)) with SIGKILL...")
+                kill(pid, SIGKILL)
             }
         }
-        lastFrameTime = now
         
-        if !isWindowOpen {
-            openScreenWindow()
+        self.scrcpyProcess = nil
+        self.scrcpyPID = nil
+        self.isScrcpyRunning = false
+        
+        cleanupOrphanedProcesses()
+    }
+    
+    public nonisolated func terminateScrcpySync() {
+        // Synchronous kill on app exit
+        let pkill = Process()
+        pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        pkill.arguments = ["-9", "-f", "scrcpy.*AetherLink"]
+        try? pkill.run()
+        pkill.waitUntilExit()
+    }
+    
+    private func cleanupOrphanedProcesses() {
+        let pkill = Process()
+        pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        pkill.arguments = ["-f", "scrcpy.*AetherLink"]
+        try? pkill.run()
+    }
+    
+    private func checkFlagSupport(_ flag: String, binPath: String) -> Bool {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: binPath)
+        p.arguments = ["--help"]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        do {
+            try p.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let out = String(data: data, encoding: .utf8) ?? ""
+            return out.contains(flag)
+        } catch {
+            return false
         }
     }
     
-    public func openScreenWindow() {
-        if let wc = windowController, wc.window?.isVisible == true {
-            wc.window?.makeKeyAndOrderFront(nil)
-            return
+    private func detectWirelessOrAdbIP() -> String? {
+        let adbPaths = [
+            embeddedAdbPath,
+            "/opt/homebrew/bin/adb",
+            "/usr/local/bin/adb",
+            "/usr/bin/adb"
+        ].compactMap { $0 }
+        
+        guard let adb = adbPaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            return nil
         }
         
-        let hostingView = NSHostingView(rootView: ScreenMirrorView())
-        let window = NSWindow(
-            contentRect: NSRect(x: 100, y: 100, width: 380, height: 780),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        
-        let deviceTitle = NetworkManager.shared.connectedDeviceName.isEmpty || NetworkManager.shared.connectedDeviceName == "Bağlantı Kesildi"
-            ? "Android Cihazı"
-            : NetworkManager.shared.connectedDeviceName
-        window.title = "AetherLink Ekran Yansıtma (\(deviceTitle))"
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isMovableByWindowBackground = true
-        window.backgroundColor = .clear
-        window.contentView = hostingView
-        window.center()
-        window.level = .floating
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-        
-        let wc = NSWindowController(window: window)
-        self.windowController = wc
-        self.isWindowOpen = true
-        
-        window.orderFrontRegardless()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-    
-    public func closeScreenWindow() {
-        if let win = windowController?.window {
-            win.orderOut(nil)
-        }
-        windowController = nil
-        self.isWindowOpen = false
-        if isStreaming {
-            stopStreamRequest()
-        }
-    }
-    
-    public func windowShouldClose(_ sender: NSWindow) -> Bool {
-        closeScreenWindow()
-        return false
-    }
-}
-
-public struct ScreenMirrorView: View {
-    @ObservedObject var mirror = ScreenMirrorManager.shared
-    @ObservedObject var network = NetworkManager.shared
-    
-    public var body: some View {
-        ZStack {
-            // Background blur
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
-            
-            VStack(spacing: 0) {
-                // Top Custom Titlebar
-                HStack {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(mirror.currentFrame != nil ? Color.green : Color.orange)
-                            .frame(width: 8, height: 8)
-                        Text(network.connectedDeviceName.isEmpty || network.connectedDeviceName == "Bağlantı Kesildi" ? "Android Cihazı" : network.connectedDeviceName)
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    
-                    Spacer()
-                    
-                    if mirror.fps > 0 {
-                        Text("\(Int(mirror.fps)) FPS")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.primary.opacity(0.08)))
-                    }
-                    
-                    Button(action: {
-                        mirror.closeScreenWindow()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 16))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
-                
-                Divider()
-                
-                // Screen Mirror Frame or Placeholder
-                ZStack {
-                    if let frame = mirror.currentFrame {
-                        Image(nsImage: frame)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .cornerRadius(16)
-                            .padding(8)
-                    } else {
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .controlSize(.large)
-                            
-                            Text("Kablosuz Ekran Akışı Bekleniyor...")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            
-                            Text("Telefondan AetherLink 'Ekranı Paylaş' izni onaylandığında görüntü anında buraya yansıyacaktır.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 32)
-                            
-                            Button(action: {
-                                mirror.startStreamRequest()
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "play.fill")
-                                    Text("Yayını Başlat")
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: adb)
+        p.arguments = ["devices"]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        do {
+            try p.run()
+            p.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            for line in output.components(separatedBy: .newlines) {
+                let parts = line.split(separator: "\t")
+                if parts.count >= 2 && parts[1] == "device" {
+                    let serial = String(parts[0])
+                    if serial.contains(":") {
+                        return serial.components(separatedBy: ":").first
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                Divider()
-                
-                // Bottom Control Toolbar
-                HStack(spacing: 16) {
-                    Button(action: {
-                        if mirror.isStreaming {
-                            mirror.stopStreamRequest()
-                        } else {
-                            mirror.startStreamRequest()
-                        }
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: mirror.isStreaming ? "stop.fill" : "play.fill")
-                            Text(mirror.isStreaming ? "Durdur" : "Başlat")
-                        }
-                        .font(.caption)
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Spacer()
-                    
-                    Text("\(Int(mirror.streamResolution.width))x\(Int(mirror.streamResolution.height))")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
             }
+        } catch {
+            print("[ScreenMirrorManager] Could not query adb devices: \(error)")
         }
-        .frame(minWidth: 320, minHeight: 640)
-        .padding(10)
+        return nil
     }
 }
