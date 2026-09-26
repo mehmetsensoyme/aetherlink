@@ -37,6 +37,7 @@ public final class NetworkManager: ObservableObject {
     
     private var listener: NWListener?
     private var activeConnections: [NWConnection] = []
+    private var connectionBuffers: [ObjectIdentifier: Data] = [:]
     private let port: NWEndpoint.Port = 8443
     
     public init() {}
@@ -94,6 +95,7 @@ public final class NetworkManager: ObservableObject {
                     MacBatteryMonitor.shared.broadcastBatteryState()
                     self.receiveNextMessage(from: connection)
                 case .cancelled, .failed:
+                    self.connectionBuffers.removeValue(forKey: ObjectIdentifier(connection))
                     self.activeConnections.removeAll { $0 === connection }
                     if self.activeConnections.isEmpty {
                         self.isConnected = false
@@ -112,11 +114,21 @@ public final class NetworkManager: ObservableObject {
         connection.receiveMessage { [weak self, weak connection] (data, context, isComplete, error) in
             Task { @MainActor in
                 guard let self = self, let connection = connection else { return }
+                let id = ObjectIdentifier(connection)
                 if let data = data, !data.isEmpty {
-                    self.parseIncomingData(data)
+                    var current = self.connectionBuffers[id] ?? Data()
+                    current.append(data)
+                    if isComplete {
+                        self.connectionBuffers.removeValue(forKey: id)
+                        self.parseIncomingData(current)
+                    } else {
+                        self.connectionBuffers[id] = current
+                    }
                 }
                 if error == nil {
                     self.receiveNextMessage(from: connection)
+                } else {
+                    self.connectionBuffers.removeValue(forKey: id)
                 }
             }
         }

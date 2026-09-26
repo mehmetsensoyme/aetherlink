@@ -1,21 +1,75 @@
 package org.aetherlink.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import org.aetherlink.screen.ScreenStreamManager
 import org.aetherlink.service.AetherCoreService
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        private const val TAG = "MainActivity"
+        const val EXTRA_REQUEST_SCREEN_CAPTURE = "extra_request_screen_capture"
+        var instance: MainActivity? = null
+            private set
+
+        fun requestScreenCapture() {
+            instance?.launchScreenCapturePrompt()
+        }
+    }
+
+    private val screenCaptureLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            Log.i(TAG, "MediaProjection permission granted by user")
+            AetherCoreService.instance?.startScreenCaptureWithProjection(
+                result.resultCode,
+                result.data!!
+            )
+            Toast.makeText(this, "Ekran Mac'e canlı aktarılıyor", Toast.LENGTH_SHORT).show()
+        } else {
+            Log.w(TAG, "MediaProjection permission rejected or cancelled")
+            Toast.makeText(this, "Ekran yansıtma izni verilmedi", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchScreenCapturePrompt() {
+        try {
+            val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+            if (projectionManager != null) {
+                val intent = projectionManager.createScreenCaptureIntent()
+                screenCaptureLauncher.launch(intent)
+            } else {
+                Log.e(TAG, "MediaProjectionManager service not available")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch screen capture intent: ${e.message}")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        instance = this
 
         // Automatically start the background foreground service on launch
         AetherCoreService.start(this)
+
+        if (intent?.getBooleanExtra(EXTRA_REQUEST_SCREEN_CAPTURE, false) == true) {
+            launchScreenCapturePrompt()
+        }
 
         setContent {
             val darkTheme = isSystemInDarkTheme()
@@ -24,6 +78,21 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = colorScheme) {
                 MainScreen()
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_REQUEST_SCREEN_CAPTURE, false)) {
+            launchScreenCapturePrompt()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (instance === this) {
+            instance = null
         }
     }
 }

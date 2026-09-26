@@ -8,9 +8,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.gson.Gson
@@ -87,7 +91,7 @@ class AetherCoreService : Service() {
         Log.i(TAG, "AetherCoreService started.")
     }
 
-    private fun startForegroundWithType() {
+    fun startForegroundWithType(includeMediaProjection: Boolean = false) {
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -95,9 +99,12 @@ class AetherCoreService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
+        val title = if (includeMediaProjection) "AetherLink Canlı Ekran Yansıtma" else "AetherLink Süreklilik Aktif"
+        val desc = if (includeMediaProjection) "Telefon ekranı Mac'e canlı olarak aktarılıyor." else "MacBook ile güvenli yerel bağlantı sürdürülüyor."
+
         val notification: Notification = NotificationCompat.Builder(this, AetherLinkApplication.CHANNEL_CORE_SERVICE)
-            .setContentTitle("AetherLink Süreklilik Aktif")
-            .setContentText("MacBook ile güvenli yerel bağlantı sürdürülüyor.")
+            .setContentTitle(title)
+            .setContentText(desc)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -105,14 +112,64 @@ class AetherCoreService : Service() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             // Android 14+ Strict Foreground Service Types
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            )
+            val baseType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            val finalType = if (includeMediaProjection) {
+                baseType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            } else {
+                baseType
+            }
+            startForeground(NOTIFICATION_ID, notification, finalType)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    fun startScreenCaptureWithProjection(resultCode: Int, data: Intent) {
+        try {
+            val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+            if (mpManager == null) {
+                Log.e(TAG, "MediaProjectionManager not available")
+                return
+            }
+
+            // Must promote foreground service to mediaProjection before calling getMediaProjection on Android 14+
+            startForegroundWithType(includeMediaProjection = true)
+
+            val projection = mpManager.getMediaProjection(resultCode, data)
+            if (projection == null) {
+                Log.e(TAG, "getMediaProjection returned null")
+                startForegroundWithType(includeMediaProjection = false)
+                return
+            }
+
+            projection.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() {
+                    Log.i(TAG, "MediaProjection stopped by system")
+                    org.aetherlink.screen.ScreenStreamManager.stopCapture()
+                    startForegroundWithType(includeMediaProjection = false)
+                }
+            }, Handler(Looper.getMainLooper()))
+
+            val dm = resources.displayMetrics
+            // Capture at smooth 540p or 720p proportional resolution
+            val targetWidth = 540
+            val targetHeight = (540 * dm.heightPixels) / dm.widthPixels
+            org.aetherlink.screen.ScreenStreamManager.setupMediaProjection(
+                projection,
+                targetWidth,
+                targetHeight,
+                dm.densityDpi
+            )
+            Log.i(TAG, "Screen projection started at ${targetWidth}x${targetHeight}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting screen projection: ${e.message}", e)
+            startForegroundWithType(includeMediaProjection = false)
+        }
+    }
+
+    fun stopScreenCapture() {
+        org.aetherlink.screen.ScreenStreamManager.stopCapture()
+        startForegroundWithType(includeMediaProjection = false)
     }
 
     private fun registerBatteryMonitoring() {
@@ -258,9 +315,20 @@ class AetherCoreService : Service() {
                 "SCREEN_STREAM_CONTROL" -> {
                     val action = payload.get("action")?.asString ?: ""
                     if (action == "start") {
-                        org.aetherlink.screen.ScreenStreamManager.startCapture()
+                        if (!org.aetherlink.screen.ScreenStreamManager.isStreaming) {
+                            val act = MainActivity.instance
+                            if (act != null) {
+                                act.launchScreenCapturePrompt()
+                            } else {
+                                val intent = Intent(this, MainActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    putExtra(MainActivity.EXTRA_REQUEST_SCREEN_CAPTURE, true)
+                                }
+                                startActivity(intent)
+                            }
+                        }
                     } else if (action == "stop") {
-                        org.aetherlink.screen.ScreenStreamManager.stopCapture()
+                        stopScreenCapture()
                     }
                 }
                 "DISCONNECT" -> {

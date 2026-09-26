@@ -3,6 +3,7 @@
 # ⚡ AetherLink
 ### Android ile macOS Arasındaki Kayıp Süreklilik (Continuity) Köprüsü
 
+[![Version: v1.1.0-beta.1](https://img.shields.io/badge/S%C3%BCr%C3%BCm-v1.1.0--beta.1-purple.svg)](https://github.com/mehmetsensoyme/aetherlink/releases)
 [![License: MIT](https://img.shields.io/badge/Lisans-MIT-blue.svg)](LICENSE)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2014%2B%20%7C%2015%20Sequoia-black)](macos-client)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android%2014%20%7C%2015%20%7C%2016-green)](android-client)
@@ -19,7 +20,7 @@
 
 **AetherLink**, Apple ekosisteminin en sevilen "Süreklilik" (Continuity) deneyimini Android telefonlar ile Mac bilgisayarlar arasına getiren açık kaynaklı bir köprüdür. 
 
-Hücresel telefon aramaları, VoIP görüşmeleri (WhatsApp, Telegram vb.), doğrudan Mac'ten yanıtlanabilen bildirimler, ortak pano ve kablosuz stüdyo kamerası gibi tüm kritik özellikleri tek bir çatı altında birleştirir.
+Hücresel telefon aramaları, VoIP görüşmeleri (WhatsApp, Telegram vb.), doğrudan Mac'ten yanıtlanabilen bildirimler, evrensel pano, kablosuz ekran yansıtma ve kablosuz stüdyo kamerası gibi tüm kritik özellikleri tek bir çatı altında birleştirir.
 
 Sistem, en yüksek performans ve pil tasarrufu için Mac tarafında **Swift & SwiftUI**, Android tarafında ise **Kotlin & Jetpack Compose** ile yerel (native) olarak inşa edilmiştir.
 
@@ -27,16 +28,16 @@ Sistem, en yüksek performans ve pil tasarrufu için Mac tarafında **Swift & Sw
 
 ## 🌟 Temel Özellikler
 
+* 📱 **Kablosuz Canlı Ekran Yansıtma (iPhone Mirroring Alternatifi):**
+  Android telefon ekranınızı sıfır bulut ile, doğrudan yerel ağ veya USB/ADB üzerinden saniyede 30 kare (FPS) hızında Mac masaüstünüzdeki yüzen pencereye canlı olarak yansıtın.
 * 📞 **Hücresel & VoIP Arama Yansıtma:**
   Gelen normal telefon aramalarını, WhatsApp ve Telegram çağrılarını doğrudan Mac ekranında açılan yerel arama penceresinden yanıtlayın veya reddedin. WebRTC destekli iki yönlü kristal netliğinde ses akışı.
 * 💬 **Tüm Uygulamalardan Bildirimler & Doğrudan Cevap:**
   WhatsApp, Instagram DM, Telegram, SMS ve Slack bildirimleri anında macOS Bildirim Merkezi'ne düşer. Telefonunuzu elinize almadan bildirimdeki kutucuğa yazıp `Enter`a basarak Mac'ten yanıt verin.
 * 📋 **Evrensel Pano (Universal Clipboard):**
   Mac'te kopyalayın (`Cmd+C`), Android'de yapıştırın (`Yapıştır`). Metin, link ve görselleri döngüye girmeden anlık olarak eşitler.
-* 📷 **Süreklilik Kamerası (Continuity Camera):**
-  Android telefonunuzun gelişmiş kamerasını (örneğin Galaxy S25 Ultra'nın 200 MP sensörünü) FaceTime, Zoom ve Google Meet'te kablosuz stüdyo web kamerası olarak kullanın.
-* 🔋 **Pil Durumu & Medya Kontrolleri:**
-  Telefonun şarj yüzdesini ve şarj durumunu doğrudan Mac menü çubuğunda görün. Spotify ve YouTube çalan müzikleri Mac'ten durdurup geçin.
+* 🔋 **İki Yönlü Donanımsal Şarj & Güç Durumu Senkronizasyonu:**
+  Gerçek Apple IOKit ve Android BatteryManager sensörleri. Mac'in şarj durumunu telefonda, telefonun şarj durumunu Mac menü çubuğunda canlı izleyin.
 * 🔄 **GitHub Releases Tabanlı Otomatik Güncelleme:**
   Yeni bir sürüm yayınladığınızda uygulama içinde beliren cam efektli (Glassmorphism) modal ile kullanıcılar tek tıkla güncelleme yapabilir ve sürüm notlarını (changelog) inceleyebilir.
 

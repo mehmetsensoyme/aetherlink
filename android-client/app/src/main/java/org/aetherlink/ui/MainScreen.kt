@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.gson.JsonObject
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.aetherlink.discovery.AetherNsdDiscovery
 import org.aetherlink.screen.ScreenStreamManager
@@ -46,6 +48,13 @@ fun MainScreen() {
     var pairingCode by remember { mutableStateOf("482 915") }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            isScreenStreaming = ScreenStreamManager.isStreaming
+            delay(500)
+        }
+    }
 
     // Start mDNS Discovery
     DisposableEffect(Unit) {
@@ -419,11 +428,10 @@ fun MainScreen() {
                     Button(
                         onClick = {
                             if (ScreenStreamManager.isStreaming) {
-                                ScreenStreamManager.stopCapture()
+                                AetherCoreService.instance?.stopScreenCapture()
                                 isScreenStreaming = false
                             } else {
-                                ScreenStreamManager.startCapture()
-                                isScreenStreaming = true
+                                MainActivity.requestScreenCapture()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(

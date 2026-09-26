@@ -3,6 +3,7 @@
 # ⚡ AetherLink
 ### The Missing Continuity Bridge Between Android & macOS
 
+[![Version: v1.1.0-beta.1](https://img.shields.io/badge/Version-v1.1.0--beta.1-purple.svg)](https://github.com/mehmetsensoyme/aetherlink/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2014%2B%20%7C%2015%20Sequoia-black)](macos-client)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android%2014%20%7C%2015%20%7C%2016-green)](android-client)
@@ -17,7 +18,7 @@
 
 ## 📖 Overview
 
-**AetherLink** brings native Apple-like ecosystem continuity to Android and macOS devices. It seamlessly unifies phone calls, VoIP calls (WhatsApp, Telegram), universal notifications with inline replies, universal clipboard, and camera continuity — all without proprietary cloud lock-in.
+**AetherLink** brings native Apple-like ecosystem continuity to Android and macOS devices. It seamlessly unifies phone calls, VoIP calls (WhatsApp, Telegram), universal notifications with inline replies, universal clipboard, wireless screen mirroring, and camera continuity — all without proprietary cloud lock-in.
 
 Built with native performance in mind: **Swift & SwiftUI** for macOS and **Kotlin & Jetpack Compose** for Android.
 
@@ -25,16 +26,16 @@ Built with native performance in mind: **Swift & SwiftUI** for macOS and **Kotli
 
 ## 🌟 Key Features
 
+* 📱 **Wireless Screen Mirroring (Apple iPhone Mirroring Alternative):**
+  Mirror your Android phone screen directly onto your Mac screen in a floating, ultra-responsive window at smooth 30 FPS over local Wi-Fi or USB/ADB with zero cloud.
 * 📞 **Cellular & VoIP Call Mirroring:**
   Answer or decline incoming GSM calls, WhatsApp calls, and Telegram calls directly from a native macOS call banner. High-fidelity, ultra-low latency two-way audio powered by WebRTC.
 * 💬 **Universal Notifications & Quick Reply:**
   Every notification (WhatsApp, Instagram DM, Telegram, SMS, Slack) appears in macOS Notification Center. Reply inline from Mac without unlocking your phone.
 * 📋 **Universal Clipboard:**
   Copy on Mac (`Cmd+C`), paste on Android (`Paste`), and vice-versa. Supports plain text, rich text, and images with automatic loop prevention.
-* 📷 **Continuity Camera:**
-  Transform your flagship Android camera (e.g. Galaxy S25 Ultra 200MP sensor) into a wireless studio webcam in Zoom, FaceTime, and Google Meet.
-* 🔋 **Battery & Media Session Sync:**
-  View your phone's battery level and charging state directly in the macOS menu bar. Control Spotify and YouTube playback seamlessly.
+* 🔋 **Two-Way Hardware Battery & Power Sync:**
+  Real-time IOKit and Android BatteryManager synchronization. View exact battery percentages, charging indicators, and AC power status reactively on both devices.
 * 🔄 **Built-in Auto-Update & Changelog Engine:**
   Native update checker powered by GitHub Releases. Users receive an interactive glassmorphic modal with markdown changelogs whenever a new release drops.
 

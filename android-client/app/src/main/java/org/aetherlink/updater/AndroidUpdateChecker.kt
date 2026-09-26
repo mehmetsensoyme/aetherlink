@@ -24,7 +24,7 @@ data class UpdateInfo(
 object AndroidUpdateChecker {
 
     private const val TAG = "AndroidUpdateChecker"
-    const val CURRENT_VERSION = "1.0.0"
+    const val CURRENT_VERSION = "1.1.0-beta.1"
     private const val REPO_OWNER = "mehmetsensoyme"
     private const val REPO_NAME = "aetherlink"
 

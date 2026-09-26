@@ -88,11 +88,14 @@ public final class ScreenMirrorManager: ObservableObject {
         window.backgroundColor = .clear
         window.contentView = hostingView
         window.center()
+        window.level = .floating
+        window.isReleasedWhenClosed = false
         
         let wc = NSWindowController(window: window)
         self.windowController = wc
         self.isWindowOpen = true
         
+        window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
