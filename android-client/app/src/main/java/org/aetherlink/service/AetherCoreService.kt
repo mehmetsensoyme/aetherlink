@@ -23,6 +23,13 @@ import org.aetherlink.telecom.AetherInCallService
 import org.aetherlink.ui.MainActivity
 import java.util.concurrent.TimeUnit
 
+data class MacBatteryData(
+    val level: Int = 100,
+    val isCharging: Boolean = false,
+    val isPluggedIn: Boolean = false,
+    val statusDescription: String = "Pilde"
+)
+
 class AetherCoreService : Service() {
 
     companion object {
@@ -31,6 +38,8 @@ class AetherCoreService : Service() {
 
         var instance: AetherCoreService? = null
             private set
+
+        val macBatteryState = kotlinx.coroutines.flow.MutableStateFlow<MacBatteryData?>(null)
 
         fun start(context: Context) {
             val intent = Intent(context, AetherCoreService::class.java)
@@ -98,7 +107,11 @@ class AetherCoreService : Service() {
     }
 
     private fun registerBatteryMonitoring() {
-        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_BATTERY_CHANGED)
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
         registerReceiver(batteryReceiver, filter)
     }
 
@@ -133,6 +146,7 @@ class AetherCoreService : Service() {
                         isConnected = true
                         Log.i(TAG, "Connected to macOS AetherLink listener at $macIpAddress:8443")
                         org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
+                        requestMacBattery()
                         startPeriodicTelemetry()
                     }
 
@@ -193,6 +207,14 @@ class AetherCoreService : Service() {
             val payload = json.getAsJsonObject("payload") ?: return
 
             when (type) {
+                "MAC_BATTERY_UPDATE" -> {
+                    val level = payload.get("batteryLevel")?.asInt ?: 100
+                    val isCharging = payload.get("isCharging")?.asBoolean ?: false
+                    val isPluggedIn = payload.get("isPluggedIn")?.asBoolean ?: false
+                    val desc = payload.get("statusDescription")?.asString ?: "Pilde"
+                    macBatteryState.value = MacBatteryData(level, isCharging, isPluggedIn, desc)
+                    Log.i(TAG, "Received Mac battery: $level%, isCharging: $isCharging ($desc)")
+                }
                 "DEVICE_TELEMETRY_REQUEST" -> {
                     org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this)
                 }
@@ -238,6 +260,10 @@ class AetherCoreService : Service() {
             add("payload", payload)
         }
         webSocket?.send(envelope.toString())
+    }
+
+    fun requestMacBattery() {
+        sendMessage("MAC_BATTERY_REQUEST", JsonObject())
     }
 
     override fun onDestroy() {

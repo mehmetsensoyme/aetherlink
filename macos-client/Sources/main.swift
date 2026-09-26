@@ -34,6 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start Universal Clipboard Sync
         ClipboardManager.shared.startMonitoring()
         
+        // Start Mac Battery Monitor & Broadcaster
+        MacBatteryMonitor.shared.startMonitoring()
+        
         // Passive background update check
         Task {
             await UpdateChecker.shared.checkForUpdates(manual: false)

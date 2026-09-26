@@ -74,6 +74,14 @@ public struct BatteryPayload: Codable, Sendable {
     public let temperatureCelsius: Double?
 }
 
+public struct MacBatteryPayload: Codable, Sendable {
+    public let batteryLevel: Int
+    public let isCharging: Bool
+    public let isPluggedIn: Bool
+    public let statusDescription: String
+    public let timestamp: Double
+}
+
 public struct MediaSessionPayload: Codable, Sendable {
     public let packageName: String
     public let trackTitle: String

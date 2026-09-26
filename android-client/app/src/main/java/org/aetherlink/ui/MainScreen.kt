@@ -236,6 +236,127 @@ fun MainScreen() {
                 }
             }
 
+            // Dual Battery & Power Status Card
+            val macBattery by AetherCoreService.macBatteryState.collectAsState()
+
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Karşılıklı Şarj & Güç Durumu", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+
+                        IconButton(onClick = {
+                            AetherCoreService.instance?.requestMacBattery()
+                        }) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Yenile", modifier = Modifier.size(20.dp))
+                        }
+                    }
+
+                    // MacBook Pro Battery Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Laptop,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("MacBook Pro", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                val desc = if (macBattery?.isCharging == true) "Şarj Oluyor (Prize Takılı)"
+                                else if (macBattery?.isPluggedIn == true) "Prize Takılı (Şarj Dolu)"
+                                else "Pilde Çalışıyor"
+                                Text(
+                                    desc,
+                                    fontSize = 12.sp,
+                                    color = if (macBattery?.isCharging == true) Color(0xFF4CAF50) else Color.Gray
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "%${macBattery?.level ?: 85}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = if (macBattery?.isCharging == true) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
+                            )
+                            Icon(
+                                if (macBattery?.isCharging == true) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
+                                contentDescription = null,
+                                tint = if (macBattery?.isCharging == true) Color(0xFF4CAF50) else Color.Gray,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    // Samsung Galaxy S25 Ultra Battery Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Smartphone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Galaxy S25 Ultra (Bu Cihaz)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text("Şarj Durumu Mac Menü Çubuğuna İletiliyor", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("%85", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Icon(
+                                Icons.Default.BatteryFull,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Wireless Screen Mirroring Card
             Card(
                 shape = RoundedCornerShape(16.dp),

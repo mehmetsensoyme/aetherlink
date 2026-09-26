@@ -90,6 +90,7 @@ public final class NetworkManager: ObservableObject {
                     self?.isConnected = true
                     self?.connectedDeviceName = "Galaxy S25 Ultra"
                     print("[NetworkManager] Android device connected successfully!")
+                    MacBatteryMonitor.shared.broadcastBatteryState()
                     self?.receiveNextMessage(from: connection)
                 case .cancelled, .failed:
                     self?.isConnected = false
@@ -176,6 +177,9 @@ public final class NetworkManager: ObservableObject {
             self.mediaState = nil
             ScreenMirrorManager.shared.stopStreamRequest()
             print("[NetworkManager] Device disconnected from remote side.")
+            
+        case "MAC_BATTERY_REQUEST":
+            MacBatteryMonitor.shared.broadcastBatteryState()
             
         case "HEARTBEAT_PING":
             self.send(type: "HEARTBEAT_PONG", payload: ["timestamp": Date().timeIntervalSince1970 * 1000])
