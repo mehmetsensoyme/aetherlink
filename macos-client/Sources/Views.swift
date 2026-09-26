@@ -524,7 +524,7 @@ public struct MenuBarContentView: View {
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: (mirror.isStreaming || mirror.isScrcpyRunning) ? "display.trianglebadge.exclamationmark" : "display")
-                        Text((mirror.isStreaming || mirror.isScrcpyRunning) ? "Yansıtmayı Durdur" : (mirror.hasScrcpyInstalled ? "Ekranı Yansıt (Scrcpy 60fps)" : "Ekranı Yansıt"))
+                        Text((mirror.isStreaming || mirror.isScrcpyRunning) ? "Yansıtmayı Durdur" : (mirror.hasScrcpyInstalled ? "Ekranı Yansıt (Ultra HD 60 FPS)" : "Ekranı Yansıt"))
                     }
                     .font(.caption)
                 }

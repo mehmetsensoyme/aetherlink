@@ -200,7 +200,11 @@ public final class ScreenMirrorManager: ObservableObject {
     }
     
     public func closeScreenWindow() {
-        windowController?.close()
+        if let win = windowController?.window {
+            win.orderOut(nil)
+            win.close()
+        }
+        windowController = nil
         self.isWindowOpen = false
         if isStreaming {
             stopStreamRequest()

@@ -81,6 +81,15 @@ macOS 15 Sequoia'nın yeni `NSLocalNetworkUsageDescription` kuralı ve Android 1
 
 ---
 
+## 🙏 Teşekkürler & Krediler
+
+AetherLink projesi, açık kaynak ekosisteminin öncü projelerinden ilham almış ve onların güçlü altyapılarını kullanmaktadır:
+* **[scrcpy](https://github.com/Genymobile/scrcpy) - [Genymobile](https://github.com/Genymobile):** Endüstri standardı haline gelmiş ultra düşük gecikmeli, 60 FPS yüksek performanslı Android ekran yansıtma ve kontrol motoru için sonsuz teşekkürler.
+* **[FFmpeg](https://ffmpeg.org/):** Donanımsal video akışı çözme ve ses işleme altyapısı için.
+* **[SDL (Simple DirectMedia Layer)](https://www.libsdl.org/):** Düşük gecikmeli pencereleme, grafik çıktısı ve giriş yönetimi için.
+
+---
+
 ## 📄 Lisans
 
 Bu proje **MIT Lisansı** ile lisanslanmıştır. Detaylar için [LICENSE](LICENSE) dosyasına göz atabilirsiniz.

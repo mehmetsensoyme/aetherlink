@@ -70,12 +70,13 @@ public final class CallManager: ObservableObject {
         if callWindow == nil {
             let panel = NSPanel(
                 contentRect: NSRect(x: 0, y: 0, width: 340, height: 130),
-                styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+                styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
             )
             panel.isFloatingPanel = true
-            panel.level = .floating
+            panel.level = .statusBar
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isOpaque = false
             panel.backgroundColor = .clear
             panel.hasShadow = true
@@ -91,7 +92,23 @@ public final class CallManager: ObservableObject {
             callWindow?.setFrameOrigin(NSPoint(x: x, y: y))
         }
         
-        callWindow?.orderFront(nil)
+        callWindow?.orderFrontRegardless()
+        
+        // Post native macOS banner notification as well
+        let notif = NotificationPayload(
+            id: payload.callId,
+            key: payload.callId,
+            packageName: "telecom",
+            appName: payload.appType == .cellular ? "Gelen Telefon Araması" : "Gelen Arama",
+            title: payload.callerName,
+            text: payload.phoneNumber ?? "Bilinmeyen Numara",
+            subText: nil,
+            timestamp: payload.timestamp,
+            canReply: false,
+            replyPlaceholder: nil,
+            appIconBase64: nil
+        )
+        NotificationManager.shared.displayNotification(notif)
     }
     
     public func dismissCallBanner() {

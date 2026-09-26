@@ -342,6 +342,11 @@ class AetherCoreService : Service() {
                 "CALL_ACTION" -> {
                     val callId = payload.get("callId")?.asString ?: ""
                     val action = payload.get("action")?.asString ?: ""
+                    if (action == "answer") {
+                        org.aetherlink.telecom.CallActionHelper.answerCall(this)
+                    } else if (action == "decline" || action == "hangup") {
+                        org.aetherlink.telecom.CallActionHelper.endCall(this)
+                    }
                     AetherInCallService.handleRemoteAction(callId, action)
                 }
                 "NOTIFICATION_REPLY" -> {

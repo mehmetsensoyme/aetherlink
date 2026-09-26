@@ -79,6 +79,15 @@ For a complete breakdown of permissions and modern platform security requirement
 
 ---
 
+## 🙏 Acknowledgments & Credits
+
+AetherLink is powered by and stands on the shoulders of fantastic open-source projects:
+* **[scrcpy](https://github.com/Genymobile/scrcpy) by [Genymobile](https://github.com/Genymobile)** - The industry-standard ultra-low latency, high-performance Android screen mirroring and remote control engine.
+* **[FFmpeg](https://ffmpeg.org/)** - For seamless video stream decoding and hardware acceleration.
+* **[SDL (Simple DirectMedia Layer)](https://www.libsdl.org/)** - For cross-platform windowing, graphics rendering, and low-latency input event processing.
+
+---
+
 ## 📄 License
 
 Distributed under the **MIT License**. See [LICENSE](LICENSE) for more details.
