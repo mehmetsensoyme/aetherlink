@@ -41,7 +41,9 @@ import org.aetherlink.updater.UpdateInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    onReplayOnboarding: () -> Unit = {}
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var macIpInput by remember { mutableStateOf("127.0.0.1") }
@@ -135,6 +137,10 @@ fun MainScreen() {
                     }
                 },
                 actions = {
+                    IconButton(onClick = onReplayOnboarding) {
+                        Icon(Icons.Default.HelpOutline, contentDescription = "Karşılama ve Tanıtım")
+                    }
+
                     IconButton(onClick = { showPermissionDialog = true }) {
                         BadgedBox(
                             badge = {

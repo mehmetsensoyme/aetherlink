@@ -183,6 +183,51 @@ object AetherPermissionManager {
     }
 
     /**
+     * Checks if the app is excluded from battery optimization / background restrictions.
+     */
+    fun isBatteryOptimizationIgnored(context: Context): Boolean {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager ?: return true
+        return pm.isIgnoringBatteryOptimizations(context.packageName)
+    }
+
+    /**
+     * Creates intent to prompt user for battery optimization exemption.
+     */
+    fun createBatteryOptimizationIntent(context: Context): Intent {
+        return Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:${context.packageName}")
+        }
+    }
+
+    /**
+     * Checks if all phone call, contact and call log permissions are granted.
+     */
+    fun isCallAndContactsGranted(context: Context): Boolean {
+        val hasCall = isPhoneCallPermissionGranted(context)
+        val hasContacts = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_CONTACTS
+        ) == PackageManager.PERMISSION_GRANTED
+        return hasCall && hasContacts
+    }
+
+    /**
+     * Returns list of runtime permissions needed for telephony and contacts.
+     */
+    fun getCallAndContactsPermissions(): Array<String> {
+        val list = mutableListOf(
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_CONTACTS
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            list.add(Manifest.permission.ANSWER_PHONE_CALLS)
+        }
+        return list.toTypedArray()
+    }
+
+    /**
      * Checks if the app is allowed to request package installation (unknown sources).
      * On Android 8.0+ (Oreo), this requires REQUEST_INSTALL_PACKAGES permission.
      */

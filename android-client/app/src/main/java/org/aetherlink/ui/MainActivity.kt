@@ -17,6 +17,13 @@ import androidx.compose.material3.lightColorScheme
 import org.aetherlink.screen.ScreenStreamManager
 import org.aetherlink.service.AetherCoreService
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import org.aetherlink.ui.onboarding.OnboardingPreferences
+import org.aetherlink.ui.onboarding.OnboardingScreen
+
 class MainActivity : ComponentActivity() {
 
     companion object {
@@ -105,7 +112,24 @@ class MainActivity : ComponentActivity() {
             val colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()
 
             MaterialTheme(colorScheme = colorScheme) {
-                MainScreen()
+                var isOnboardingCompleted by remember {
+                    mutableStateOf(OnboardingPreferences.isOnboardingCompleted(this))
+                }
+
+                if (!isOnboardingCompleted) {
+                    OnboardingScreen(
+                        onComplete = {
+                            OnboardingPreferences.setOnboardingCompleted(this, true)
+                            isOnboardingCompleted = true
+                        }
+                    )
+                } else {
+                    MainScreen(
+                        onReplayOnboarding = {
+                            isOnboardingCompleted = false
+                        }
+                    )
+                }
             }
         }
     }
