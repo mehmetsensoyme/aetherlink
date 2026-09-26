@@ -1,0 +1,105 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release (DMG & APK)
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ----------------------------------------------------
+      # Android Build Step
+      # ----------------------------------------------------
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x android-client/gradlew
+
+      - name: Build Android Release APK
+        working-directory: android-client
+        run: |
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk ../AetherLink-${{ github.ref_name }}.apk
+          ls -lh ../AetherLink-${{ github.ref_name }}.apk
+
+      # ----------------------------------------------------
+      # macOS Build & DMG Step
+      # ----------------------------------------------------
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app || true
+
+      - name: Build macOS App & Widget Extension
+        working-directory: macos-client
+        run: |
+          echo "Building AetherLink and AetherLinkWidget using Xcode / Swift tools..."
+          swift build -c release
+
+          # Assemble .app bundle with WidgetKit Extension
+          mkdir -p AetherLink.app/Contents/MacOS
+          mkdir -p AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/MacOS
+          mkdir -p AetherLink.app/Contents/Resources
+
+          cp .build/release/AetherLink AetherLink.app/Contents/MacOS/AetherLink
+          cp .build/release/AetherLinkWidget AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/MacOS/AetherLinkWidget
+          cp WidgetExtension/Info.plist AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/Info.plist
+          cp Info.plist AetherLink.app/Contents/Info.plist
+
+          if [ -d "Resources" ]; then
+            cp -R Resources/* AetherLink.app/Contents/Resources/ 2>/dev/null || true
+          fi
+
+          # Self-sign bundle and extension
+          codesign --force --deep -s - --entitlements WidgetExtension/WidgetExtension.entitlements AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex
+          codesign --force --deep -s - --entitlements AetherLink.entitlements AetherLink.app
+
+      - name: Create macOS DMG
+        working-directory: macos-client
+        run: |
+          echo "Creating standard DMG image with /Applications symlink..."
+          mkdir -p dmg_staging
+          cp -R AetherLink.app dmg_staging/
+          ln -s /Applications dmg_staging/Applications
+
+          hdiutil create \
+            -volname "AetherLink" \
+            -srcfolder dmg_staging \
+            -ov \
+            -format UDZO \
+            ../AetherLink-${{ github.ref_name }}.dmg
+
+          rm -rf dmg_staging
+          ls -lh ../AetherLink-${{ github.ref_name }}.dmg
+
+      # ----------------------------------------------------
+      # GitHub Release Step
+      # ----------------------------------------------------
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "AetherLink ${{ github.ref_name }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            AetherLink-${{ github.ref_name }}.dmg
+            AetherLink-${{ github.ref_name }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
