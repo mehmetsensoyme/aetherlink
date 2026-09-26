@@ -15,5 +15,11 @@
     <true/>
     <key>com.apple.security.device.bluetooth</key>
     <true/>
+
+    <!-- App Group for WidgetKit synchronization -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.org.aetherlink</string>
+    </array>
 </dict>
 </plist>

@@ -7,14 +7,26 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "AetherLink", targets: ["AetherLink"])
+        .executable(name: "AetherLink", targets: ["AetherLink"]),
+        .executable(name: "AetherLinkWidget", targets: ["AetherLinkWidget"])
     ],
     dependencies: [],
     targets: [
+        .target(
+            name: "AetherShared",
+            dependencies: [],
+            path: "Shared"
+        ),
         .executableTarget(
             name: "AetherLink",
-            dependencies: [],
+            dependencies: ["AetherShared"],
             path: "Sources"
+        ),
+        .executableTarget(
+            name: "AetherLinkWidget",
+            dependencies: ["AetherShared"],
+            path: "WidgetExtension",
+            exclude: ["Info.plist", "WidgetExtension.entitlements"]
         )
     ]
 )

@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import AetherShared
 
 @MainActor
 public final class NetworkManager: ObservableObject {
@@ -163,6 +164,16 @@ public final class NetworkManager: ObservableObject {
                let name = payload["deviceName"] as? String, !name.isEmpty {
                 self.connectedDeviceName = name
                 print("[NetworkManager] Set connectedDeviceName from DEVICE_INFO: \(name)")
+                if let battery = self.batteryState {
+                    AetherWidgetDataManager.shared.updateBattery(
+                        level: battery.batteryLevel,
+                        isCharging: battery.isCharging,
+                        deviceName: name,
+                        isConnected: true,
+                        powerSave: battery.powerSaveMode,
+                        temp: battery.temperatureCelsius
+                    )
+                }
             }
 
         case "PAIRING_REQUEST":
@@ -178,6 +189,15 @@ public final class NetworkManager: ObservableObject {
             if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
                let battery = try? JSONDecoder().decode(BatteryPayload.self, from: payloadData) {
                 self.batteryState = battery
+                // Sync to App Group UserDefaults for Widget Extension & trigger WidgetCenter
+                AetherWidgetDataManager.shared.updateBattery(
+                    level: battery.batteryLevel,
+                    isCharging: battery.isCharging,
+                    deviceName: self.connectedDeviceName,
+                    isConnected: true,
+                    powerSave: battery.powerSaveMode,
+                    temp: battery.temperatureCelsius
+                )
             }
             
         case "MEDIA_UPDATE":
@@ -223,6 +243,14 @@ public final class NetworkManager: ObservableObject {
                 if !name.isEmpty && (self.connectedDeviceName == "Bağlanıyor..." || self.connectedDeviceName.isEmpty || self.connectedDeviceName == "Bağlantı Kesildi") {
                     self.connectedDeviceName = name
                 }
+                // Sync battery from telemetry to App Group UserDefaults
+                AetherWidgetDataManager.shared.updateBattery(
+                    level: tele.batteryLevel,
+                    isCharging: tele.isCharging,
+                    deviceName: self.connectedDeviceName,
+                    isConnected: true,
+                    temp: tele.batteryTempCelsius
+                )
             }
             
         case "SCREEN_STREAM_FRAME":
@@ -260,6 +288,9 @@ public final class NetworkManager: ObservableObject {
         
         // 2. Reset device telemetry and specs
         DeviceTelemetryManager.shared.telemetry = nil
+        
+        // 3. Clear Widget Extension state via App Group
+        AetherWidgetDataManager.shared.clear()
         
         // 3. Post native system alert on Mac if disconnected from phone
         if showNotification {
