@@ -33,7 +33,7 @@ import org.aetherlink.updater.UpdateInfo
 fun MainScreen() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var macIpInput by remember { mutableStateOf("192.168.1.100") }
+    var macIpInput by remember { mutableStateOf("127.0.0.1") }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
 

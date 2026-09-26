@@ -111,10 +111,10 @@ class AetherNotificationListener : NotificationListenerService() {
         val intent = Intent()
         val bundle = Bundle()
         bundle.putCharSequence(remoteInput.resultKey, replyText)
-        RemoteInput.addResultsToIntent(arrayOf(remoteInput), intent, bundle)
+        androidx.core.app.RemoteInput.addResultsToIntent(arrayOf(remoteInput), intent, bundle)
 
         try {
-            action.actionIntent.send(this, 0, intent)
+            action.actionIntent?.send(this, 0, intent)
             Log.i(TAG, "Successfully dispatched remote inline reply for key: $key")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send pending reply intent: ${e.message}")

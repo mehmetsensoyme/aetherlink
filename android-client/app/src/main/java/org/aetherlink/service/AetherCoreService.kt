@@ -46,7 +46,7 @@ class AetherCoreService : Service() {
     private val gson = Gson()
     private var webSocket: WebSocket? = null
     private var isConnected = false
-    private var macIpAddress: String = "192.168.1.100" // Default or discovered via mDNS
+    private var macIpAddress: String = "127.0.0.1" // Local loopback via ADB reverse or Wi-Fi IP
 
     private val okHttpClient = OkHttpClient.Builder()
         .pingInterval(15, TimeUnit.SECONDS)
