@@ -267,10 +267,8 @@ public struct DeviceTelemetryDetailView: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 350, height: 420)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: 320, height: 420)
         .background(.ultraThinMaterial)
         .keyboardShortcut(.cancelAction)
     }
@@ -423,10 +421,8 @@ public struct PairingQRView: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 320, height: 390)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.ultraThinMaterial)
         .keyboardShortcut(.cancelAction)
         .onReceive(network.$isConnected) { isConnected in
@@ -889,7 +885,7 @@ public struct SettingsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
-        .frame(width: 350, height: 380)
+        .frame(width: 320, height: 380)
         .background(.ultraThinMaterial)
         .keyboardShortcut(.cancelAction)
     }
@@ -917,20 +913,21 @@ struct WindowBackgroundConfigurator: NSViewRepresentable {
         guard let window = window else { return }
         window.isOpaque = false
         window.backgroundColor = .clear
+        window.minSize = NSSize(width: 320, height: 380)
         
         let targetSize: NSSize
         switch currentPage {
         case .pairing:
             targetSize = NSSize(width: 320, height: 390)
         case .telemetry:
-            targetSize = NSSize(width: 350, height: 420)
+            targetSize = NSSize(width: 320, height: 420)
         case .settings:
-            targetSize = NSSize(width: 350, height: 380)
+            targetSize = NSSize(width: 320, height: 380)
         case .dashboard:
-            targetSize = NSSize(width: 350, height: max(window.frame.height, 460))
+            targetSize = NSSize(width: 320, height: 440)
         }
         
-        if currentPage != .dashboard && (abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1) {
+        if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
             window.setContentSize(targetSize)
         }
     }
@@ -949,6 +946,19 @@ public struct MenuBarContentView: View {
     @ObservedObject var state = PopoverStateManager.shared
     
     public init() {}
+    
+    private var currentViewHeight: CGFloat {
+        switch state.currentPage {
+        case .pairing:
+            return 390
+        case .telemetry:
+            return 420
+        case .settings:
+            return 380
+        case .dashboard:
+            return 440
+        }
+    }
     
     public var body: some View {
         Group {
@@ -981,9 +991,7 @@ public struct MenuBarContentView: View {
                 )
             }
         }
-        .frame(width: state.currentPage == .pairing ? 320 : 350)
-        .frame(height: state.currentPage == .pairing ? 390 : nil)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: 320, height: currentViewHeight)
         .background(.ultraThinMaterial)
         .background(WindowBackgroundConfigurator(currentPage: state.currentPage))
     }
@@ -1330,7 +1338,7 @@ public struct MenuBarContentView: View {
         }
         .padding(14)
         }
-        .frame(width: 350)
+        .frame(width: 320, height: 440)
     }
 }
 
