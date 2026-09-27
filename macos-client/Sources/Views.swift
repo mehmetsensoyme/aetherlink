@@ -334,9 +334,10 @@ public struct DeviceTelemetryDetailView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
-            .padding(.bottom, 14)
+            .padding(.bottom, 12)
         }
-        .frame(width: 320, height: network.isConnected ? 360 : 270)
+        .frame(width: 360)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -496,9 +497,10 @@ public struct PairingQRView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
-            .padding(.bottom, 14)
+            .padding(.bottom, 12)
         }
-        .frame(width: 320, height: 330)
+        .frame(width: 360)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -967,9 +969,10 @@ public struct SettingsView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
-            .padding(.bottom, 14)
+            .padding(.bottom, 12)
         }
-        .frame(width: 320, height: 260)
+        .frame(width: 360)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -982,57 +985,57 @@ public struct SettingsView: View {
     }
 }
 
-// MARK: - Window Background & Size Configurator
+// MARK: - Auto-Sizing NSHostingController & NSView
+public class AutoSizingHostingController<Content: View>: NSHostingController<Content> {
+    public override func viewDidLayout() {
+        super.viewDidLayout()
+        // İçerik değiştikçe popover boyutunu otomatik güncelle
+        let fitting = view.fittingSize
+        if fitting.width > 0 && fitting.height > 0 {
+            preferredContentSize = NSSize(width: 360, height: ceil(fitting.height))
+        }
+    }
+}
+
+// MARK: - Window Background & Auto-Sizing Configurator
 struct WindowBackgroundConfigurator: NSViewRepresentable {
     let currentPage: PopoverPage
     
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            configure(window: view.window)
-        }
+    func makeNSView(context: Context) -> AutoSizingNSView {
+        let view = AutoSizingNSView()
         return view
     }
     
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            configure(window: nsView.window)
-        }
+    func updateNSView(_ nsView: AutoSizingNSView, context: Context) {
+        nsView.scheduleResize()
+    }
+}
+
+final class AutoSizingNSView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        scheduleResize()
     }
     
-    private func configure(window: NSWindow?) {
-        guard let window = window else { return }
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.minSize = NSSize(width: 320, height: 260)
-        
-        let targetSize: NSSize
-        switch currentPage {
-        case .pairing:
-            targetSize = NSSize(width: 320, height: 330)
-        case .telemetry:
-            let h: CGFloat = NetworkManager.shared.isConnected ? 360 : 270
-            targetSize = NSSize(width: 320, height: h)
-        case .settings:
-            targetSize = NSSize(width: 320, height: 260)
-        case .dashboard:
-            let h: CGFloat
-            if NetworkManager.shared.isConnected {
-                let hasMedia = NetworkManager.shared.mediaState?.isPlaying == true && !(NetworkManager.shared.mediaState?.trackTitle.isEmpty ?? true)
-                h = hasMedia ? 300 : 250
-            } else {
-                h = 245
+    func scheduleResize() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let window = self.window else { return }
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            
+            if let contentView = window.contentView {
+                let fitting = contentView.fittingSize
+                if fitting.width > 0 && fitting.height > 0 {
+                    let targetSize = NSSize(width: 360, height: ceil(fitting.height))
+                    if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
+                        window.setContentSize(targetSize)
+                    }
+                }
             }
-            targetSize = NSSize(width: 320, height: h)
-        }
-        
-        if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
-            window.setContentSize(targetSize)
-        }
-        
-        // Ensure window retains active key status so NSPopover / MenuBarExtra window doesn't dismiss transiently
-        if window.isVisible && !window.isKeyWindow {
-            window.makeKey()
+            
+            if window.isVisible && !window.isKeyWindow {
+                window.makeKey()
+            }
         }
     }
 }
@@ -1050,28 +1053,6 @@ public struct MenuBarContentView: View {
     @ObservedObject var state = PopoverStateManager.shared
     
     public init() {}
-    
-    private var currentDashboardHeight: CGFloat {
-        if network.isConnected {
-            let hasMedia = network.mediaState?.isPlaying == true && !(network.mediaState?.trackTitle.isEmpty ?? true)
-            return hasMedia ? 300 : 250
-        } else {
-            return 245
-        }
-    }
-    
-    private var currentViewHeight: CGFloat {
-        switch state.currentPage {
-        case .pairing:
-            return 330
-        case .telemetry:
-            return network.isConnected ? 360 : 270
-        case .settings:
-            return 260
-        case .dashboard:
-            return currentDashboardHeight
-        }
-    }
     
     public var body: some View {
         ZStack {
@@ -1115,8 +1096,9 @@ public struct MenuBarContentView: View {
                 .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
             }
         }
-        .frame(width: 320, height: currentViewHeight)
-        .animation(.easeInOut(duration: 0.2), value: state.currentPage)
+        .frame(width: 360)
+        .fixedSize(horizontal: false, vertical: true)
+        .animation(.easeInOut(duration: 0.22), value: state.currentPage)
         .background(.ultraThinMaterial)
         .background(WindowBackgroundConfigurator(currentPage: state.currentPage))
     }
@@ -1136,14 +1118,17 @@ public struct MenuBarContentView: View {
                                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                                 .foregroundColor(.primary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.85)
                             
                             Text("Yerel Ağda Bağlı • AES-256")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.85)
                         }
+                        .layoutPriority(1)
                         
-                        Spacer()
+                        Spacer(minLength: 8)
                         
                         // Battery Indicator Capsule
                         let batteryPct = network.batteryState?.batteryLevel ?? telemetryMgr.telemetry?.batteryLevel ?? 0
@@ -1189,13 +1174,18 @@ public struct MenuBarContentView: View {
                             Text("Bağlı Cihaz Yok")
                                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                                 .foregroundColor(.primary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
                             
                             Text("Cihaz Aranıyor...")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
                         }
+                        .layoutPriority(1)
                         
-                        Spacer()
+                        Spacer(minLength: 8)
                         
                         Button(action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -1463,7 +1453,8 @@ public struct MenuBarContentView: View {
             .padding(.top, 12)
             .padding(.bottom, 12)
         }
-        .frame(width: 320, height: currentDashboardHeight)
+        .frame(width: 360)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

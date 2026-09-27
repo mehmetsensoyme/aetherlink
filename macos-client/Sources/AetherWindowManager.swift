@@ -24,7 +24,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         
         let winHeight: CGFloat = NetworkManager.shared.isConnected ? 360 : 270
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: winHeight),
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: winHeight),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -39,7 +39,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         win.delegate = self
         win.center()
         
-        let hostingView = NSHostingView(
+        let hostingController = AutoSizingHostingController(
             rootView: DeviceTelemetryDetailView(
                 showInlineBack: false,
                 onDismiss: { [weak self] in
@@ -47,7 +47,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
                 }
             )
         )
-        win.contentView = hostingView
+        win.contentViewController = hostingController
         self.telemetryWindow = win
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -71,7 +71,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         }
         
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 330),
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 330),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -86,7 +86,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         win.delegate = self
         win.center()
         
-        let hostingView = NSHostingView(
+        let hostingController = AutoSizingHostingController(
             rootView: PairingQRView(
                 showInlineBack: false,
                 onDismiss: { [weak self] in
@@ -94,7 +94,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
                 }
             )
         )
-        win.contentView = hostingView
+        win.contentViewController = hostingController
         self.pairingQRWindow = win
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

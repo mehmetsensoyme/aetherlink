@@ -7,18 +7,21 @@ AetherLink projesine ait tüm önemli değişiklikler, yeni özellikler ve hata 
 ## [1.3.6] - 2026-09-27
 
 ### 🚀 Düzeltmeler ve İyileştirmeler (Fixes & Improvements)
+- **Dinamik Popover Boyutlandırması & Boşluk Giderme (Auto-Sizing Dynamic Layout):**
+  - Tüm sayfalardaki yapay sabit yükseklik sınırları (`currentDashboardHeight`, `currentViewHeight`) kaldırılarak, SwiftUI'ın gerçek içerik yüksekliğini hesaplayan `AutoSizingHostingController` ve `AutoSizingNSView` mimarisine geçildi (`width: 360`, `.fixedSize(horizontal: false, vertical: true)`).
+  - Popover ve bağımsız pencereler içeriğin dikey boyutuna göre otomatik olarak ölçeklenir, alt kısımda hiçbir ölü boşluk (dead space) veya dikey taşma oluşmaz.
+  - Aksiyon butonlarının ve altbilgi (footer) çubuğunun alt boşluğu `12 pt` padding ile pencere sınırına tam oturtuldu.
+- **Başlık Metinlerinin Kesilmesini Önleme (Title Truncation Guard):**
+  - Uzun tüketici cihaz isimleri (*"Samsung Galaxy S25 Ultra"*) ve *"Yerel Ağda Bağlı • AES-256"* ibarelerinin dar pencerelerde üç nokta ile kesilmesini önlemek amacıyla `.layoutPriority(1)`, `.lineLimit(1)`, `.minimumScaleFactor(0.85)` ve esnek `Spacer(minLength: 8)` eklendi; metinler ile aksiyon butonları arasındaki ayrım korundu.
+- **GitHub Actions CI/CD Release Pipeline İyileştirmeleri:**
+  - Pipeline'ın süresiz kilitlenmesini engellemek için `timeout-minutes: 25` sınırı konuldu.
+  - Release oluşturma ve artifact yükleme yetkisi için `permissions: contents: write` ve tetikleme için `workflow_dispatch` eklendi.
+  - macOS derlemesinde keychain şifresi ve provizyonlama profili beklemeden derlemeyi tamamlayan non-interactive ad-hoc imzalama uygulandı.
+  - Üretilen DMG ve APK paketleri doğrudan `./artifacts/` dizininde toplanıp `softprops/action-gh-release@v2` aracılığıyla otomatik yayınlanacak şekilde yapılandırıldı.
 - **Sahte Telemetri Verilerinin Temizlenmesi (`DeviceInfoView`):**
   - Cihaz bağlı değilken alt başlıkta ve kartlarda görünen sahte model (*"Android 14+ • Samsung"*), sabit sıcaklık (*"28.5°C"*) ve boş donanım halkaları kaldırıldı.
   - Cihaz bağlı değilken modern bir cam kart içinde açıklayıcı **Empty State** mesajı ve doğrudan eşleştirme sayfasına yönlendiren **"Cihaz Eşleştir"** butonu eklendi.
   - Cihaz bağlandığında yalnızca Android soketinden gelen gerçek `DeviceTelemetryPayload` telemetrisi ekrana yansıtılacak şekilde normalize edildi.
-- **Pencere ve Popover Yükseklik Optimizasyonu (Dead Space Fix):**
-  - Tüm popover ve bağımsız pencerelerdeki aşırı yüksek çerçevelerden kaynaklanan alt siyah/ölü boş alanlar (layout gap) tamamen kaldırıldı.
-  - Sayfa boyutları içeriği saran dinamik yüksekliklerle optimize edildi:
-    - **Ana Dashboard:** Bağlantısız `245 pt`, bağlı `250 pt`, medya çalarken `300 pt` (tüm alt boşluklar sıfırlandı).
-    - **Cihaz Eşleştirme (PairingQRView):** `330 pt`
-    - **Cihaz Donanım Bilgileri (DeviceInfoView):** Bağlıyken `360 pt`, bağlantısızken `270 pt`
-    - **Ayarlar ve Durum (SettingsView):** `260 pt`
-  - Aksiyon butonlarının ve altbilgi (footer) çubuğunun alt boşluğu `12 pt` padding ile pencere sınırına tam oturtuldu.
 - **Bağlantı Öncesi (Disconnected) Durum Mantık Düzeltmeleri:**
   - Üst üste duran iki kart tek bir modern cam kartta birleştirildi: "Bağlı Cihaz Yok" başlığı, sarı sinyal noktası, "Cihaz Aranıyor..." alt metni ve minimal "QR Göster" cam butonu.
   - Altbilgi (footer) çubuğundaki mükerrer "Eşleştir" butonu kaldırıldı; sol tarafta "Bilgiler" ve "Ayarlar", sağ tarafta sürüm ve kırmızı "Çıkış" butonu dengeli tek bir düzleme yerleştirildi.

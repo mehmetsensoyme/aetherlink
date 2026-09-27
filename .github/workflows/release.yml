@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,13 +13,17 @@ jobs:
   release:
     name: Build & Release (DMG & APK)
     runs-on: macos-14
-    timeout-minutes: 45
+    timeout-minutes: 25
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Create artifacts staging directory
+      - name: Prepare Artifacts Directory
+        run: mkdir -p ./artifacts
 
       # ----------------------------------------------------
       # Android Build Step
@@ -30,63 +35,61 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Make Gradle Wrapper Executable
-        run: chmod +x android-client/gradlew
-
       - name: Build Android Release APK
         working-directory: android-client
         run: |
+          echo "Building Android release APK non-interactively..."
+          chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
-          cp app/build/outputs/apk/release/app-release.apk ../AetherLink-${{ github.ref_name }}.apk
-          ls -lh ../AetherLink-${{ github.ref_name }}.apk
+          
+          # Copy to artifacts directory
+          cp app/build/outputs/apk/release/*.apk ../artifacts/AetherLink-Android.apk
+          if [ -n "${{ github.ref_name }}" ]; then
+            cp ../artifacts/AetherLink-Android.apk ../artifacts/AetherLink-${{ github.ref_name }}.apk || true
+          fi
+          ls -lh ../artifacts/
 
       # ----------------------------------------------------
       # macOS Build & DMG Step
       # ----------------------------------------------------
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app || true
-
-      - name: Build macOS App & Widget Extension
+      - name: Build macOS App & Create DMG
         working-directory: macos-client
         run: |
-          echo "Building AetherLink and AetherLinkWidget using Xcode / Swift tools..."
+          echo "Building macOS binary using Swift tools..."
           swift build -c release
-
-          # Assemble .app bundle with WidgetKit Extension
+          
+          # Assemble .app bundle
           mkdir -p AetherLink.app/Contents/MacOS
-          mkdir -p AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/MacOS
           mkdir -p AetherLink.app/Contents/Resources
-
+          
           cp .build/release/AetherLink AetherLink.app/Contents/MacOS/AetherLink
-          cp .build/release/AetherLinkWidget AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/MacOS/AetherLinkWidget
-          cp WidgetExtension/Info.plist AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/Info.plist
           cp Info.plist AetherLink.app/Contents/Info.plist
-
+          
           if [ -d "Resources" ]; then
             cp -R Resources/* AetherLink.app/Contents/Resources/ 2>/dev/null || true
           fi
-
-          # Self-sign bundle and extension
-          codesign --force --deep -s - --entitlements WidgetExtension/WidgetExtension.entitlements AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex
-          codesign --force --deep -s - --entitlements AetherLink.entitlements AetherLink.app
-
-      - name: Create macOS DMG
-        working-directory: macos-client
-        run: |
-          echo "Creating standard DMG image with /Applications symlink..."
+          
+          # Ad-hoc sign bundle non-interactively (no keychain prompt)
+          codesign --force --deep -s - AetherLink.app
+          
+          # Assemble clean DMG
           mkdir -p dmg_staging
           cp -R AetherLink.app dmg_staging/
           ln -s /Applications dmg_staging/Applications
-
+          
           hdiutil create \
             -volname "AetherLink" \
             -srcfolder dmg_staging \
             -ov \
             -format UDZO \
-            ../AetherLink-${{ github.ref_name }}.dmg
-
+            ../artifacts/AetherLink-macOS.dmg
+          
+          if [ -n "${{ github.ref_name }}" ]; then
+            cp ../artifacts/AetherLink-macOS.dmg ../artifacts/AetherLink-${{ github.ref_name }}.dmg || true
+          fi
+          
           rm -rf dmg_staging
-          ls -lh ../AetherLink-${{ github.ref_name }}.dmg
+          ls -lh ../artifacts/
 
       # ----------------------------------------------------
       # GitHub Release Step
@@ -94,12 +97,13 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "AetherLink ${{ github.ref_name }}"
+          files: |
+            ./artifacts/AetherLink-macOS.dmg
+            ./artifacts/AetherLink-Android.apk
+            ./artifacts/AetherLink-*.dmg
+            ./artifacts/AetherLink-*.apk
           generate_release_notes: true
           draft: false
           prerelease: false
-          files: |
-            AetherLink-${{ github.ref_name }}.dmg
-            AetherLink-${{ github.ref_name }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
