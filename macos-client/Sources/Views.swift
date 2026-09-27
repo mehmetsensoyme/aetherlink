@@ -1,18 +1,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Navigation Hierarchy for Popover
-public enum PopoverPage: String, Equatable {
-    case dashboard
-    case telemetry
-    case pairing
-    case settings
-    
-    public static var deviceInfo: PopoverPage { .telemetry }
-}
-
-public typealias ActiveScreen = PopoverPage
-
 // MARK: - Pulsing Connection Dot Indicator
 public struct PulsingIndicatorView: View {
     let isConnected: Bool
@@ -122,9 +110,7 @@ public struct DeviceTelemetryDetailView: View {
         } else if let onDismiss = onDismiss {
             onDismiss()
         } else {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                PopoverStateManager.shared.currentPage = .dashboard
-            }
+            PopoverRouter.shared.popToDashboard()
         }
     }
     
@@ -151,213 +137,213 @@ public struct DeviceTelemetryDetailView: View {
     }
     
     public var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 8) {
-                // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
-                HStack {
+        VStack(spacing: 8) {
+            // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
+            HStack {
+                Button(action: {
+                    handleBack()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color(nsColor: .controlAccentColor))
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
+                }
+                .buttonStyle(.plain)
+                .help("Geri")
+                
+                Spacer()
+                
+                VStack(spacing: 1) {
+                    Text(titleText)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(subtitleText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                Color.clear
+                    .frame(width: 24, height: 24)
+            }
+            .padding(.horizontal, 2)
+            .padding(.top, 22)
+            
+            if network.isConnected {
+                // 3 Progress Rings (RAM, Storage, Battery - diameter: 36, height: 70)
+                HStack(spacing: 8) {
+                    ActivityRingView(
+                        progress: ramProgress,
+                        ringColor: Color.blue,
+                        ringWidth: 4.5,
+                        diameter: 36,
+                        icon: "memorychip",
+                        title: "RAM",
+                        valueText: telemetry != nil ? (telemetryMgr.formattedRam.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? "--") : "--",
+                        subtitle: telemetry != nil ? "\(Int(ramProgress * 100))% Dolu" : "--"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 70)
+                    .glassCard(cornerRadius: 10, padding: 4)
+                    
+                    ActivityRingView(
+                        progress: storageProgress,
+                        ringColor: Color.purple,
+                        ringWidth: 4.5,
+                        diameter: 36,
+                        icon: "internaldrive",
+                        title: "Depolama",
+                        valueText: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageUsedGB)) GB" : "--",
+                        subtitle: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageTotalGB)) GB Toplam" : "--"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 70)
+                    .glassCard(cornerRadius: 10, padding: 4)
+                    
+                    let phoneTemp = telemetry != nil ? String(format: "%.1f°C", telemetry!.effectiveTemp) : "--"
+                    let macTemp = String(format: "%.1f°C", thermalService.currentTemperature)
+                    
+                    ActivityRingView(
+                        progress: batteryProgress,
+                        ringColor: Color.green,
+                        ringWidth: 4.5,
+                        diameter: 36,
+                        icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
+                        title: "Pil & Isı",
+                        valueText: telemetry != nil ? "\(telemetry!.batteryLevel)%" : "--%",
+                        subtitle: telemetry != nil ? "\(phoneTemp) • \(macTemp)" : "--"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 70)
+                    .glassCard(cornerRadius: 10, padding: 4)
+                }
+                
+                // Hardware Telemetry Spec Rows (Tightened padding)
+                VStack(spacing: 4) {
+                    let phoneTempStr = telemetry != nil ? String(format: "%.1f", telemetry!.effectiveTemp) : "--"
+                    let macTempStr = String(format: "%.1f", thermalService.currentTemperature)
+                    
+                    TelemetrySpecRow(
+                        icon: "thermometer.medium",
+                        label: "Donanım Isıları",
+                        value: "📱 Tel: \(phoneTempStr)°C • 💻 Mac: \(macTempStr)°C",
+                        accentColor: .orange
+                    )
+                    
+                    TelemetrySpecRow(
+                        icon: "wifi",
+                        label: "Kablosuz Ağ & Hız",
+                        value: telemetryMgr.formattedNetwork,
+                        accentColor: .blue
+                    )
+                    
+                    TelemetrySpecRow(
+                        icon: "antenna.radiowaves.left.and.right",
+                        label: "Hücresel Bağlantı",
+                        value: telemetry?.cellularOperator ?? "Mobil Veri",
+                        accentColor: .indigo
+                    )
+                    
+                    TelemetrySpecRow(
+                        icon: "clock.arrow.circlepath",
+                        label: "Sistem Çalışma Süresi",
+                        value: telemetryMgr.formattedUptime,
+                        accentColor: .orange
+                    )
+                    
+                    TelemetrySpecRow(
+                        icon: "heart.text.square.fill",
+                        label: "Pil Sağlığı",
+                        value: telemetry != nil ? "\(telemetry!.batteryHealth) • \(telemetry!.isCharging ? "Hızlı Şarj" : "Deşarj")" : "--",
+                        accentColor: .green
+                    )
+                }
+                .glassCard(cornerRadius: 12, padding: 6)
+                
+                Spacer(minLength: 4)
+                
+                // Pinned Action Buttons (Yenile & Bağlantıyı Kes)
+                HStack(spacing: 10) {
                     Button(action: {
-                        handleBack()
+                        telemetryMgr.requestTelemetryRefresh()
+                        thermalService.readHardwareTemperature(forceFresh: true)
+                        thermalService.broadcastTelemetry()
                     }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color(nsColor: .controlAccentColor))
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Yenile")
+                        }
+                        .font(.caption.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
                     }
                     .buttonStyle(.plain)
-                    .help("Geri")
+                    .glassTile(id: "refresh_telemetry", isActive: false)
                     
-                    Spacer()
+                    Button(role: .destructive, action: {
+                        network.disconnectDevice(forget: false)
+                        handleBack()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "link.badge.slash")
+                            Text("Bağlantıyı Kes")
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
+                }
+                .padding(.bottom, 16)
+            } else {
+                // Empty State Glass Card (When Disconnected)
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.primary.opacity(0.06))
+                            .frame(width: 48, height: 48)
+                        Image(systemName: "iphone.slash")
+                            .font(.system(size: 22))
+                            .foregroundColor(.secondary)
+                    }
                     
-                    VStack(spacing: 1) {
-                        Text(titleText)
-                            .font(.headline)
-                            .lineLimit(1)
-                        Text(subtitleText)
+                    VStack(spacing: 4) {
+                        Text("Bağlı Cihaz Bulunamadı")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Donanım ve sistem telemetrisi görüntülemek için lütfen önce telefonunuzu eşleştirin.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
-                            .lineLimit(1)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 8)
                     }
                     
-                    Spacer()
-                    
-                    Color.clear
-                        .frame(width: 24, height: 24)
+                    Button(action: {
+                        PopoverRouter.shared.navigateTo(.pairing)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "qrcode")
+                            Text("Cihaz Eşleştir")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 34)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "telemetry_empty_pair_btn", isActive: true)
                 }
-                .padding(.horizontal, 2)
-                .padding(.top, 14)
+                .padding(16)
+                .glassCard(cornerRadius: 14, padding: 0)
                 
-                if network.isConnected {
-                    // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery - height 84)
-                    HStack(spacing: 8) {
-                        ActivityRingView(
-                            progress: ramProgress,
-                            ringColor: Color.blue,
-                            ringWidth: 5.5,
-                            diameter: 40,
-                            icon: "memorychip",
-                            title: "RAM",
-                            valueText: telemetry != nil ? (telemetryMgr.formattedRam.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? "--") : "--",
-                            subtitle: telemetry != nil ? "\(Int(ramProgress * 100))% Dolu" : "--"
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 84)
-                        .glassCard(cornerRadius: 12, padding: 6)
-                        
-                        ActivityRingView(
-                            progress: storageProgress,
-                            ringColor: Color.purple,
-                            ringWidth: 5.5,
-                            diameter: 40,
-                            icon: "internaldrive",
-                            title: "Depolama",
-                            valueText: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageUsedGB)) GB" : "--",
-                            subtitle: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageTotalGB)) GB Toplam" : "--"
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 84)
-                        .glassCard(cornerRadius: 12, padding: 6)
-                        
-                        let phoneTemp = telemetry != nil ? String(format: "%.1f°C", telemetry!.effectiveTemp) : "--"
-                        let macTemp = String(format: "%.1f°C", thermalService.currentTemperature)
-                        
-                        ActivityRingView(
-                            progress: batteryProgress,
-                            ringColor: Color.green,
-                            ringWidth: 5.5,
-                            diameter: 40,
-                            icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
-                            title: "Pil & Isı",
-                            valueText: telemetry != nil ? "\(telemetry!.batteryLevel)%" : "--%",
-                            subtitle: telemetry != nil ? "\(phoneTemp) • \(macTemp)" : "--"
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 84)
-                        .glassCard(cornerRadius: 12, padding: 6)
-                    }
-                    
-                    // Hardware Telemetry Spec Rows (Tightened padding)
-                    VStack(spacing: 6) {
-                        let phoneTempStr = telemetry != nil ? String(format: "%.1f°C", telemetry!.effectiveTemp) : "--"
-                        let macTempStr = String(format: "%.1f°C", thermalService.currentTemperature)
-                        
-                        TelemetrySpecRow(
-                            icon: "thermometer.medium",
-                            label: "Donanım Isıları",
-                            value: "📱 Tel: \(phoneTempStr)  •  💻 Mac: \(macTempStr)",
-                            accentColor: .orange
-                        )
-                        
-                        TelemetrySpecRow(
-                            icon: "wifi",
-                            label: "Kablosuz Ağ & Hız",
-                            value: telemetryMgr.formattedNetwork,
-                            accentColor: .blue
-                        )
-                        
-                        TelemetrySpecRow(
-                            icon: "antenna.radiowaves.left.and.right",
-                            label: "Hücresel Bağlantı",
-                            value: telemetry?.cellularOperator ?? "Mobil Veri",
-                            accentColor: .indigo
-                        )
-                        
-                        TelemetrySpecRow(
-                            icon: "clock.arrow.circlepath",
-                            label: "Sistem Çalışma Süresi",
-                            value: telemetryMgr.formattedUptime,
-                            accentColor: .orange
-                        )
-                        
-                        TelemetrySpecRow(
-                            icon: "heart.text.square.fill",
-                            label: "Pil Sağlığı",
-                            value: telemetry != nil ? "\(telemetry!.batteryHealth) • \(telemetry!.isCharging ? "Hızlı Şarj" : "Deşarj")" : "--",
-                            accentColor: .green
-                        )
-                    }
-                    .glassCard(cornerRadius: 12, padding: 8)
-                    
-                    // Action Buttons (Yenile & Bağlantıyı Kes - height 34)
-                    HStack(spacing: 10) {
-                        Button(action: {
-                            telemetryMgr.requestTelemetryRefresh()
-                            thermalService.readHardwareTemperature(forceFresh: true)
-                            thermalService.broadcastTelemetry()
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "arrow.clockwise")
-                                Text("Yenile")
-                            }
-                            .font(.caption.weight(.medium))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 34)
-                        }
-                        .buttonStyle(.plain)
-                        .glassTile(id: "refresh_telemetry", isActive: false)
-                        
-                        Button(role: .destructive, action: {
-                            network.disconnectDevice(forget: false)
-                            handleBack()
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "link.badge.slash")
-                                Text("Bağlantıyı Kes")
-                            }
-                            .font(.caption.weight(.medium))
-                            .foregroundColor(.red)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 34)
-                        }
-                        .buttonStyle(.plain)
-                        .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
-                    }
-                } else {
-                    // Empty State Glass Card (When Disconnected)
-                    VStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.primary.opacity(0.06))
-                                .frame(width: 48, height: 48)
-                            Image(systemName: "iphone.slash")
-                                .font(.system(size: 22))
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        VStack(spacing: 4) {
-                            Text("Bağlı Cihaz Bulunamadı")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text("Donanım ve sistem telemetrisi görüntülemek için lütfen önce telefonunuzu eşleştirin.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 8)
-                        }
-                        
-                        Button(action: {
-                            PopoverStateManager.shared.currentPage = .pairing
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "qrcode")
-                                Text("Cihaz Eşleştir")
-                            }
-                            .font(.caption.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 34)
-                        }
-                        .buttonStyle(.plain)
-                        .glassTile(id: "telemetry_empty_pair_btn", isActive: true)
-                    }
-                    .padding(16)
-                    .glassCard(cornerRadius: 14, padding: 0)
-                }
+                Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 16)
         }
-        .frame(width: 360)
-        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 16)
+        .frame(width: 340, height: 430)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -424,105 +410,102 @@ public struct PairingQRView: View {
         } else if let onDismiss = onDismiss {
             onDismiss()
         } else {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                PopoverStateManager.shared.currentPage = .dashboard
-            }
+            PopoverRouter.shared.popToDashboard()
         }
     }
     
     public var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 10) {
-                // 1. Single-line Clean Header Bar (Symmetrical with Top Safe Area)
-                HStack {
-                    Button(action: {
-                        handleBack()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color(nsColor: .controlAccentColor))
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Geri")
-                    
-                    Spacer()
-                    
-                    Text("Cihaz Eşleştirme")
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Color.clear
-                        .frame(width: 24, height: 24)
-                }
-                
-                // 2. Compact Glass-framed QR Code Card (130x130)
-                GlassQRCodeCard(payloadUrl: pairing.pairingPayloadUrl)
-                    .padding(.top, 2)
-                
-                // 3. Compact Confirmation Code Card (SF Mono, padding 8, size 22)
-                VStack(spacing: 2) {
-                    Text("Eşleşme Onay Kodu")
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                    
-                    Text(pairing.currentConfirmationCode)
-                        .font(.system(size: 22, weight: .bold, design: .monospaced))
-                        .tracking(3)
+        VStack(spacing: 8) {
+            // 1. Single-line Clean Header Bar (Symmetrical with Top Safe Area)
+            HStack {
+                Button(action: {
+                    handleBack()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(Color(nsColor: .controlAccentColor))
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .glassCard(cornerRadius: 12, padding: 0, isHighlighted: true)
+                .buttonStyle(.plain)
+                .help("Geri")
                 
-                // 4. Instructions Text (2 lines max, fixedSize)
-                Text("Telefonunuzdaki AetherLink uygulamasından bu QR kodu okutun.")
+                Spacer()
+                
+                Text("Cihaz Eşleştirme")
+                    .font(.headline)
+                
+                Spacer()
+                
+                Color.clear
+                    .frame(width: 24, height: 24)
+            }
+            .padding(.horizontal, 2)
+            .padding(.top, 22)
+            
+            // 2. Compact Glass-framed QR Code Card (130x130)
+            GlassQRCodeCard(payloadUrl: pairing.pairingPayloadUrl)
+                .padding(.top, 2)
+            
+            // 3. Compact Confirmation Code Card (SF Mono, padding 8, size 22)
+            VStack(spacing: 2) {
+                Text("Eşleşme Onay Kodu")
                     .font(.caption2)
+                    .fontWeight(.medium)
                     .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 4)
                 
-                // 5. Local IP & Refresh Button Row
-                HStack {
-                    HStack(spacing: 4) {
-                        Image(systemName: "network")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Text("\(network.localIPAddress):8443")
-                            .font(.caption2.monospaced())
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        pairing.generateNewConfirmationCode()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                            Text("Yeni Kod")
-                        }
-                        .font(.caption2.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.plain)
-                    .glassTile(id: "new_pairing_code", isActive: false)
+                Text(pairing.currentConfirmationCode)
+                    .font(.system(size: 22, weight: .bold, design: .monospaced))
+                    .tracking(3)
+                    .foregroundColor(Color(nsColor: .controlAccentColor))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .glassCard(cornerRadius: 12, padding: 0, isHighlighted: true)
+            
+            // 4. Instructions Text (2 lines max, fixedSize)
+            Text("Telefonunuzdaki AetherLink uygulamasından bu QR kodu okutun.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4)
+            
+            Spacer(minLength: 2)
+            
+            // 5. Local IP & Refresh Button Row
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: "network")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("\(network.localIPAddress):8443")
+                        .font(.caption2.monospaced())
+                        .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                
+                Spacer()
+                
+                Button(action: {
+                    pairing.generateNewConfirmationCode()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                        Text("Yeni Kod")
+                    }
+                    .font(.caption2.weight(.medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+                .glassTile(id: "new_pairing_code", isActive: false)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.bottom, 14)
         }
-        .frame(width: 360)
-        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 16)
+        .frame(width: 340, height: 380)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -865,7 +848,7 @@ public struct SettingsView: View {
                 HStack {
                     Button(action: {
                         onBack()
-                        PopoverStateManager.shared.currentPage = .dashboard
+                        PopoverRouter.shared.popToDashboard()
                     }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 12, weight: .bold))
@@ -887,6 +870,7 @@ public struct SettingsView: View {
                         .frame(width: 24, height: 24)
                 }
                 .padding(.horizontal, 2)
+                .padding(.top, 22)
                 
                 // Environment & OS Status Card
                 VStack(spacing: 8) {
@@ -990,17 +974,14 @@ public struct SettingsView: View {
                 .glassCard(cornerRadius: 14, padding: 12)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 14)
             .padding(.bottom, 16)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .frame(width: 360)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 340, height: 340)
         .background(.ultraThinMaterial)
-        .edgesIgnoringSafeArea(.all)
         .background(
             Button("") {
                 onBack()
+                PopoverRouter.shared.popToDashboard()
             }
             .keyboardShortcut(.escape, modifiers: [])
             .opacity(0)
@@ -1013,11 +994,8 @@ public struct SettingsView: View {
 public class AutoSizingHostingController<Content: View>: NSHostingController<Content> {
     public override func viewDidLayout() {
         super.viewDidLayout()
-        // İçerik değiştikçe popover boyutunu otomatik güncelle
-        let fitting = view.fittingSize
-        if fitting.width > 0 && fitting.height > 0 {
-            preferredContentSize = NSSize(width: 360, height: ceil(fitting.height))
-        }
+        let targetSize = PopoverRouter.shared.currentScreen.preferredSize
+        preferredContentSize = targetSize
     }
 }
 
@@ -1050,12 +1028,14 @@ final class AutoSizingNSView: NSView {
             if let contentView = window.contentView {
                 contentView.wantsLayer = true
                 contentView.layer?.backgroundColor = .clear
-                let fitting = contentView.fittingSize
-                if fitting.width > 0 && fitting.height > 0 {
-                    let targetSize = NSSize(width: 360, height: ceil(fitting.height))
-                    if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
-                        window.setContentSize(targetSize)
-                    }
+            }
+            
+            let targetSize = PopoverRouter.shared.currentScreen.preferredSize
+            if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.22
+                    context.allowsImplicitAnimation = true
+                    window.setContentSize(targetSize)
                 }
             }
             
@@ -1076,23 +1056,22 @@ public struct MenuBarContentView: View {
     @ObservedObject var telemetryMgr = DeviceTelemetryManager.shared
     @ObservedObject var notifManager = NotificationManager.shared
     @ObservedObject var clipboard = ClipboardManager.shared
+    @ObservedObject var router = PopoverRouter.shared
     @ObservedObject var state = PopoverStateManager.shared
     
     public init() {}
     
     public var body: some View {
         ZStack {
-            switch state.currentPage {
+            switch router.currentScreen {
             case .dashboard:
                 dashboardView
                     .transition(.opacity)
-            case .telemetry:
+            case .deviceInfo:
                 DeviceTelemetryDetailView(
                     showInlineBack: true,
                     onBack: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            state.currentPage = .dashboard
-                        }
+                        router.popToDashboard()
                     }
                 )
                 .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
@@ -1104,9 +1083,7 @@ public struct MenuBarContentView: View {
                     PairingQRView(
                         showInlineBack: true,
                         onBack: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                state.currentPage = .dashboard
-                            }
+                            router.popToDashboard()
                         }
                     )
                     .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
@@ -1114,19 +1091,16 @@ public struct MenuBarContentView: View {
             case .settings:
                 SettingsView(
                     onBack: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            state.currentPage = .dashboard
-                        }
+                        router.popToDashboard()
                     }
                 )
                 .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
             }
         }
-        .frame(width: 360)
-        .fixedSize(horizontal: false, vertical: true)
-        .animation(.easeInOut(duration: 0.22), value: state.currentPage)
+        .frame(width: router.currentScreen.preferredSize.width, height: router.currentScreen.preferredSize.height)
+        .animation(.easeInOut(duration: 0.22), value: router.currentScreen)
         .background(.ultraThinMaterial)
-        .background(WindowBackgroundConfigurator(currentPage: state.currentPage))
+        .background(WindowBackgroundConfigurator(currentPage: router.currentScreen))
     }
     
     // MARK: - Dashboard Content
@@ -1217,9 +1191,7 @@ public struct MenuBarContentView: View {
                         Spacer(minLength: 8)
                         
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                state.currentPage = .pairing
-                            }
+                            router.navigateTo(.pairing)
                         }) {
                             HStack(spacing: 5) {
                                 Image(systemName: "qrcode")
@@ -1426,9 +1398,7 @@ public struct MenuBarContentView: View {
                 HStack(spacing: 8) {
                     // "Cihaz Bilgileri" Button
                     Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            state.currentPage = .telemetry
-                        }
+                        router.navigateTo(.deviceInfo)
                         telemetryMgr.requestTelemetryRefresh()
                     }) {
                         HStack(spacing: 4) {
@@ -1446,9 +1416,7 @@ public struct MenuBarContentView: View {
                     
                     // "Ayarlar" Button
                     Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            state.currentPage = .settings
-                        }
+                        router.navigateTo(.settings)
                     }) {
                         Image(systemName: "gearshape")
                             .font(.caption2.weight(.medium))
@@ -1479,11 +1447,10 @@ public struct MenuBarContentView: View {
                 .padding(.horizontal, 2)
             }
             .padding(.horizontal, 14)
-            .padding(.top, 12)
+            .padding(.top, 22)
             .padding(.bottom, 12)
         }
-        .frame(width: 360)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 340, height: 350)
     }
 }
 

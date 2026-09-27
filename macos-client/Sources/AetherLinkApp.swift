@@ -31,6 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Prevent app from showing in Dock (pure menu bar daemon)
         NSApp.setActivationPolicy(.accessory)
         
+        // Initialize Status Bar Popover controller & PopoverRouter size sync
+        _ = StatusBarController.shared
+        
         // Request Notification authorization
         NotificationManager.shared.requestAuthorization()
         

@@ -7,6 +7,13 @@ AetherLink projesine ait tüm önemli değişiklikler, yeni özellikler ve hata 
 ## [1.3.6] - 2026-09-27
 
 ### 🚀 Düzeltmeler ve İyileştirmeler (Fixes & Improvements)
+- **macOS PopoverRouter Tabanlı Navigasyon, Tavan Kesilmesini Önleme ve Buton Sabitleme:**
+  - `PopoverRouter.swift` ile durum tabanlı gezinme mimarisi kuruldu (`ActiveScreen`: `dashboard` 340x350, `pairing` 340x380, `deviceInfo` 340x430, `settings` 340x340).
+  - Popover içindeki tüm pencereleri kapatan `@Environment(\.dismiss)` ve `.close()` çağrıları kaldırılarak geri butonları doğrudan `PopoverRouter.shared.popToDashboard()` metoduna bağlandı; pencerenin tamamen kapanması engellendi.
+  - `StatusBarController.swift` ile AppKit `NSPopover` ve `NSWindow` boyut geçişleri `NSAnimationContext.runAnimationGroup` ile pürüzsüz animasyonla senkronize edildi; pencere zeminleri `isOpaque = false` ve `backgroundColor = .clear` olarak yapılandırıldı.
+  - Tüm alt sayfalardan (`DeviceTelemetryDetailView`, `PairingQRView`, `SettingsView`, `dashboardView`) `.ignoresSafeArea()` ve `.edgesIgnoringSafeArea()` kodları temizlendi; en üst başlık barlarına `.padding(.top, 22)` güvenli alan boşluğu eklenerek tavan kesilmesi (clipping) giderildi.
+  - `DeviceTelemetryDetailView` içindeki 3'lü aktivite halkası küçültüldü (36 pt çap, 70 pt yükseklik), donanım liste satırları sıkılaştırıldı, canlı termal göstergesi `📱 Tel: [phoneTemp]°C • 💻 Mac: [macTemp]°C` formatına getirildi ve "Yenile" ile "Bağlantıyı Kes" butonları `.padding(.bottom, 16)` ile sayfanın en altına kalıcı olarak sabitlendi.
+  - Ana Kontrol Merkezi pil rozetindeki yüzde metni yatay `HStack`, `.fixedSize(horizontal: true, vertical: true)`, `.lineLimit(1)` ve `Capsule()` ile sınırlandırılarak dikey kırılma sorunu çözüldü.
 - **Android Uygulama İçi Güncelleme (OTA / In-App Update) & Güvenli Kurulum:**
   - Android 8 - 16+ uyumluluğu için `AndroidManifest.xml` içine `REQUEST_INSTALL_PACKAGES` ve `READ_EXTERNAL_STORAGE` (`maxSdkVersion="32"`) izinleri eklendi.
   - `res/xml/file_paths.xml` içinde internal/external cache ve files dizinleri (`.`) tam yetkiyle FileProvider'a açıldı (`Failed to find configured root` hatası kalıcı olarak giderildi).

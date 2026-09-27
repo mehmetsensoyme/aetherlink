@@ -22,9 +22,9 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
             return
         }
         
-        let winHeight: CGFloat = NetworkManager.shared.isConnected ? 360 : 270
+        let targetSize = ActiveScreen.deviceInfo.preferredSize
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: winHeight),
+            contentRect: NSRect(x: 0, y: 0, width: targetSize.width, height: targetSize.height),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -70,8 +70,9 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
             return
         }
         
+        let targetSize = ActiveScreen.pairing.preferredSize
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 330),
+            contentRect: NSRect(x: 0, y: 0, width: targetSize.width, height: targetSize.height),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false

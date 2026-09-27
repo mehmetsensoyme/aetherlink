@@ -6,7 +6,10 @@ import SwiftUI
 public final class PopoverStateManager: ObservableObject {
     public static let shared = PopoverStateManager()
     
-    @Published public var currentPage: PopoverPage = .dashboard
+    public var currentPage: ActiveScreen {
+        get { PopoverRouter.shared.currentScreen }
+        set { PopoverRouter.shared.currentScreen = newValue }
+    }
     @Published public var isAudioRoutingActive: Bool = false
     @Published public var isPulsing: Bool = false
     @Published public var hoveredTile: String? = nil
@@ -191,8 +194,8 @@ public struct ActivityRingView: View {
     public init(
         progress: Double,
         ringColor: Color,
-        ringWidth: CGFloat = 5.5,
-        diameter: CGFloat = 40,
+        ringWidth: CGFloat = 4.5,
+        diameter: CGFloat = 36,
         icon: String? = nil,
         title: String,
         valueText: String,
