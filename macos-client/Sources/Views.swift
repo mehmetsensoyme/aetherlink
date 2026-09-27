@@ -112,28 +112,39 @@ public struct DeviceTelemetryDetailView: View {
         return Double(t.batteryLevel) / 100.0
     }
     
+    private func handleBack() {
+        if let onBack = onBack {
+            onBack()
+        } else if let onDismiss = onDismiss {
+            onDismiss()
+        }
+        PopoverStateManager.shared.currentPage = .dashboard
+        dismiss()
+    }
+    
     public var body: some View {
         VStack(spacing: 14) {
             // Header
             HStack {
-                if showInlineBack {
-                    Button(action: {
-                        if let back = onBack { back() }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text("Geri")
-                                .font(.system(size: 13, weight: .medium))
-                        }
+                Button(action: {
+                    handleBack()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Geri")
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                    .buttonStyle(.plain)
                     .foregroundColor(Color(nsColor: .controlAccentColor))
-                } else {
-                    Image(systemName: "iphone.gen3")
-                        .font(.title2)
-                        .foregroundColor(Color(nsColor: .controlAccentColor))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06))
+                    )
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 
                 Spacer()
                 
@@ -146,18 +157,17 @@ public struct DeviceTelemetryDetailView: View {
                         .foregroundColor(.secondary)
                 }
                 
-                if !showInlineBack {
-                    Button(action: {
-                        onDismiss?()
-                        dismiss()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.leading, 6)
+                Button(action: {
+                    handleBack()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.secondary)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help("Kapat")
+                .padding(.leading, 4)
             }
             .padding(.horizontal, 2)
             
@@ -239,7 +249,7 @@ public struct DeviceTelemetryDetailView: View {
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.clockwise")
-                        Text("Verileri Yenile")
+                        Text("Yenile")
                     }
                     .font(.caption.weight(.medium))
                     .frame(maxWidth: .infinity)
@@ -250,12 +260,7 @@ public struct DeviceTelemetryDetailView: View {
                 
                 Button(role: .destructive, action: {
                     network.disconnectDevice(forget: false)
-                    if showInlineBack {
-                        onBack?()
-                    } else {
-                        onDismiss?()
-                        dismiss()
-                    }
+                    handleBack()
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "link.badge.slash")
@@ -269,6 +274,23 @@ public struct DeviceTelemetryDetailView: View {
                 .buttonStyle(.plain)
                 .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
             }
+            
+            // Full Width Primary Back Button
+            Button(action: {
+                handleBack()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.backward.circle.fill")
+                    Text("Ana Menüye Dön")
+                }
+                .font(.caption.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .glassTile(id: "telemetry_back_bottom", isActive: true)
+            .keyboardShortcut(.cancelAction)
         }
         .padding(14)
         .frame(width: 350)
@@ -325,46 +347,57 @@ public struct PairingQRView: View {
         self.onDismiss = onDismiss
     }
     
+    private func handleBack() {
+        if let onBack = onBack {
+            onBack()
+        } else if let onDismiss = onDismiss {
+            onDismiss()
+        }
+        PopoverStateManager.shared.currentPage = .dashboard
+        dismiss()
+    }
+    
     public var body: some View {
         VStack(spacing: 14) {
             // Header
             HStack {
-                if showInlineBack {
-                    Button(action: {
-                        onBack?()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text("Geri")
-                                .font(.system(size: 13, weight: .medium))
-                        }
+                Button(action: {
+                    handleBack()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Geri")
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                    .buttonStyle(.plain)
                     .foregroundColor(Color(nsColor: .controlAccentColor))
-                } else {
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.title2)
-                        .foregroundColor(Color(nsColor: .controlAccentColor))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06))
+                    )
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 
                 Spacer()
                 
                 Text("Cihaz Eşleştirme")
                     .font(.headline)
                 
-                if !showInlineBack {
-                    Button(action: {
-                        onDismiss?()
-                        dismiss()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.leading, 6)
+                Spacer()
+                
+                Button(action: {
+                    handleBack()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.secondary)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help("Kapat")
             }
             .padding(.horizontal, 2)
             
@@ -419,6 +452,23 @@ public struct PairingQRView: View {
                 .buttonStyle(.plain)
                 .glassTile(id: "new_pairing_code", isActive: false)
             }
+            
+            // Full Width Primary Back Button
+            Button(action: {
+                handleBack()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.backward.circle.fill")
+                    Text("Ana Menüye Dön")
+                }
+                .font(.caption.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .glassTile(id: "pairing_back_bottom", isActive: true)
+            .keyboardShortcut(.cancelAction)
         }
         .padding(14)
         .frame(width: 350)
@@ -742,21 +792,45 @@ public struct SettingsView: View {
         VStack(spacing: 12) {
             // Header
             HStack {
-                Button(action: onBack) {
+                Button(action: {
+                    onBack()
+                    PopoverStateManager.shared.currentPage = .dashboard
+                }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 12, weight: .bold))
                         Text("Geri")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: 12, weight: .semibold))
                     }
+                    .foregroundColor(Color(nsColor: .controlAccentColor))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06))
+                    )
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(Color(nsColor: .controlAccentColor))
                 
                 Spacer()
                 
                 Text("Ayarlar & Durum")
                     .font(.headline)
+                
+                Spacer()
+                
+                Button(action: {
+                    onBack()
+                    PopoverStateManager.shared.currentPage = .dashboard
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.secondary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Kapat")
             }
             .padding(.horizontal, 2)
             
@@ -860,6 +934,24 @@ public struct SettingsView: View {
                 .glassTile(id: "check_updates_settings", isActive: false)
             }
             .glassCard(cornerRadius: 14, padding: 12)
+            
+            // Full Width Primary Back Button
+            Button(action: {
+                onBack()
+                PopoverStateManager.shared.currentPage = .dashboard
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.backward.circle.fill")
+                    Text("Ana Menüye Dön")
+                }
+                .font(.caption.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .glassTile(id: "settings_back_bottom", isActive: true)
+            .keyboardShortcut(.cancelAction)
         }
         .padding(14)
         .frame(width: 350)
@@ -882,59 +974,29 @@ public struct MenuBarContentView: View {
     public init() {}
     
     public var body: some View {
-        ZStack {
+        Group {
             switch state.currentPage {
             case .dashboard:
                 dashboardView
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .leading).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        )
-                    )
             case .telemetry:
                 DeviceTelemetryDetailView(
                     showInlineBack: true,
                     onBack: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            state.currentPage = .dashboard
-                        }
+                        state.currentPage = .dashboard
                     }
-                )
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    )
                 )
             case .pairing:
                 PairingQRView(
                     showInlineBack: true,
                     onBack: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            state.currentPage = .dashboard
-                        }
+                        state.currentPage = .dashboard
                     }
-                )
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    )
                 )
             case .settings:
                 SettingsView(
                     onBack: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            state.currentPage = .dashboard
-                        }
+                        state.currentPage = .dashboard
                     }
-                )
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    )
                 )
             }
         }
