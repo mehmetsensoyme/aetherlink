@@ -52,12 +52,17 @@ fun MainScreen(
     var isDiscovering by remember { mutableStateOf(false) }
     var isScreenStreaming by remember { mutableStateOf(ScreenStreamManager.isStreaming) }
     var showPairingDialog by remember { mutableStateOf(false) }
+    var showTelemetryDialog by remember { mutableStateOf(false) }
     var pairingCode by remember { mutableStateOf("482 915") }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var isDownloadingApk by remember { mutableStateOf(false) }
     var apkDownloadProgress by remember { mutableStateOf(0f) }
     var apkDownloadError by remember { mutableStateOf<String?>(null) }
+
+    val macBattery by AetherCoreService.macBatteryState.collectAsState()
+    val macTelemetry by AetherCoreService.macTelemetryState.collectAsState()
+    val phoneBattery by AetherCoreService.phoneBatteryState.collectAsState()
 
     // Automatic update check on app launch (silent background check)
     LaunchedEffect(Unit) {
@@ -380,9 +385,6 @@ fun MainScreen(
             }
 
             // Dual Battery & Power Status Card
-            val macBattery by AetherCoreService.macBatteryState.collectAsState()
-            val phoneBattery by AetherCoreService.phoneBatteryState.collectAsState()
-
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -408,6 +410,7 @@ fun MainScreen(
 
                         IconButton(onClick = {
                             AetherCoreService.instance?.requestMacBattery()
+                            AetherCoreService.instance?.requestMacTelemetry()
                         }) {
                             Icon(Icons.Default.Refresh, contentDescription = "Yenile", modifier = Modifier.size(20.dp))
                         }
@@ -452,7 +455,41 @@ fun MainScreen(
                             }
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Mac Temperature Badge Chip
+                            val macTemp = macTelemetry?.temperatureCelsius
+                            if (macTemp != null) {
+                                val tempColor = when {
+                                    macTemp < 50.0 -> Color(0xFF4CAF50)
+                                    macTemp <= 75.0 -> Color(0xFFFF9800)
+                                    else -> Color(0xFFF44336)
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = tempColor.copy(alpha = 0.15f),
+                                    modifier = Modifier.padding(end = 2.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Thermostat,
+                                            contentDescription = null,
+                                            tint = tempColor,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text(
+                                            String.format(java.util.Locale.US, "%.1f°C", macTemp),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = tempColor
+                                        )
+                                    }
+                                }
+                            }
+
                             Text(
                                 if (macBattery != null) "%${macBattery?.level}" else "--",
                                 fontWeight = FontWeight.Bold,
@@ -505,7 +542,39 @@ fun MainScreen(
                             }
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Phone Temperature Chip
+                            val phoneTemp = phoneBattery.temperatureCelsius
+                            val phoneTempColor = when {
+                                phoneTemp < 38.0 -> Color(0xFF4CAF50)
+                                phoneTemp <= 44.0 -> Color(0xFFFF9800)
+                                else -> Color(0xFFF44336)
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = phoneTempColor.copy(alpha = 0.15f),
+                                modifier = Modifier.padding(end = 2.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Thermostat,
+                                        contentDescription = null,
+                                        tint = phoneTempColor,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text(
+                                        String.format(java.util.Locale.US, "%.1f°C", phoneTemp),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = phoneTempColor
+                                    )
+                                }
+                            }
+
                             Text(
                                 "%${phoneBattery.level}",
                                 fontWeight = FontWeight.Bold,
@@ -649,14 +718,23 @@ fun MainScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Smartphone, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                            Icon(Icons.Default.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
                             Spacer(modifier = Modifier.width(10.dp))
                             Text("Cihaz Donanım Bilgileri", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
-                        TextButton(onClick = {
-                            DeviceTelemetryManager.dispatchTelemetry(context)
-                        }) {
-                            Text("Mac'e Gönder", fontSize = 12.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = {
+                                showTelemetryDialog = true
+                            }) {
+                                Text("Detaylar", fontSize = 12.sp)
+                            }
+                            TextButton(onClick = {
+                                DeviceTelemetryManager.dispatchTelemetry(context)
+                                AetherCoreService.instance?.requestMacBattery()
+                                AetherCoreService.instance?.requestMacTelemetry()
+                            }) {
+                                Text("Yenile", fontSize = 12.sp)
+                            }
                         }
                     }
 
@@ -666,16 +744,58 @@ fun MainScreen(
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
+                            Text("Telefon Isısı", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "${String.format(java.util.Locale.US, "%.1f", phoneBattery.temperatureCelsius)}°C",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (AetherCoreService.currentThermalStatus == "NORMAL") Color(0xFF4CAF50).copy(alpha = 0.15f) else Color(0xFFFF9800).copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        AetherCoreService.currentThermalStatus,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (AetherCoreService.currentThermalStatus == "NORMAL") Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Column {
+                            Text("Bilgisayar Isısı (Mac)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            val macTemp = macTelemetry?.temperatureCelsius
+                            if (macTemp != null) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        "${String.format(java.util.Locale.US, "%.1f", macTemp)}°C",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    val macThermal = macTelemetry?.thermalStatus ?: "NORMAL"
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = if (macThermal == "NORMAL") Color(0xFF4CAF50).copy(alpha = 0.15f) else Color(0xFFFF9800).copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            macThermal,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (macThermal == "NORMAL") Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text("Bağlantı Yok", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Gray)
+                            }
+                        }
+                        Column {
                             Text("Pil Durumu", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                            Text("${phoneBattery.level}% • ${String.format(java.util.Locale.US, "%.1f", phoneBattery.temperatureCelsius)}°C", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        }
-                        Column {
-                            Text("RAM Kullanımı", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                            Text("7.2 GB / 12 GB", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        }
-                        Column {
-                            Text("Depolama", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                            Text("392 GB Boş", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("${phoneBattery.level}%", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         }
                     }
                 }
@@ -788,28 +908,106 @@ fun MainScreen(
                 }
             },
             icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text(info.title) },
+            title = { Text(info.title, fontWeight = FontWeight.Bold) },
             text = {
                 Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Yeni Sürüm: v${info.latestVersion} (Mevcut: v${info.currentVersion})", fontWeight = FontWeight.Bold)
-                    Divider()
-                    Text("Yenilikler (Changelog):", fontWeight = FontWeight.SemiBold)
-                    Text(info.changelog, style = MaterialTheme.typography.bodySmall)
+                    // Version Tag Comparison Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                "Mevcut: v${info.currentVersion}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                        Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                "Yeni: v${info.latestVersion}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    // Neler Yeni Section
+                    Text("Neler Yeni?", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 60.dp, max = 200.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                info.changelog.ifBlank { "Performans iyileştirmeleri ve hata düzeltmeleri yapıldı." },
+                                style = MaterialTheme.typography.bodySmall,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
 
                     if (isDownloadingApk) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text("İndiriliyor: %${(apkDownloadProgress * 100).toInt()}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "İndiriliyor: %${(apkDownloadProgress * 100).toInt()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
+                        )
                         LinearProgressIndicator(
                             progress = { apkDownloadProgress },
-                            modifier = Modifier.fillMaxWidth().height(6.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
                         )
                     }
 
                     if (apkDownloadError != null) {
-                        Text(apkDownloadError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    apkDownloadError!!,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 }
             },
@@ -852,6 +1050,124 @@ fun MainScreen(
                     TextButton(onClick = { updateInfo = null }) {
                         Text("Daha Sonra")
                     }
+                }
+            }
+        )
+    }
+
+    // Hardware & Thermal Telemetry Details Dialog Modal
+    if (showTelemetryDialog) {
+        val telemetry = remember(showTelemetryDialog) { DeviceTelemetryManager.collectTelemetry(context) }
+        AlertDialog(
+            onDismissRequest = { showTelemetryDialog = false },
+            icon = { Icon(Icons.Default.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Donanım & Isı Telemetrisi", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Mac Hardware Section
+                    Text("Mac Durumu", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("İşlemci / Donanım Isısı", fontSize = 12.sp, color = Color.Gray)
+                                val macTemp = macTelemetry?.temperatureCelsius
+                                Text(
+                                    if (macTemp != null) "${String.format(java.util.Locale.US, "%.1f", macTemp)}°C" else "Bağlantı Yok",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Termal Durum", fontSize = 12.sp, color = Color.Gray)
+                                Text(macTelemetry?.thermalStatus ?: "NORMAL", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Pil Seviyesi & Şarj", fontSize = 12.sp, color = Color.Gray)
+                                Text(
+                                    if (macBattery != null) "%${macBattery?.level} (${if (macBattery?.isCharging == true) "Şarjda" else "Pilde"})" else "--",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // Phone Hardware Section
+                    Text("Telefon Durumu (Bu Cihaz)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Model", fontSize = 12.sp, color = Color.Gray)
+                                Text("${Build.MANUFACTURER} ${Build.MODEL}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Batarya Isısı", fontSize = 12.sp, color = Color.Gray)
+                                Text(
+                                    "${String.format(java.util.Locale.US, "%.1f", phoneBattery.temperatureCelsius)}°C",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Termal Durum", fontSize = 12.sp, color = Color.Gray)
+                                Text(AetherCoreService.currentThermalStatus, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            val ramUsed = telemetry.get("ramUsedMB")?.asInt?.div(1024.0)
+                            val ramTotal = telemetry.get("ramTotalMB")?.asInt?.div(1024.0)
+                            if (ramUsed != null && ramTotal != null) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("RAM Kullanımı", fontSize = 12.sp, color = Color.Gray)
+                                    Text(
+                                        "${String.format(java.util.Locale.US, "%.1f", ramUsed)} GB / ${String.format(java.util.Locale.US, "%.1f", ramTotal)} GB",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            val storageFree = telemetry.get("storageFreeGB")?.asDouble
+                            val storageTotal = telemetry.get("storageTotalGB")?.asDouble
+                            if (storageFree != null && storageTotal != null) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Depolama Alanı", fontSize = 12.sp, color = Color.Gray)
+                                    Text(
+                                        "${String.format(java.util.Locale.US, "%.1f", storageFree)} GB Boş (${String.format(java.util.Locale.US, "%.1f", storageTotal)} GB)",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    DeviceTelemetryManager.dispatchTelemetry(context)
+                    AetherCoreService.instance?.requestMacBattery()
+                    AetherCoreService.instance?.requestMacTelemetry()
+                    Toast.makeText(context, "Sensör verileri yenilendi", Toast.LENGTH_SHORT).show()
+                }) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Sensörleri Yenile")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTelemetryDialog = false }) {
+                    Text("Kapat")
                 }
             }
         )

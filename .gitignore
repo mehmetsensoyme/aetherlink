@@ -37,6 +37,7 @@ yarn-error.log*
 .env
 .env.local
 *.keystore
+!android-client/app/aetherlink.keystore
 *.jks
 **/Resources/bin/
 **/Resources/lib/

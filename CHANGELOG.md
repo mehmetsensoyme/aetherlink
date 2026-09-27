@@ -7,6 +7,27 @@ AetherLink projesine ait tüm önemli değişiklikler, yeni özellikler ve hata 
 ## [1.3.6] - 2026-09-27
 
 ### 🚀 Düzeltmeler ve İyileştirmeler (Fixes & Improvements)
+- **Android Uygulama İçi Güncelleme (OTA / In-App Update) & Güvenli Kurulum:**
+  - Android 8 - 16+ uyumluluğu için `AndroidManifest.xml` içine `REQUEST_INSTALL_PACKAGES` ve `READ_EXTERNAL_STORAGE` (`maxSdkVersion="32"`) izinleri eklendi.
+  - `res/xml/file_paths.xml` içinde internal/external cache ve files dizinleri (`.`) tam yetkiyle FileProvider'a açıldı (`Failed to find configured root` hatası kalıcı olarak giderildi).
+  - Kurulum öncesi `canRequestPackageInstalls()` kontrolü eklenerek kullanıcı doğrudan `Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES` ekranına yönlendirildi.
+  - İndirilen pakete explicit `grantUriPermission` ve `FLAG_GRANT_READ_URI_PERMISSION`, `FLAG_ACTIVITY_NEW_TASK`, `FLAG_ACTIVITY_CLEAR_TOP` bayrakları sağlandı.
+  - **İmzalama (Keystore) Uyuşmazlığı Koruması (`INSTALL_FAILED_UPDATE_INCOMPATIBLE` Önleme):**
+    - `app/build.gradle.kts` içinde hem Debug hem de Release derlemelerinin CI ve yerel ortamda paylaşımlı `aetherlink.keystore` anahtarıyla imzalanması sağlandı.
+    - `AndroidUpdateChecker` içine imza özeti (Signature SHA-256) kontrolü eklenerek, farklı anahtarla imzalanmış paketlerde sistem çökmesi yerine *"Farklı derleme türü algılandı. Lütfen mevcut sürümü kaldırıp yeni sürümü yükleyin."* uyarısı gösterildi.
+  - **Version Code Doğrulaması:** İndirilen paketin `versionCode` değeri mevcut sürümden küçük veya eşitse sistemi kilitlemeden *"Zaten en güncel sürüm yüklü."* uyarısı verildi.
+  - **GitHub Releases Otomatik Değişiklik Günlüğü (Changelog):**
+    - GitHub Actions pipeline'ına (`release.yml`) `fetch-depth: 0` ve dinamik `Generate Changelog` adımı eklendi; önceki tag'den itibaren yapılan commit'ler `release_notes.md` dosyasına derlenerek `body_path` ile GitHub Release'e bağlandı.
+    - Android uygulama içi güncelleme penceresine kaydırılabilir şık "Neler Yeni?" bölümü eklendi; GitHub API `body` içeriği zengin formatla sunuldu (boş gelmesi durumunda otomatik fallback sağlandı).
+- **Çift Yönlü Donanım Isı & Telemetri Senkronizasyonu (Mac <-> Android):**
+  - macOS tarafında dinamik `IOHIDEventSystemClient` ile Apple Silicon ve Intel işlemcilerde 77 donanım termal sensöründen gerçek sıcaklık ortalaması hesaplandı (`MacThermalService`).
+  - Android tarafında `BatteryManager.EXTRA_TEMPERATURE` ve Android 10+ `PowerManager.OnThermalStatusChangedListener` ile batarya ısısı ve termal durumu dinamik olarak Mac'e aktarıldı.
+  - Hem Mac popover'ında hem Android ana ekranında ("Karşılıklı Şarj & Güç Durumu" ve "Cihaz Donanım Bilgileri") telefon ve bilgisayar sıcaklıkları için dinamik renk kodlu ısı rozetleri (`<50°C` yeşil, `50-75°C` turuncu, `>75°C` kırmızı) eklendi.
+  - Android'e çift yönlü "Donanım & Isı Telemetrisi" detay iletişim penceresi eklendi.
+- **macOS Görsel Hizalama ve Taşma Düzeltmeleri:**
+  - Ana Dashboard pil rozetindeki dikey 3 satıra kırılma hatası yatay `Capsule()` ve `.fixedSize()` ile çözüldü.
+  - Ayarlar ekranındaki alt ve üst beyaz şeritler AppKit layer arka planı ve `.edgesIgnoringSafeArea(.all)` ile giderildi.
+  - Donanım Telemetri ekranındaki başlık ve alt buton kesilmeleri üst `14 pt` güvenli alan ve sıkı halka düzeniyle tam oturtuldu.
 - **Dinamik Popover Boyutlandırması & Boşluk Giderme (Auto-Sizing Dynamic Layout):**
   - Tüm sayfalardaki yapay sabit yükseklik sınırları (`currentDashboardHeight`, `currentViewHeight`) kaldırılarak, SwiftUI'ın gerçek içerik yüksekliğini hesaplayan `AutoSizingHostingController` ve `AutoSizingNSView` mimarisine geçildi (`width: 360`, `.fixedSize(horizontal: false, vertical: true)`).
   - Popover ve bağımsız pencereler içeriğin dikey boyutuna göre otomatik olarak ölçeklenir, alt kısımda hiçbir ölü boşluk (dead space) veya dikey taşma oluşmaz.

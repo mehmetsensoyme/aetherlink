@@ -12,30 +12,37 @@ public final class DeviceTelemetryManager: ObservableObject {
     
     public func handleIncomingTelemetry(_ payload: DeviceTelemetryPayload) {
         self.telemetry = payload
-        print("[DeviceTelemetryManager] Received device specs: \(payload.manufacturer) \(payload.model), RAM: \(payload.ramUsedMB)/\(payload.ramTotalMB)MB, Battery: \(payload.batteryLevel)%, Temp: \(payload.batteryTempCelsius)°C")
+        print("[DeviceTelemetryManager] Received device specs: \(payload.manufacturer) \(payload.model), RAM: \(payload.ramUsedMB)/\(payload.ramTotalMB)MB, Battery: \(payload.batteryLevel)%, Temp: \(payload.effectiveTemp)°C")
     }
     
     public func requestTelemetryRefresh() {
         NetworkManager.shared.send(type: "DEVICE_TELEMETRY_REQUEST", payload: ["action": "refresh"])
+        MacThermalService.shared.readHardwareTemperature(forceFresh: true)
+        MacThermalService.shared.broadcastTelemetry()
     }
     
     public var formattedRam: String {
         guard let t = telemetry else { return "--" }
-        let usedGB = Double(t.ramUsedMB) / 1024.0
-        let totalGB = Double(t.ramTotalMB) / 1024.0
-        let pct = Int((Double(t.ramUsedMB) / max(Double(t.ramTotalMB), 1.0)) * 100)
+        let usedMB = t.ramUsedMB
+        let totalMB = max(t.ramTotalMB, 1)
+        let usedGB = Double(usedMB) / 1024.0
+        let totalGB = Double(totalMB) / 1024.0
+        let pct = Int((Double(usedMB) / Double(totalMB)) * 100)
         return String(format: "%.1f GB / %.0f GB (%%%d)", usedGB, totalGB, pct)
     }
     
     public var formattedStorage: String {
         guard let t = telemetry else { return "--" }
-        return String(format: "%.1f GB Boş / %.0f GB", t.storageFreeGB, t.storageTotalGB)
+        let freeGB = t.storageFreeGB
+        let totalGB = t.storageTotalGB
+        return String(format: "%.1f GB Boş / %.0f GB", freeGB, totalGB)
     }
     
     public var formattedUptime: String {
         guard let t = telemetry else { return "--" }
-        let hours = Int(t.uptimeHours)
-        let mins = Int((t.uptimeHours - Double(hours)) * 60)
+        let uptime = t.uptimeHours
+        let hours = Int(uptime)
+        let mins = Int((uptime - Double(hours)) * 60)
         return "\(hours) sa \(mins) dk"
     }
     

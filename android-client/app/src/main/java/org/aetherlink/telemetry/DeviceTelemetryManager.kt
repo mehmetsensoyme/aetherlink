@@ -65,7 +65,10 @@ object DeviceTelemetryManager {
         payload.addProperty("batteryLevel", level)
         payload.addProperty("isCharging", isCharging)
         payload.addProperty("batteryTempCelsius", tempCelsius)
+        payload.addProperty("battery_temp", tempCelsius)
         payload.addProperty("batteryHealth", healthStr)
+        payload.addProperty("thermal_status", AetherCoreService.currentThermalStatus)
+        payload.addProperty("thermalStatus", AetherCoreService.currentThermalStatus)
 
         // 3. RAM / Memory Info
         val actManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager

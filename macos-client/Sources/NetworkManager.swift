@@ -295,8 +295,10 @@ public final class NetworkManager: ObservableObject {
                     isCharging: tele.isCharging,
                     deviceName: self.connectedDeviceName,
                     isConnected: true,
-                    temp: tele.batteryTempCelsius
+                    temp: tele.effectiveTemp
                 )
+                // Respond with live Mac telemetry
+                MacThermalService.shared.broadcastTelemetry()
             }
             
         case "SCREEN_STREAM_FRAME":
@@ -312,6 +314,11 @@ public final class NetworkManager: ObservableObject {
             
         case "MAC_BATTERY_REQUEST":
             MacBatteryMonitor.shared.broadcastBatteryState()
+            MacThermalService.shared.broadcastTelemetry()
+            
+        case "MAC_TELEMETRY_REQUEST":
+            MacThermalService.shared.readHardwareTemperature(forceFresh: true)
+            MacThermalService.shared.broadcastTelemetry()
             
         case "HEARTBEAT_PING":
             self.send(type: "HEARTBEAT_PONG", payload: ["timestamp": Date().timeIntervalSince1970 * 1000])

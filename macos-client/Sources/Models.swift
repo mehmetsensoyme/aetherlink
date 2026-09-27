@@ -88,6 +88,22 @@ public struct MacBatteryPayload: Codable, Sendable {
     public let timestamp: Double
 }
 
+public struct MacTelemetryPayload: Codable, Sendable {
+    public let mac_temp: Double
+    public let mac_battery: Int
+    public let is_charging: Bool
+    public let thermal_status: String
+    public let timestamp: Double
+    
+    public init(mac_temp: Double, mac_battery: Int, is_charging: Bool, thermal_status: String, timestamp: Double = Date().timeIntervalSince1970 * 1000) {
+        self.mac_temp = mac_temp
+        self.mac_battery = mac_battery
+        self.is_charging = is_charging
+        self.thermal_status = thermal_status
+        self.timestamp = timestamp
+    }
+}
+
 public struct MediaSessionPayload: Codable, Sendable {
     public let packageName: String
     public let trackTitle: String
@@ -106,7 +122,10 @@ public struct DeviceTelemetryPayload: Codable, Sendable {
     public let sdkLevel: Int
     public let batteryLevel: Int
     public let isCharging: Bool
-    public let batteryTempCelsius: Double
+    public let batteryTempCelsius: Double?
+    public let battery_temp: Double?
+    public let thermalStatus: String?
+    public let thermal_status: String?
     public let batteryHealth: String
     public let ramTotalMB: Int
     public let ramUsedMB: Int
@@ -120,6 +139,14 @@ public struct DeviceTelemetryPayload: Codable, Sendable {
     public let cellularOperator: String?
     public let uptimeHours: Double
     public let timestamp: Double
+    
+    public var effectiveTemp: Double {
+        return batteryTempCelsius ?? battery_temp ?? 28.0
+    }
+    
+    public var effectiveThermalStatus: String {
+        return thermalStatus ?? thermal_status ?? "NORMAL"
+    }
 }
 
 public struct ScreenStreamControlPayload: Codable, Sendable {

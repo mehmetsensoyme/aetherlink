@@ -82,6 +82,7 @@ public struct DeviceTelemetryDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var telemetryMgr = DeviceTelemetryManager.shared
     @ObservedObject var network = NetworkManager.shared
+    @ObservedObject var thermalService = MacThermalService.shared
     var showInlineBack: Bool = false
     var onBack: (() -> Void)? = nil
     var onDismiss: (() -> Void)? = nil
@@ -151,7 +152,7 @@ public struct DeviceTelemetryDetailView: View {
     
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
                 HStack {
                     Button(action: {
@@ -184,9 +185,10 @@ public struct DeviceTelemetryDetailView: View {
                         .frame(width: 24, height: 24)
                 }
                 .padding(.horizontal, 2)
+                .padding(.top, 14)
                 
                 if network.isConnected {
-                    // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery - max 90pt height)
+                    // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery - height 84)
                     HStack(spacing: 8) {
                         ActivityRingView(
                             progress: ramProgress,
@@ -199,6 +201,7 @@ public struct DeviceTelemetryDetailView: View {
                             subtitle: telemetry != nil ? "\(Int(ramProgress * 100))% Dolu" : "--"
                         )
                         .frame(maxWidth: .infinity)
+                        .frame(height: 84)
                         .glassCard(cornerRadius: 12, padding: 6)
                         
                         ActivityRingView(
@@ -212,7 +215,11 @@ public struct DeviceTelemetryDetailView: View {
                             subtitle: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageTotalGB)) GB Toplam" : "--"
                         )
                         .frame(maxWidth: .infinity)
+                        .frame(height: 84)
                         .glassCard(cornerRadius: 12, padding: 6)
+                        
+                        let phoneTemp = telemetry != nil ? String(format: "%.1f°C", telemetry!.effectiveTemp) : "--"
+                        let macTemp = String(format: "%.1f°C", thermalService.currentTemperature)
                         
                         ActivityRingView(
                             progress: batteryProgress,
@@ -222,14 +229,25 @@ public struct DeviceTelemetryDetailView: View {
                             icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
                             title: "Pil & Isı",
                             valueText: telemetry != nil ? "\(telemetry!.batteryLevel)%" : "--%",
-                            subtitle: telemetry != nil ? "\(String(format: "%.1f", telemetry!.batteryTempCelsius))°C" : "--°C"
+                            subtitle: telemetry != nil ? "\(phoneTemp) • \(macTemp)" : "--"
                         )
                         .frame(maxWidth: .infinity)
+                        .frame(height: 84)
                         .glassCard(cornerRadius: 12, padding: 6)
                     }
                     
                     // Hardware Telemetry Spec Rows (Tightened padding)
                     VStack(spacing: 6) {
+                        let phoneTempStr = telemetry != nil ? String(format: "%.1f°C", telemetry!.effectiveTemp) : "--"
+                        let macTempStr = String(format: "%.1f°C", thermalService.currentTemperature)
+                        
+                        TelemetrySpecRow(
+                            icon: "thermometer.medium",
+                            label: "Donanım Isıları",
+                            value: "📱 Tel: \(phoneTempStr)  •  💻 Mac: \(macTempStr)",
+                            accentColor: .orange
+                        )
+                        
                         TelemetrySpecRow(
                             icon: "wifi",
                             label: "Kablosuz Ağ & Hız",
@@ -264,6 +282,8 @@ public struct DeviceTelemetryDetailView: View {
                     HStack(spacing: 10) {
                         Button(action: {
                             telemetryMgr.requestTelemetryRefresh()
+                            thermalService.readHardwareTemperature(forceFresh: true)
+                            thermalService.broadcastTelemetry()
                         }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "arrow.clockwise")
@@ -334,7 +354,7 @@ public struct DeviceTelemetryDetailView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.bottom, 16)
         }
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
@@ -494,8 +514,10 @@ public struct PairingQRView: View {
                     .buttonStyle(.plain)
                     .glassTile(id: "new_pairing_code", isActive: false)
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 12)
         }
@@ -968,12 +990,14 @@ public struct SettingsView: View {
                 .glassCard(cornerRadius: 14, padding: 12)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 12)
+            .padding(.top, 14)
+            .padding(.bottom, 16)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
         .background(.ultraThinMaterial)
+        .edgesIgnoringSafeArea(.all)
         .background(
             Button("") {
                 onBack()
@@ -1024,6 +1048,8 @@ final class AutoSizingNSView: NSView {
             window.backgroundColor = .clear
             
             if let contentView = window.contentView {
+                contentView.wantsLayer = true
+                contentView.layer?.backgroundColor = .clear
                 let fitting = contentView.fittingSize
                 if fitting.width > 0 && fitting.height > 0 {
                     let targetSize = NSSize(width: 360, height: ceil(fitting.height))
@@ -1135,21 +1161,24 @@ public struct MenuBarContentView: View {
                         let isCharging = network.batteryState?.isCharging ?? (telemetryMgr.telemetry?.isCharging ?? false)
                         
                         if batteryPct > 0 {
-                            HStack(spacing: 4) {
+                            HStack(spacing: 5) {
                                 Text("%\(batteryPct)")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundColor(.primary)
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: true)
                                 
-                                Image(systemName: isCharging ? "battery.100.bolt" : (batteryPct < 20 ? "battery.25" : "battery.75"))
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(batteryPct < 20 ? .red : (isCharging ? .green : Color(nsColor: .controlAccentColor)))
+                                Image(systemName: isCharging ? "battery.100.bolt" : (batteryPct <= 20 ? "battery.25" : "battery.75"))
+                                    .font(.system(size: 13))
+                                    .foregroundColor(batteryPct <= 20 ? .red : (isCharging ? .green : Color(nsColor: .controlAccentColor)))
                             }
-                            .padding(.horizontal, 7)
+                            .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(
-                                Capsule().fill(Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.06))
-                            )
+                            .background(Color.white.opacity(colorScheme == .dark ? 0.12 : 0.08))
+                            .clipShape(Capsule())
+                            .layoutPriority(2)
                         }
+                        
+                        Spacer().frame(width: 8)
                         
                         // Minimal Red Disconnect Button
                         Button(action: {

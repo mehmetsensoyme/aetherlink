@@ -36,6 +36,13 @@ data class MacBatteryData(
     val statusDescription: String = "Pilde"
 )
 
+data class MacTelemetryData(
+    val temperatureCelsius: Double = 41.0,
+    val batteryLevel: Int = 100,
+    val isCharging: Boolean = false,
+    val thermalStatus: String = "NORMAL"
+)
+
 data class PhoneBatteryData(
     val level: Int = 100,
     val isCharging: Boolean = false,
@@ -56,8 +63,11 @@ class AetherCoreService : Service() {
             private set
 
         val macBatteryState = kotlinx.coroutines.flow.MutableStateFlow<MacBatteryData?>(null)
+        val macTelemetryState = kotlinx.coroutines.flow.MutableStateFlow<MacTelemetryData?>(null)
         val phoneBatteryState = kotlinx.coroutines.flow.MutableStateFlow(PhoneBatteryData())
         val isConnectedState = kotlinx.coroutines.flow.MutableStateFlow(false)
+        var currentThermalStatus: String = "NORMAL"
+            internal set
 
         fun start(context: Context) {
             val intent = Intent(context, AetherCoreService::class.java)
@@ -77,6 +87,10 @@ class AetherCoreService : Service() {
     private var connectedMacName: String = "MacBook"
     private var isMediaProjectionRunning: Boolean = false
 
+    private var thermalListener: Any? = null
+    private var lastDispatchedTemp: Double = 0.0
+    private var lastDispatchedThermalStatus: String = "NORMAL"
+
     private val okHttpClient = OkHttpClient.Builder()
         .pingInterval(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
@@ -93,10 +107,51 @@ class AetherCoreService : Service() {
         instance = this
         startForegroundWithType()
         registerBatteryMonitoring()
+        registerThermalStatusMonitoring()
         ClipboardSyncManager.init(this)
         org.aetherlink.bluetooth.BluetoothAudioManager.init(this)
         connectToMacWebSocket()
         Log.i(TAG, "AetherCoreService started.")
+    }
+
+    private fun registerThermalStatusMonitoring() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager ?: return
+            val listener = android.os.PowerManager.OnThermalStatusChangedListener { status ->
+                val statusStr = when (status) {
+                    android.os.PowerManager.THERMAL_STATUS_NONE -> "NORMAL"
+                    android.os.PowerManager.THERMAL_STATUS_LIGHT -> "LIGHT"
+                    android.os.PowerManager.THERMAL_STATUS_MODERATE -> "MODERATE"
+                    android.os.PowerManager.THERMAL_STATUS_SEVERE -> "SEVERE"
+                    android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "CRITICAL"
+                    android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "EMERGENCY"
+                    android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "SHUTDOWN"
+                    else -> "NORMAL"
+                }
+                currentThermalStatus = statusStr
+                Log.i(TAG, "Android Thermal Status changed: $statusStr ($status)")
+                checkAndDispatchTelemetryIfChanged(force = true)
+            }
+            try {
+                powerManager.addThermalStatusListener(mainExecutor, listener)
+                thermalListener = listener
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not add thermal status listener: ${e.message}")
+            }
+        }
+    }
+
+    fun checkAndDispatchTelemetryIfChanged(force: Boolean = false) {
+        if (!isConnected) return
+        val currentTemp = phoneBatteryState.value.temperatureCelsius
+        val tempDiff = kotlin.math.abs(currentTemp - lastDispatchedTemp)
+        val statusChanged = currentThermalStatus != lastDispatchedThermalStatus
+
+        if (force || tempDiff >= 0.5 || statusChanged) {
+            lastDispatchedTemp = currentTemp
+            lastDispatchedThermalStatus = currentThermalStatus
+            org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -300,6 +355,7 @@ class AetherCoreService : Service() {
 
         sendMessage("BATTERY_UPDATE", payload)
         Log.i(TAG, "Dispatched Phone Battery: $batteryPct%, isCharging: $isCharging, isPlugged: $isPluggedIn, temp: $temp°C")
+        checkAndDispatchTelemetryIfChanged(force = false)
     }
 
     fun connectToMacWebSocket(ip: String = macIpAddress) {
@@ -375,13 +431,12 @@ class AetherCoreService : Service() {
                 delay(5000)
                 counter++
                 requestMacBattery()
+                requestMacTelemetry()
                 val sticky = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
                 if (sticky != null) {
                     dispatchBatteryUpdate(sticky)
                 }
-                if (counter % 6 == 0) {
-                    org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
-                }
+                org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
             }
         }
     }
@@ -399,6 +454,7 @@ class AetherCoreService : Service() {
         isConnected = false
         isConnectedState.value = false
         macBatteryState.value = null
+        macTelemetryState.value = null
         telemetryJob?.cancel()
         org.aetherlink.screen.ScreenStreamManager.stopCapture()
         isMediaProjectionRunning = false
@@ -414,6 +470,7 @@ class AetherCoreService : Service() {
         isConnected = false
         isConnectedState.value = false
         macBatteryState.value = null
+        macTelemetryState.value = null
         telemetryJob?.cancel()
         org.aetherlink.screen.ScreenStreamManager.stopCapture()
         isMediaProjectionRunning = false
@@ -448,8 +505,17 @@ class AetherCoreService : Service() {
                     macBatteryState.value = MacBatteryData(level, isCharging, isPluggedIn, desc)
                     Log.i(TAG, "Received Mac battery: $level%, isCharging: $isCharging ($desc)")
                 }
+                "MAC_TELEMETRY" -> {
+                    val temp = payload.get("mac_temp")?.asDouble ?: 41.0
+                    val batt = payload.get("mac_battery")?.asInt ?: 100
+                    val charging = payload.get("is_charging")?.asBoolean ?: false
+                    val thermal = payload.get("thermal_status")?.asString ?: "NORMAL"
+                    macTelemetryState.value = MacTelemetryData(temp, batt, charging, thermal)
+                    Log.i(TAG, "Received MAC_TELEMETRY: $temp°C, batt: $batt%, charging: $charging, thermal: $thermal")
+                }
                 "DEVICE_TELEMETRY_REQUEST" -> {
                     org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this)
+                    requestMacTelemetry()
                 }
                 "SCREEN_STREAM_CONTROL" -> {
                     val action = payload.get("action")?.asString ?: ""
@@ -526,6 +592,11 @@ class AetherCoreService : Service() {
 
     fun requestMacBattery() {
         sendMessage("MAC_BATTERY_REQUEST", JsonObject())
+        sendMessage("MAC_TELEMETRY_REQUEST", JsonObject())
+    }
+
+    fun requestMacTelemetry() {
+        sendMessage("MAC_TELEMETRY_REQUEST", JsonObject())
     }
 
     override fun onDestroy() {

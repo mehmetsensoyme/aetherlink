@@ -46,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start Mac Battery Monitor & Broadcaster
         MacBatteryMonitor.shared.startMonitoring()
         
+        // Start Mac Hardware Thermal Service & Broadcaster
+        MacThermalService.shared.startMonitoring()
+        
         // Passive background update check
         Task {
             await UpdateChecker.shared.checkForUpdates(manual: false)
