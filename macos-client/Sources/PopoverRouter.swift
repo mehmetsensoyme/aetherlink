@@ -9,17 +9,11 @@ public enum ActiveScreen: String, CaseIterable, Equatable {
     
     public static var telemetry: ActiveScreen { .deviceInfo }
     
+    public static let defaultWidth: CGFloat = 365
+    public static let minHeight: CGFloat = 220
+    
     public var preferredSize: NSSize {
-        switch self {
-        case .dashboard:
-            return NSSize(width: 340, height: 350)
-        case .pairing:
-            return NSSize(width: 340, height: 380)
-        case .deviceInfo:
-            return NSSize(width: 340, height: 430)
-        case .settings:
-            return NSSize(width: 340, height: 340)
-        }
+        return NSSize(width: Self.defaultWidth, height: Self.minHeight)
     }
 }
 

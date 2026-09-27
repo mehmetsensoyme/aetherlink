@@ -263,8 +263,6 @@ public struct DeviceTelemetryDetailView: View {
                 }
                 .glassCard(cornerRadius: 12, padding: 6)
                 
-                Spacer(minLength: 4)
-                
                 // Pinned Action Buttons (Yenile & Bağlantıyı Kes)
                 HStack(spacing: 10) {
                     Button(action: {
@@ -299,7 +297,8 @@ public struct DeviceTelemetryDetailView: View {
                     .buttonStyle(.plain)
                     .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
                 }
-                .padding(.bottom, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 14)
             } else {
                 // Empty State Glass Card (When Disconnected)
                 VStack(spacing: 12) {
@@ -338,12 +337,12 @@ public struct DeviceTelemetryDetailView: View {
                 }
                 .padding(16)
                 .glassCard(cornerRadius: 14, padding: 0)
-                
-                Spacer()
+                .padding(.bottom, 14)
             }
         }
         .padding(.horizontal, 16)
-        .frame(width: 340, height: 430)
+        .frame(width: 365)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -472,8 +471,6 @@ public struct PairingQRView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 4)
             
-            Spacer(minLength: 2)
-            
             // 5. Local IP & Refresh Button Row
             HStack {
                 HStack(spacing: 4) {
@@ -505,7 +502,8 @@ public struct PairingQRView: View {
             .padding(.bottom, 14)
         }
         .padding(.horizontal, 16)
-        .frame(width: 340, height: 380)
+        .frame(width: 365)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -842,8 +840,7 @@ public struct SettingsView: View {
     var onBack: () -> Void
     
     public var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 10) {
+        VStack(spacing: 10) {
                 // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
                 HStack {
                     Button(action: {
@@ -975,8 +972,8 @@ public struct SettingsView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
-        }
-        .frame(width: 340, height: 340)
+            .frame(width: 365)
+            .fixedSize(horizontal: false, vertical: true)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -994,8 +991,10 @@ public struct SettingsView: View {
 public class AutoSizingHostingController<Content: View>: NSHostingController<Content> {
     public override func viewDidLayout() {
         super.viewDidLayout()
-        let targetSize = PopoverRouter.shared.currentScreen.preferredSize
-        preferredContentSize = targetSize
+        let fittingHeight = view.fittingSize.height
+        if fittingHeight > 0 {
+            preferredContentSize = NSSize(width: 365, height: max(ceil(fittingHeight), 220))
+        }
     }
 }
 
@@ -1028,14 +1027,16 @@ final class AutoSizingNSView: NSView {
             if let contentView = window.contentView {
                 contentView.wantsLayer = true
                 contentView.layer?.backgroundColor = .clear
-            }
-            
-            let targetSize = PopoverRouter.shared.currentScreen.preferredSize
-            if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.22
-                    context.allowsImplicitAnimation = true
-                    window.setContentSize(targetSize)
+                let fittingHeight = contentView.fittingSize.height
+                if fittingHeight > 0 {
+                    let targetSize = NSSize(width: 365, height: max(ceil(fittingHeight), 220))
+                    if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
+                        NSAnimationContext.runAnimationGroup { context in
+                            context.duration = 0.20
+                            context.allowsImplicitAnimation = true
+                            window.setContentSize(targetSize)
+                        }
+                    }
                 }
             }
             
@@ -1097,38 +1098,38 @@ public struct MenuBarContentView: View {
                 .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
             }
         }
-        .frame(width: router.currentScreen.preferredSize.width, height: router.currentScreen.preferredSize.height)
-        .animation(.easeInOut(duration: 0.22), value: router.currentScreen)
+        .frame(width: 365)
+        .fixedSize(horizontal: false, vertical: true)
+        .animation(.easeInOut(duration: 0.20), value: router.currentScreen)
         .background(.ultraThinMaterial)
         .background(WindowBackgroundConfigurator(currentPage: router.currentScreen))
     }
     
     // MARK: - Dashboard Content
     private var dashboardView: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 8) {
-                // 1. Unified Top Header Glass Card
-                if network.isConnected {
-                    // Connected State: Device market name, AES-256 status, real battery indicator, and red disconnect button
-                    HStack(spacing: 10) {
-                        PulsingIndicatorView(isConnected: true)
+        VStack(spacing: 8) {
+            // 1. Unified Top Header Glass Card
+            if network.isConnected {
+                // Connected State: Device market name, AES-256 status, real battery indicator, and red disconnect button
+                HStack(spacing: 10) {
+                    PulsingIndicatorView(isConnected: true)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(DeviceMarketingNameResolver.resolve(network.connectedDeviceName))
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                         
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(DeviceMarketingNameResolver.resolve(network.connectedDeviceName))
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.85)
-                            
-                            Text("Yerel Ağda Bağlı • AES-256")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.85)
-                        }
-                        .layoutPriority(1)
-                        
-                        Spacer(minLength: 8)
+                        Text("Yerel Ağda Bağlı • AES-256")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .layoutPriority(1)
+                    
+                    Spacer(minLength: 4)
                         
                         // Battery Indicator Capsule
                         let batteryPct = network.batteryState?.batteryLevel ?? telemetryMgr.telemetry?.batteryLevel ?? 0
@@ -1449,8 +1450,8 @@ public struct MenuBarContentView: View {
             .padding(.horizontal, 14)
             .padding(.top, 22)
             .padding(.bottom, 12)
-        }
-        .frame(width: 340, height: 350)
+            .frame(width: 365)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
