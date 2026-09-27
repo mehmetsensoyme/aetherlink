@@ -1,0 +1,106 @@
+# Değişiklik Günlüğü (Changelog)
+
+AetherLink projesine ait tüm önemli değişiklikler, yeni özellikler ve hata düzeltmeleri bu dosyada [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) ve [Semantic Versioning](https://semver.org/) standartlarına uygun olarak belgelenmektedir.
+
+---
+
+## [1.3.6] - 2026-09-27
+
+### 🚀 Düzeltmeler ve İyileştirmeler (Fixes & Improvements)
+- **Sahte Telemetri Verilerinin Temizlenmesi (`DeviceInfoView`):**
+  - Cihaz bağlı değilken alt başlıkta ve kartlarda görünen sahte model (*"Android 14+ • Samsung"*), sabit sıcaklık (*"28.5°C"*) ve boş donanım halkaları kaldırıldı.
+  - Cihaz bağlı değilken modern bir cam kart içinde açıklayıcı **Empty State** mesajı ve doğrudan eşleştirme sayfasına yönlendiren **"Cihaz Eşleştir"** butonu eklendi.
+  - Cihaz bağlandığında yalnızca Android soketinden gelen gerçek `DeviceTelemetryPayload` telemetrisi ekrana yansıtılacak şekilde normalize edildi.
+- **Pencere ve Popover Yükseklik Optimizasyonu:**
+  - Tüm popover ve bağımsız pencerelerdeki aşırı yüksek çerçevelerden kaynaklanan alt siyah/ölü boş alanlar (layout gap) giderildi.
+  - Sayfa boyutları içerik yüksekliğini tam saracak şekilde optimize edildi:
+    - **Ana Dashboard:** `370 pt`
+    - **Cihaz Eşleştirme (PairingQRView):** `330 pt`
+    - **Cihaz Donanım Bilgileri (DeviceInfoView):** Bağlıyken `360 pt`, bağlantısızken `270 pt`
+    - **Ayarlar ve Durum (SettingsView):** `260 pt`
+  - Aksiyon butonlarının alt boşluğu `14 pt` padding ile pencere sınırına tam oturtuldu.
+- **Menü Çubuğu Popover Çökme Koruması:**
+  - Popover açılırken dikeyde sıfıra çöküp ince bir yatay şerit olarak kalma sorunu `WindowBackgroundConfigurator` ve açık çerçeve kurallarıyla engellendi.
+- **Eşleştirme Ekranı Dikey Taşma ve Kenarlık Düzeltmesi:**
+  - QR kod boyutu `130x130` pt seviyesine çekilerek pencere içine kusursuz oturması sağlandı.
+  - Pencerenin tavanına yapışmayı engelleyen `16 pt` üst güvenli alan eklendi.
+  - Alttaki gereksiz büyük buton kaldırılarak sol üste simetrik `chevron.left` geri butonu yerleştirildi.
+- **Tek Aktif Cihaz Politikası:**
+  - Telefon bağlıyken eşleştirme arayüzüne ve butonlarına erişim engellendi.
+  - Soket seviyesinde `DEVICE_BUSY` koruması getirilerek eşzamanlı çakışmalar önlendi.
+
+---
+
+## [1.3.5] - 2026-09-27
+
+### 🛠️ Düzeltmeler (Fixed)
+- Cihaz eşleştirme ekranındaki dikey taşma ve pencereden dışarı kesilme hatası giderildi.
+- Cihaz bağlıyken hem aktif cihaz kartının hem de eşleştirme butonunun görünmesi mantık hatası giderildi.
+
+---
+
+## [1.3.4] - 2026-09-27
+
+### ✨ Yenilikler (Added)
+- Cihaz Eşleştirme ve Telemetri ekranlarına belirgin ve sezgisel geri/kapatma butonları (`chevron.left` ve `.keyboardShortcut(.cancelAction)`) eklendi.
+- Sayfalar arası geçişi yöneten merkezi `PopoverStateManager` devreye alındı.
+
+---
+
+## [1.3.3] - 2026-09-27
+
+### 🎨 Arayüz Yenilemesi (Liquid Glass & Control Center)
+- **Liquid Glass / Glassmorphism:** Opak arka planlar tamamen kaldırılarak macOS `.ultraThinMaterial` ve `NSVisualEffectView` tabanlı cam morfolojisine geçildi.
+- **Dinamik Tema Adaptasyonu:** Sistem Koyu/Açık moduna ve sistem aksan rengine (`NSColor.controlAccentColor`) tam uyumluluk sağlandı.
+- **Control Center Kutucukları:** Ekran Yansıtma, Ses Yönlendirme, Evrensel Pano ve Bildirimler için modern cam kutucuklar eklendi.
+- **Aktivite Halkaları:** RAM, Depolama ve Pil/Sıcaklık durumunu gösteren Apple Health tarzı dinamik halkalar eklendi.
+
+---
+
+## [1.3.2] - 2026-09-26
+
+### 📱 Android Geliştirmeleri (Added)
+- macOS tasarım diline uygun 3 adımlı interaktif karşılama (onboarding) akışı eklendi.
+- Swift Concurrency thread-safety ve capture uyarıları giderildi.
+
+---
+
+## [1.3.1] - 2026-09-26
+
+### 🖼️ Görsel Varlıklar (Assets)
+- macOS 1024x1024 Liquid Glass uygulama ikonu Android uyarlanabilir ikonlarına (tüm mipmap yoğunlukları: mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi) aktarıldı.
+
+---
+
+## [1.3.0] - 2026-09-26
+
+### 🔄 Dahili Otomatik Güncelleme (In-App Updater)
+- macOS için GitHub Releases üzerinden DMG indirme, bağlama ve otomatik yeniden başlatma desteği (`UpdateChecker`).
+- Android için GitHub Releases üzerinden APK indirme ve `FileProvider` ile doğrudan kurulum desteği.
+- GitHub Actions CI/CD otomatik sürüm ve paketleme pipeline'ı (`.github/workflows/release.yml`).
+
+---
+
+## [1.2.1] - 2026-09-26
+
+### 🔋 macOS Pil Widget'ı (Added)
+- macOS Bildirim Merkezi için WidgetKit tabanlı pil göstergesi uzantısı (`AetherLinkWidget`).
+- App Group UserDefaults üzerinden telefon pil durumu ve şarj verisinin anlık paylaşımı.
+
+---
+
+## [1.2.0] - 2026-09-26
+
+### 📞 Çağrı & Medya Devamlılığı (Added)
+- Çift yönlü hücresel çağrı senkronizasyonu: Gelen çağrılarda macOS HUD bildirimi ve Mac üzerinden cevaplama/reddetme.
+- Spotify ve Apple Music akıllı medya devamlılığı (Continuity): Çalan parçanın tek tıkla Mac'teki eşdeğer uygulamada açılması.
+
+---
+
+## [1.1.0] - 2026-09-26
+
+### ⚡ Temel Süreklilik Özellikleri (Core Continuity)
+- Düşük gecikmeli kablosuz ekran yansıtma (`scrcpy` 60 FPS video ve ses aktarımı).
+- Gerçek zamanlı çift yönlü pil senkronizasyonu (macOS IOKit & Android BatteryManager).
+- Çift yönlü şifreli Evrensel Pano (Universal Clipboard) senkronizasyonu.
+- Yerel ağ üzerinde otomatik mDNS & UDP Broadcast cihaz keşfi ve AES-256 el sıkışması.
