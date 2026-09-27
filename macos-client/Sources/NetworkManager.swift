@@ -70,8 +70,9 @@ public final class NetworkManager: ObservableObject {
             }
             
             listener?.newConnectionHandler = { [weak self] connection in
+                guard let self else { return }
                 Task { @MainActor in
-                    self?.handleNewConnection(connection)
+                    self.handleNewConnection(connection)
                 }
             }
             
@@ -87,8 +88,8 @@ public final class NetworkManager: ObservableObject {
     private func handleNewConnection(_ connection: NWConnection) {
         self.activeConnections.append(connection)
         connection.stateUpdateHandler = { [weak self, weak connection] state in
+            guard let self, let connection else { return }
             Task { @MainActor in
-                guard let self = self, let connection = connection else { return }
                 switch state {
                 case .ready:
                     self.isConnected = true
@@ -128,8 +129,8 @@ public final class NetworkManager: ObservableObject {
     
     private func receiveNextMessage(from connection: NWConnection) {
         connection.receiveMessage { [weak self, weak connection] (data, context, isComplete, error) in
+            guard let self, let connection else { return }
             Task { @MainActor in
-                guard let self = self, let connection = connection else { return }
                 let id = ObjectIdentifier(connection)
                 if let data = data, !data.isEmpty {
                     var current = self.connectionBuffers[id] ?? Data()

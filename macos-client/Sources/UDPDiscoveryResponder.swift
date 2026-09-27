@@ -60,6 +60,8 @@ public final class UDPDiscoveryResponder: @unchecked Sendable {
             if bytesRead > 0 {
                 let msg = String(decoding: buffer[..<bytesRead], as: UTF8.self)
                 if msg.contains("AETHER_DISCOVER_MAC") {
+                    let targetAddr = clientAddr
+                    let targetAddrLen = clientAddrLen
                     Task { @MainActor in
                         let localIP = NetworkManager.shared.localIPAddress
                         let macName = Host.current().localizedName ?? "MacBook Pro"
@@ -74,10 +76,11 @@ public final class UDPDiscoveryResponder: @unchecked Sendable {
                         ]
                         
                         if let resData = try? JSONSerialization.data(withJSONObject: responseJson) {
+                            var sendAddr = targetAddr
                             _ = resData.withUnsafeBytes { rawPtr in
-                                withUnsafePointer(to: &clientAddr) {
+                                withUnsafePointer(to: &sendAddr) {
                                     $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                                        sendto(fd, rawPtr.baseAddress, resData.count, 0, $0, clientAddrLen)
+                                        sendto(fd, rawPtr.baseAddress, resData.count, 0, $0, targetAddrLen)
                                     }
                                 }
                             }

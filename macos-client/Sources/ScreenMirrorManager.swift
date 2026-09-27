@@ -129,11 +129,12 @@ public final class ScreenMirrorManager: NSObject, ObservableObject {
         p.arguments = args
         
         p.terminationHandler = { [weak self] proc in
+            guard let self else { return }
             Task { @MainActor in
                 print("[ScreenMirrorManager] scrcpy process (PID: \(proc.processIdentifier)) terminated with status: \(proc.terminationStatus)")
-                self?.isScrcpyRunning = false
-                self?.scrcpyProcess = nil
-                self?.scrcpyPID = nil
+                self.isScrcpyRunning = false
+                self.scrcpyProcess = nil
+                self.scrcpyPID = nil
             }
         }
         

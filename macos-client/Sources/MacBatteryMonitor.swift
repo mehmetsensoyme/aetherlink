@@ -22,9 +22,10 @@ public final class MacBatteryMonitor: ObservableObject {
         timer?.invalidate()
         // Poll every 3 seconds for instant power plug/unplug reactivity
         timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
             Task { @MainActor in
-                self?.updateBatteryState()
-                self?.broadcastBatteryState()
+                self.updateBatteryState()
+                self.broadcastBatteryState()
             }
         }
     }
