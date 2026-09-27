@@ -790,11 +790,14 @@ fun MainScreen(
             icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             title = { Text(info.title) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text("Yeni Sürüm: v${info.latestVersion} (Mevcut: v${info.currentVersion})", fontWeight = FontWeight.Bold)
                     Divider()
                     Text("Yenilikler (Changelog):", fontWeight = FontWeight.SemiBold)
-                    Text(info.changelog, style = MaterialTheme.typography.bodySmall, maxLines = 8)
+                    Text(info.changelog, style = MaterialTheme.typography.bodySmall)
 
                     if (isDownloadingApk) {
                         Spacer(modifier = Modifier.height(6.dp))

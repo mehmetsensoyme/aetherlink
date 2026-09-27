@@ -72,7 +72,7 @@ public final class CallManager: ObservableObject {
     private func showCallBanner(_ payload: CallIncomingPayload) {
         if callWindow == nil {
             let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 370, height: 130),
+                contentRect: NSRect(x: 0, y: 0, width: 370, height: 75),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -94,7 +94,7 @@ public final class CallManager: ObservableObject {
         if let screen = NSScreen.main, let window = callWindow {
             let screenRect = screen.visibleFrame
             let x = screenRect.maxX - 390
-            let targetY = screenRect.maxY - 140
+            let targetY = screenRect.maxY - 85
             let startY = screenRect.maxY + 20
             
             window.setFrameOrigin(NSPoint(x: x, y: startY))

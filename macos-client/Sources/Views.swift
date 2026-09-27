@@ -123,178 +123,159 @@ public struct DeviceTelemetryDetailView: View {
     }
     
     public var body: some View {
-        VStack(spacing: 14) {
-            // Header
-            HStack {
-                Button(action: {
-                    handleBack()
-                }) {
-                    HStack(spacing: 4) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 10) {
+                // Header
+                HStack {
+                    Button(action: {
+                        handleBack()
+                    }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 12, weight: .bold))
-                        Text("Geri")
-                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
                     }
-                    .foregroundColor(Color(nsColor: .controlAccentColor))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06))
+                    .buttonStyle(.plain)
+                    .help("Geri")
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 1) {
+                        Text(telemetry?.model ?? (network.connectedDeviceName.isEmpty || network.connectedDeviceName == "Bağlantı Kesildi" ? "Android Cihazı" : network.connectedDeviceName))
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text("Android \(telemetry?.androidVersion ?? "14+") • \(telemetry?.manufacturer ?? "Samsung")")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        handleBack()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Kapat")
+                }
+                .padding(.horizontal, 2)
+                
+                // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery)
+                HStack(spacing: 10) {
+                    ActivityRingView(
+                        progress: ramProgress,
+                        ringColor: Color.blue,
+                        ringWidth: 7,
+                        icon: "memorychip",
+                        title: "RAM",
+                        valueText: telemetryMgr.formattedRam.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? "--",
+                        subtitle: "\(Int(ramProgress * 100))% Dolu"
                     )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(telemetry?.model ?? (network.connectedDeviceName.isEmpty || network.connectedDeviceName == "Bağlantı Kesildi" ? "Android Cihazı" : network.connectedDeviceName))
-                        .font(.headline)
-                        .lineLimit(1)
-                    Text("Android \(telemetry?.androidVersion ?? "14+") • \(telemetry?.manufacturer ?? "Samsung")")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                
-                Button(action: {
-                    handleBack()
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.secondary)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Kapat")
-                .padding(.leading, 4)
-            }
-            .padding(.horizontal, 2)
-            
-            // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery)
-            HStack(spacing: 12) {
-                ActivityRingView(
-                    progress: ramProgress,
-                    ringColor: Color.blue,
-                    ringWidth: 7,
-                    icon: "memorychip",
-                    title: "RAM",
-                    valueText: telemetryMgr.formattedRam.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? "--",
-                    subtitle: "\(Int(ramProgress * 100))% Dolu"
-                )
-                .frame(maxWidth: .infinity)
-                .glassCard(cornerRadius: 14, padding: 10)
-                
-                ActivityRingView(
-                    progress: storageProgress,
-                    ringColor: Color.purple,
-                    ringWidth: 7,
-                    icon: "internaldrive",
-                    title: "Depolama",
-                    valueText: "\(String(format: "%.0f", telemetry?.storageUsedGB ?? 0.0)) GB",
-                    subtitle: "\(String(format: "%.0f", telemetry?.storageTotalGB ?? 0.0)) GB Toplam"
-                )
-                .frame(maxWidth: .infinity)
-                .glassCard(cornerRadius: 14, padding: 10)
-                
-                ActivityRingView(
-                    progress: batteryProgress,
-                    ringColor: Color.green,
-                    ringWidth: 7,
-                    icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
-                    title: "Pil & Isı",
-                    valueText: "\(telemetry?.batteryLevel ?? 0)%",
-                    subtitle: "\(String(format: "%.1f", telemetry?.batteryTempCelsius ?? 28.5))°C"
-                )
-                .frame(maxWidth: .infinity)
-                .glassCard(cornerRadius: 14, padding: 10)
-            }
-            
-            // Hardware Telemetry Spec Rows
-            VStack(spacing: 8) {
-                TelemetrySpecRow(
-                    icon: "wifi",
-                    label: "Kablosuz Ağ & Hız",
-                    value: telemetryMgr.formattedNetwork,
-                    accentColor: .blue
-                )
-                
-                TelemetrySpecRow(
-                    icon: "antenna.radiowaves.left.and.right",
-                    label: "Hücresel Bağlantı",
-                    value: telemetry?.cellularOperator ?? "Mobil Veri",
-                    accentColor: .indigo
-                )
-                
-                TelemetrySpecRow(
-                    icon: "clock.arrow.circlepath",
-                    label: "Sistem Çalışma Süresi",
-                    value: telemetryMgr.formattedUptime,
-                    accentColor: .orange
-                )
-                
-                TelemetrySpecRow(
-                    icon: "heart.text.square.fill",
-                    label: "Pil Sağlığı",
-                    value: "\(telemetry?.batteryHealth ?? "İyi") • \(telemetry?.isCharging == true ? "Hızlı Şarj" : "Deşarj")",
-                    accentColor: .green
-                )
-            }
-            .glassCard(cornerRadius: 14, padding: 12)
-            
-            // Action Buttons
-            HStack(spacing: 10) {
-                Button(action: {
-                    telemetryMgr.requestTelemetryRefresh()
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Yenile")
-                    }
-                    .font(.caption.weight(.medium))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
-                }
-                .buttonStyle(.plain)
-                .glassTile(id: "refresh_telemetry", isActive: false)
-                
-                Button(role: .destructive, action: {
-                    network.disconnectDevice(forget: false)
-                    handleBack()
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "link.badge.slash")
-                        Text("Bağlantıyı Kes")
-                    }
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(.red)
+                    .glassCard(cornerRadius: 14, padding: 8)
+                    
+                    ActivityRingView(
+                        progress: storageProgress,
+                        ringColor: Color.purple,
+                        ringWidth: 7,
+                        icon: "internaldrive",
+                        title: "Depolama",
+                        valueText: "\(String(format: "%.0f", telemetry?.storageUsedGB ?? 0.0)) GB",
+                        subtitle: "\(String(format: "%.0f", telemetry?.storageTotalGB ?? 0.0)) GB Toplam"
+                    )
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
+                    .glassCard(cornerRadius: 14, padding: 8)
+                    
+                    ActivityRingView(
+                        progress: batteryProgress,
+                        ringColor: Color.green,
+                        ringWidth: 7,
+                        icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
+                        title: "Pil & Isı",
+                        valueText: "\(telemetry?.batteryLevel ?? 0)%",
+                        subtitle: "\(String(format: "%.1f", telemetry?.batteryTempCelsius ?? 28.5))°C"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .glassCard(cornerRadius: 14, padding: 8)
                 }
-                .buttonStyle(.plain)
-                .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
-            }
-            
-            // Full Width Primary Back Button
-            Button(action: {
-                handleBack()
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.backward.circle.fill")
-                    Text("Ana Menüye Dön")
+                
+                // Hardware Telemetry Spec Rows
+                VStack(spacing: 7) {
+                    TelemetrySpecRow(
+                        icon: "wifi",
+                        label: "Kablosuz Ağ & Hız",
+                        value: telemetryMgr.formattedNetwork,
+                        accentColor: .blue
+                    )
+                    
+                    TelemetrySpecRow(
+                        icon: "antenna.radiowaves.left.and.right",
+                        label: "Hücresel Bağlantı",
+                        value: telemetry?.cellularOperator ?? "Mobil Veri",
+                        accentColor: .indigo
+                    )
+                    
+                    TelemetrySpecRow(
+                        icon: "clock.arrow.circlepath",
+                        label: "Sistem Çalışma Süresi",
+                        value: telemetryMgr.formattedUptime,
+                        accentColor: .orange
+                    )
+                    
+                    TelemetrySpecRow(
+                        icon: "heart.text.square.fill",
+                        label: "Pil Sağlığı",
+                        value: "\(telemetry?.batteryHealth ?? "İyi") • \(telemetry?.isCharging == true ? "Hızlı Şarj" : "Deşarj")",
+                        accentColor: .green
+                    )
                 }
-                .font(.caption.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
+                .glassCard(cornerRadius: 14, padding: 10)
+                
+                // Action Buttons
+                HStack(spacing: 10) {
+                    Button(action: {
+                        telemetryMgr.requestTelemetryRefresh()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Yenile")
+                        }
+                        .font(.caption.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "refresh_telemetry", isActive: false)
+                    
+                    Button(role: .destructive, action: {
+                        network.disconnectDevice(forget: false)
+                        handleBack()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "link.badge.slash")
+                            Text("Bağlantıyı Kes")
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
+                }
             }
-            .buttonStyle(.plain)
-            .glassTile(id: "telemetry_back_bottom", isActive: true)
-            .keyboardShortcut(.cancelAction)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
-        .padding(14)
-        .frame(width: 350)
+        .frame(width: 350, height: 490)
         .background(.ultraThinMaterial)
+        .keyboardShortcut(.cancelAction)
     }
 }
 
@@ -474,103 +455,105 @@ public struct UpdateModalView: View {
     let onDismiss: () -> Void
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundColor(Color(nsColor: .controlAccentColor))
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Yeni Sürüm Mevcut!")
-                        .font(.title3.bold())
-                    Text("AetherLink v\(updateInfo.latestVersion) • Mevcut: v\(updateInfo.currentVersion)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-            }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Yenilikler ve İyileştirmeler:")
-                    .font(.caption.bold())
-                    .foregroundColor(.secondary)
-                
-                ScrollView {
-                    Text(updateInfo.changelog)
-                        .font(.caption)
-                        .foregroundColor(.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                }
-                .frame(height: 150)
-                .glassCard(cornerRadius: 12, padding: 0)
-            }
-            
-            if updater.isDownloading {
-                VStack(alignment: .leading, spacing: 4) {
-                    ProgressView(value: updater.downloadProgress, total: 1.0)
-                        .progressViewStyle(.linear)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(Color(nsColor: .controlAccentColor))
                     
-                    HStack {
-                        Text(updater.installStatusText ?? "İndiriliyor...")
-                            .font(.caption2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Yeni Sürüm Mevcut!")
+                            .font(.title3.bold())
+                        Text("AetherLink v\(updateInfo.latestVersion) • Mevcut: v\(updateInfo.currentVersion)")
+                            .font(.caption)
                             .foregroundColor(.secondary)
-                        Spacer()
-                        Text("%\(Int(updater.downloadProgress * 100))")
-                            .font(.caption2.bold())
-                            .foregroundColor(Color(nsColor: .controlAccentColor))
                     }
+                    Spacer()
                 }
-            }
-            
-            if let error = updater.installError {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
-                    Text(error)
-                        .font(.caption2)
-                        .foregroundColor(.red)
-                }
-            }
-            
-            HStack {
-                Button("Daha Sonra") {
-                    onDismiss()
-                    dismiss()
-                }
-                .disabled(updater.isDownloading)
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-                .font(.caption)
                 
-                Spacer()
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Yenilikler ve İyileştirmeler:")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    ScrollView {
+                        Text(updateInfo.changelog)
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                    }
+                    .frame(height: 120)
+                    .glassCard(cornerRadius: 12, padding: 0)
+                }
                 
                 if updater.isDownloading {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ProgressView(value: updater.downloadProgress, total: 1.0)
+                            .progressViewStyle(.linear)
+                        
+                        HStack {
+                            Text(updater.installStatusText ?? "İndiriliyor...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("%\(Int(updater.downloadProgress * 100))")
+                                .font(.caption2.bold())
+                                .foregroundColor(Color(nsColor: .controlAccentColor))
+                        }
+                    }
+                }
+                
+                if let error = updater.installError {
                     HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text("Güncelleniyor...").font(.caption)
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundColor(.red)
                     }
-                } else {
-                    Button(action: {
-                        Task {
-                            await updater.downloadAndInstallUpdate(update: updateInfo)
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.down.circle.fill")
-                            Text("Şimdi Güncelle")
-                        }
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                }
+                
+                HStack {
+                    Button("Daha Sonra") {
+                        onDismiss()
+                        dismiss()
                     }
+                    .disabled(updater.isDownloading)
                     .buttonStyle(.plain)
-                    .glassTile(id: "update_now", isActive: true)
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+                    
+                    Spacer()
+                    
+                    if updater.isDownloading {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Güncelleniyor...").font(.caption)
+                        }
+                    } else {
+                        Button(action: {
+                            Task {
+                                await updater.downloadAndInstallUpdate(update: updateInfo)
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                Text("Şimdi Güncelle")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "update_now", isActive: true)
+                    }
                 }
             }
+            .padding(16)
         }
-        .padding(18)
-        .frame(width: 440)
+        .frame(width: 440, height: 390)
         .background(.ultraThinMaterial)
     }
 }
@@ -583,56 +566,60 @@ public struct PairingPromptView: View {
     let onReject: () -> Void
     
     public var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 34))
-                .foregroundColor(Color(nsColor: .controlAccentColor))
-            
-            Text("Yeni Cihaz Bağlantı İsteği")
-                .font(.headline)
-            
-            Text("Cihaz: \(request.deviceName)")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            VStack(spacing: 4) {
-                Text("Eşleşme Kodu:")
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 10) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(Color(nsColor: .controlAccentColor))
+                
+                Text("Yeni Cihaz Bağlantı İsteği")
+                    .font(.headline)
+                
+                Text("Cihaz: \(request.deviceName)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                
+                VStack(spacing: 2) {
+                    Text("Eşleşme Kodu:")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(request.confirmationCode)
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .tracking(3)
+                        .foregroundColor(Color(nsColor: .controlAccentColor))
+                }
+                .glassCard(cornerRadius: 12, padding: 8, isHighlighted: true)
+                
+                Text("Telefon ekranındaki kod ile yukarıdaki kod aynıysa onaylayın.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
-                Text(request.confirmationCode)
-                    .font(.system(size: 26, weight: .bold, design: .monospaced))
-                    .tracking(3)
-                    .foregroundColor(Color(nsColor: .controlAccentColor))
-            }
-            .glassCard(cornerRadius: 12, padding: 8, isHighlighted: true)
-            
-            Text("Telefon ekranındaki kod ile yukarıdaki kod aynıysa onaylayın.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            
-            HStack(spacing: 12) {
-                Button("Reddet", role: .cancel) {
-                    onReject()
-                    dismiss()
-                }
-                .buttonStyle(.plain)
-                .glassTile(id: "reject_pairing", isActive: false, activeTint: .red)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 
-                Button("Onayla ve Bağlan") {
-                    onApprove()
-                    dismiss()
+                HStack(spacing: 10) {
+                    Button("Reddet", role: .cancel) {
+                        onReject()
+                        dismiss()
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "reject_pairing", isActive: false, activeTint: .red)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    
+                    Button("Onayla ve Bağlan") {
+                        onApprove()
+                        dismiss()
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "approve_pairing", isActive: true)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
                 }
-                .buttonStyle(.plain)
-                .glassTile(id: "approve_pairing", isActive: true)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
             }
+            .padding(16)
         }
-        .padding(16)
-        .frame(width: 320)
+        .frame(width: 330, height: 340)
         .background(.ultraThinMaterial)
     }
 }
@@ -778,173 +765,152 @@ public struct SettingsView: View {
     var onBack: () -> Void
     
     public var body: some View {
-        VStack(spacing: 12) {
-            // Header
-            HStack {
-                Button(action: {
-                    onBack()
-                    PopoverStateManager.shared.currentPage = .dashboard
-                }) {
-                    HStack(spacing: 4) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 10) {
+                // Header
+                HStack {
+                    Button(action: {
+                        onBack()
+                        PopoverStateManager.shared.currentPage = .dashboard
+                    }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 12, weight: .bold))
-                        Text("Geri")
-                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
                     }
-                    .foregroundColor(Color(nsColor: .controlAccentColor))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06))
-                    )
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .help("Geri")
+                    
+                    Spacer()
+                    
+                    Text("Ayarlar & Durum")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        onBack()
+                        PopoverStateManager.shared.currentPage = .dashboard
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Kapat")
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 2)
                 
-                Spacer()
-                
-                Text("Ayarlar & Durum")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Button(action: {
-                    onBack()
-                    PopoverStateManager.shared.currentPage = .dashboard
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.secondary)
-                        .contentShape(Rectangle())
+                // Environment & OS Status Card
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "macwindow.and.cursorarrow")
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                        Text("macOS Uyumluluğu")
+                            .font(.caption)
+                        Spacer()
+                        Text("macOS \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.minorVersion)")
+                            .font(.caption.bold())
+                    }
+                    
+                    HStack {
+                        Image(systemName: "drop.fill")
+                            .foregroundColor(.cyan)
+                        Text("Liquid Glass Efekti")
+                            .font(.caption)
+                        Spacer()
+                        Text("Ultra-Thin Material")
+                            .font(.caption2)
+                            .foregroundColor(.green)
+                    }
+                    
+                    HStack {
+                        Image(systemName: "paintpalette.fill")
+                            .foregroundColor(.purple)
+                        Text("Tema Görünümü")
+                            .font(.caption)
+                        Spacer()
+                        Text(colorScheme == .dark ? "Koyu (Dark)" : "Açık (Light)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .buttonStyle(.plain)
-                .help("Kapat")
-            }
-            .padding(.horizontal, 2)
-            
-            // Environment & OS Status Card
-            VStack(spacing: 8) {
+                .glassCard(cornerRadius: 14, padding: 12)
+                
+                // Notification Settings Card
                 HStack {
-                    Image(systemName: "macwindow.and.cursorarrow")
+                    Image(systemName: notifManager.isAuthorized ? "bell.badge.fill" : "bell.slash.fill")
+                        .foregroundColor(notifManager.isAuthorized ? .green : .orange)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sistem Bildirimleri")
+                            .font(.caption.weight(.semibold))
+                        Text(notifManager.isAuthorized ? "İzin Verildi" : "İzin Gerekli")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        notifManager.openNotificationSettings()
+                    }) {
+                        Text(notifManager.isAuthorized ? "Yönet" : "İzin İste")
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "open_notifs", isActive: false)
+                }
+                .glassCard(cornerRadius: 14, padding: 12)
+                
+                // Updater Card
+                HStack {
+                    Image(systemName: "arrow.triangle.2.circlepath")
                         .foregroundColor(Color(nsColor: .controlAccentColor))
-                    Text("macOS Uyumluluğu")
-                        .font(.caption)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("AetherLink Sürümü")
+                            .font(.caption.weight(.semibold))
+                        Text("v\(updater.currentVersion)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    
                     Spacer()
-                    Text("macOS \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.minorVersion)")
-                        .font(.caption.bold())
-                }
-                
-                HStack {
-                    Image(systemName: "drop.fill")
-                        .foregroundColor(.cyan)
-                    Text("Liquid Glass Efekti")
-                        .font(.caption)
-                    Spacer()
-                    Text("Ultra-Thin Material")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                }
-                
-                HStack {
-                    Image(systemName: "paintpalette.fill")
-                        .foregroundColor(.purple)
-                    Text("Tema Görünümü")
-                        .font(.caption)
-                    Spacer()
-                    Text(colorScheme == .dark ? "Koyu (Dark)" : "Açık (Light)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .glassCard(cornerRadius: 14, padding: 12)
-            
-            // Notification Settings Card
-            HStack {
-                Image(systemName: notifManager.isAuthorized ? "bell.badge.fill" : "bell.slash.fill")
-                    .foregroundColor(notifManager.isAuthorized ? .green : .orange)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Sistem Bildirimleri")
-                        .font(.caption.weight(.semibold))
-                    Text(notifManager.isAuthorized ? "İzin Verildi" : "İzin Gerekli")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    notifManager.openNotificationSettings()
-                }) {
-                    Text(notifManager.isAuthorized ? "Yönet" : "İzin İste")
+                    
+                    Button(action: {
+                        Task {
+                            await updater.checkForUpdates(manual: true)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            if updater.isChecking {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            Text("Denetle")
+                        }
                         .font(.caption2)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-                .glassTile(id: "open_notifs", isActive: false)
-            }
-            .glassCard(cornerRadius: 14, padding: 12)
-            
-            // Updater Card
-            HStack {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .foregroundColor(Color(nsColor: .controlAccentColor))
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("AetherLink Sürümü")
-                        .font(.caption.weight(.semibold))
-                    Text("v\(updater.currentVersion)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    Task {
-                        await updater.checkForUpdates(manual: true)
                     }
-                }) {
-                    HStack(spacing: 4) {
-                        if updater.isChecking {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        Text("Denetle")
-                    }
-                    .font(.caption2)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .buttonStyle(.plain)
+                    .glassTile(id: "check_updates_settings", isActive: false)
                 }
-                .buttonStyle(.plain)
-                .glassTile(id: "check_updates_settings", isActive: false)
+                .glassCard(cornerRadius: 14, padding: 12)
             }
-            .glassCard(cornerRadius: 14, padding: 12)
-            
-            // Full Width Primary Back Button
-            Button(action: {
-                onBack()
-                PopoverStateManager.shared.currentPage = .dashboard
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.backward.circle.fill")
-                    Text("Ana Menüye Dön")
-                }
-                .font(.caption.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .glassTile(id: "settings_back_bottom", isActive: true)
-            .keyboardShortcut(.cancelAction)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
-        .padding(14)
-        .frame(width: 350)
+        .frame(width: 350, height: 380)
         .background(.ultraThinMaterial)
+        .keyboardShortcut(.cancelAction)
     }
 }
 
@@ -999,7 +965,8 @@ public struct MenuBarContentView: View {
     
     // MARK: - Dashboard Content
     private var dashboardView: some View {
-        VStack(spacing: 12) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 12) {
             // 1. Top Header Glass Card (Control Center Device Pill)
             HStack(spacing: 10) {
                 PulsingIndicatorView(isConnected: network.isConnected)
@@ -1337,5 +1304,9 @@ public struct MenuBarContentView: View {
             .padding(.horizontal, 2)
         }
         .padding(14)
+        }
+        .frame(width: 350)
     }
 }
+
+

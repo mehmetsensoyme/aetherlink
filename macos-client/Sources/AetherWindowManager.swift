@@ -23,7 +23,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         }
         
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 570),
+            contentRect: NSRect(x: 0, y: 0, width: 350, height: 490),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -45,9 +45,6 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
                     self?.closeDeviceTelemetryWindow()
                 }
             )
-            .padding(.top, 24)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 10)
         )
         win.contentView = hostingView
         self.telemetryWindow = win
@@ -116,7 +113,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         }
         
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 490, height: 380),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 390),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -135,9 +132,6 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
             rootView: UpdateModalView(updateInfo: updateInfo) { [weak self] in
                 self?.closeUpdateWindow()
             }
-            .padding(.top, 24)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 10)
         )
         win.contentView = hostingView
         self.updateWindow = win
@@ -159,7 +153,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         }
         
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 370, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 330, height: 340),
             styleMask: [.titled, .closable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -185,7 +179,6 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
                     self?.closePairingPromptWindow()
                 }
             )
-            .padding(10)
         )
         panel.contentView = hostingView
         self.pairingPromptWindow = panel
