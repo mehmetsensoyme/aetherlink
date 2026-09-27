@@ -122,6 +122,26 @@ public struct DeviceTelemetryDetailView: View {
         dismiss()
     }
     
+    private var titleText: String {
+        if network.isConnected {
+            return telemetry?.model ?? (network.connectedDeviceName.isEmpty ? "Bağlı Android Cihazı" : network.connectedDeviceName)
+        } else {
+            return "Bağlı Cihaz Yok"
+        }
+    }
+    
+    private var subtitleText: String {
+        if network.isConnected {
+            if let t = telemetry {
+                return "Android \(t.androidVersion) • \(t.manufacturer)"
+            } else {
+                return "Telemetri Bekleniyor..."
+            }
+        } else {
+            return "Bağlantı Yok"
+        }
+    }
+    
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 10) {
@@ -142,12 +162,13 @@ public struct DeviceTelemetryDetailView: View {
                     Spacer()
                     
                     VStack(spacing: 1) {
-                        Text(telemetry?.model ?? (network.connectedDeviceName.isEmpty || network.connectedDeviceName == "Bağlantı Kesildi" ? "Android Cihazı" : network.connectedDeviceName))
+                        Text(titleText)
                             .font(.headline)
                             .lineLimit(1)
-                        Text("Android \(telemetry?.androidVersion ?? "14+") • \(telemetry?.manufacturer ?? "Samsung")")
+                        Text(subtitleText)
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                            .lineLimit(1)
                     }
                     
                     Spacer()
@@ -157,118 +178,158 @@ public struct DeviceTelemetryDetailView: View {
                 }
                 .padding(.horizontal, 2)
                 
-                // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery - max 90pt height)
-                HStack(spacing: 8) {
-                    ActivityRingView(
-                        progress: ramProgress,
-                        ringColor: Color.blue,
-                        ringWidth: 5.5,
-                        diameter: 40,
-                        icon: "memorychip",
-                        title: "RAM",
-                        valueText: telemetryMgr.formattedRam.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? "--",
-                        subtitle: "\(Int(ramProgress * 100))% Dolu"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .glassCard(cornerRadius: 12, padding: 6)
-                    
-                    ActivityRingView(
-                        progress: storageProgress,
-                        ringColor: Color.purple,
-                        ringWidth: 5.5,
-                        diameter: 40,
-                        icon: "internaldrive",
-                        title: "Depolama",
-                        valueText: "\(String(format: "%.0f", telemetry?.storageUsedGB ?? 0.0)) GB",
-                        subtitle: "\(String(format: "%.0f", telemetry?.storageTotalGB ?? 0.0)) GB Toplam"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .glassCard(cornerRadius: 12, padding: 6)
-                    
-                    ActivityRingView(
-                        progress: batteryProgress,
-                        ringColor: Color.green,
-                        ringWidth: 5.5,
-                        diameter: 40,
-                        icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
-                        title: "Pil & Isı",
-                        valueText: "\(telemetry?.batteryLevel ?? 0)%",
-                        subtitle: "\(String(format: "%.1f", telemetry?.batteryTempCelsius ?? 28.5))°C"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .glassCard(cornerRadius: 12, padding: 6)
-                }
-                
-                // Hardware Telemetry Spec Rows (Tightened padding)
-                VStack(spacing: 6) {
-                    TelemetrySpecRow(
-                        icon: "wifi",
-                        label: "Kablosuz Ağ & Hız",
-                        value: telemetryMgr.formattedNetwork,
-                        accentColor: .blue
-                    )
-                    
-                    TelemetrySpecRow(
-                        icon: "antenna.radiowaves.left.and.right",
-                        label: "Hücresel Bağlantı",
-                        value: telemetry?.cellularOperator ?? "Mobil Veri",
-                        accentColor: .indigo
-                    )
-                    
-                    TelemetrySpecRow(
-                        icon: "clock.arrow.circlepath",
-                        label: "Sistem Çalışma Süresi",
-                        value: telemetryMgr.formattedUptime,
-                        accentColor: .orange
-                    )
-                    
-                    TelemetrySpecRow(
-                        icon: "heart.text.square.fill",
-                        label: "Pil Sağlığı",
-                        value: "\(telemetry?.batteryHealth ?? "İyi") • \(telemetry?.isCharging == true ? "Hızlı Şarj" : "Deşarj")",
-                        accentColor: .green
-                    )
-                }
-                .glassCard(cornerRadius: 12, padding: 8)
-                
-                // Action Buttons (Yenile & Bağlantıyı Kes)
-                HStack(spacing: 10) {
-                    Button(action: {
-                        telemetryMgr.requestTelemetryRefresh()
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.clockwise")
-                            Text("Yenile")
-                        }
-                        .font(.caption.weight(.medium))
+                if network.isConnected {
+                    // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery - max 90pt height)
+                    HStack(spacing: 8) {
+                        ActivityRingView(
+                            progress: ramProgress,
+                            ringColor: Color.blue,
+                            ringWidth: 5.5,
+                            diameter: 40,
+                            icon: "memorychip",
+                            title: "RAM",
+                            valueText: telemetry != nil ? (telemetryMgr.formattedRam.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? "--") : "--",
+                            subtitle: telemetry != nil ? "\(Int(ramProgress * 100))% Dolu" : "--"
+                        )
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                    }
-                    .buttonStyle(.plain)
-                    .glassTile(id: "refresh_telemetry", isActive: false)
-                    
-                    Button(role: .destructive, action: {
-                        network.disconnectDevice(forget: false)
-                        handleBack()
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "link.badge.slash")
-                            Text("Bağlantıyı Kes")
-                        }
-                        .font(.caption.weight(.medium))
-                        .foregroundColor(.red)
+                        .glassCard(cornerRadius: 12, padding: 6)
+                        
+                        ActivityRingView(
+                            progress: storageProgress,
+                            ringColor: Color.purple,
+                            ringWidth: 5.5,
+                            diameter: 40,
+                            icon: "internaldrive",
+                            title: "Depolama",
+                            valueText: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageUsedGB)) GB" : "--",
+                            subtitle: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageTotalGB)) GB Toplam" : "--"
+                        )
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
+                        .glassCard(cornerRadius: 12, padding: 6)
+                        
+                        ActivityRingView(
+                            progress: batteryProgress,
+                            ringColor: Color.green,
+                            ringWidth: 5.5,
+                            diameter: 40,
+                            icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
+                            title: "Pil & Isı",
+                            valueText: telemetry != nil ? "\(telemetry!.batteryLevel)%" : "--%",
+                            subtitle: telemetry != nil ? "\(String(format: "%.1f", telemetry!.batteryTempCelsius))°C" : "--°C"
+                        )
+                        .frame(maxWidth: .infinity)
+                        .glassCard(cornerRadius: 12, padding: 6)
                     }
-                    .buttonStyle(.plain)
-                    .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
+                    
+                    // Hardware Telemetry Spec Rows (Tightened padding)
+                    VStack(spacing: 6) {
+                        TelemetrySpecRow(
+                            icon: "wifi",
+                            label: "Kablosuz Ağ & Hız",
+                            value: telemetryMgr.formattedNetwork,
+                            accentColor: .blue
+                        )
+                        
+                        TelemetrySpecRow(
+                            icon: "antenna.radiowaves.left.and.right",
+                            label: "Hücresel Bağlantı",
+                            value: telemetry?.cellularOperator ?? "Mobil Veri",
+                            accentColor: .indigo
+                        )
+                        
+                        TelemetrySpecRow(
+                            icon: "clock.arrow.circlepath",
+                            label: "Sistem Çalışma Süresi",
+                            value: telemetryMgr.formattedUptime,
+                            accentColor: .orange
+                        )
+                        
+                        TelemetrySpecRow(
+                            icon: "heart.text.square.fill",
+                            label: "Pil Sağlığı",
+                            value: telemetry != nil ? "\(telemetry!.batteryHealth) • \(telemetry!.isCharging ? "Hızlı Şarj" : "Deşarj")" : "--",
+                            accentColor: .green
+                        )
+                    }
+                    .glassCard(cornerRadius: 12, padding: 8)
+                    
+                    // Action Buttons (Yenile & Bağlantıyı Kes - height 34)
+                    HStack(spacing: 10) {
+                        Button(action: {
+                            telemetryMgr.requestTelemetryRefresh()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Yenile")
+                            }
+                            .font(.caption.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 34)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "refresh_telemetry", isActive: false)
+                        
+                        Button(role: .destructive, action: {
+                            network.disconnectDevice(forget: false)
+                            handleBack()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "link.badge.slash")
+                                Text("Bağlantıyı Kes")
+                            }
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 34)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
+                    }
+                } else {
+                    // Empty State Glass Card (When Disconnected)
+                    VStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.primary.opacity(0.06))
+                                .frame(width: 48, height: 48)
+                            Image(systemName: "iphone.slash")
+                                .font(.system(size: 22))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        VStack(spacing: 4) {
+                            Text("Bağlı Cihaz Bulunamadı")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Donanım ve sistem telemetrisi görüntülemek için lütfen önce telefonunuzu eşleştirin.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 8)
+                        }
+                        
+                        Button(action: {
+                            PopoverStateManager.shared.currentPage = .pairing
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "qrcode")
+                                Text("Cihaz Eşleştir")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 34)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "telemetry_empty_pair_btn", isActive: true)
+                    }
+                    .padding(16)
+                    .glassCard(cornerRadius: 14, padding: 0)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.bottom, 14)
         }
-        .frame(width: 320, height: 420)
+        .frame(width: 320, height: network.isConnected ? 360 : 270)
         .background(.ultraThinMaterial)
         .keyboardShortcut(.cancelAction)
     }
@@ -335,7 +396,7 @@ public struct PairingQRView: View {
     
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 // 1. Single-line Clean Header Bar (Symmetrical with Top Safe Area)
                 HStack {
                     Button(action: {
@@ -420,9 +481,9 @@ public struct PairingQRView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
-            .padding(.bottom, 16)
+            .padding(.bottom, 14)
         }
-        .frame(width: 320, height: 390)
+        .frame(width: 320, height: 330)
         .background(.ultraThinMaterial)
         .keyboardShortcut(.cancelAction)
         .onReceive(network.$isConnected) { isConnected in
@@ -883,9 +944,10 @@ public struct SettingsView: View {
                 .glassCard(cornerRadius: 14, padding: 12)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 14)
         }
-        .frame(width: 320, height: 380)
+        .frame(width: 320, height: 260)
         .background(.ultraThinMaterial)
         .keyboardShortcut(.cancelAction)
     }
@@ -913,18 +975,19 @@ struct WindowBackgroundConfigurator: NSViewRepresentable {
         guard let window = window else { return }
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.minSize = NSSize(width: 320, height: 380)
+        window.minSize = NSSize(width: 320, height: 260)
         
         let targetSize: NSSize
         switch currentPage {
         case .pairing:
-            targetSize = NSSize(width: 320, height: 390)
+            targetSize = NSSize(width: 320, height: 330)
         case .telemetry:
-            targetSize = NSSize(width: 320, height: 420)
+            let h: CGFloat = NetworkManager.shared.isConnected ? 360 : 270
+            targetSize = NSSize(width: 320, height: h)
         case .settings:
-            targetSize = NSSize(width: 320, height: 380)
+            targetSize = NSSize(width: 320, height: 260)
         case .dashboard:
-            targetSize = NSSize(width: 320, height: 440)
+            targetSize = NSSize(width: 320, height: 370)
         }
         
         if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
@@ -950,13 +1013,13 @@ public struct MenuBarContentView: View {
     private var currentViewHeight: CGFloat {
         switch state.currentPage {
         case .pairing:
-            return 390
+            return 330
         case .telemetry:
-            return 420
+            return network.isConnected ? 360 : 270
         case .settings:
-            return 380
+            return 260
         case .dashboard:
-            return 440
+            return 370
         }
     }
     
@@ -999,7 +1062,7 @@ public struct MenuBarContentView: View {
     // MARK: - Dashboard Content
     private var dashboardView: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
             // 1. Top Header Glass Card (Control Center Device Pill)
             HStack(spacing: 10) {
                 PulsingIndicatorView(isConnected: network.isConnected)
@@ -1336,9 +1399,11 @@ public struct MenuBarContentView: View {
             .padding(.top, 2)
             .padding(.horizontal, 2)
         }
-        .padding(14)
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 14)
         }
-        .frame(width: 320, height: 440)
+        .frame(width: 320, height: 370)
     }
 }
 
