@@ -38,8 +38,8 @@ class AetherInCallService : InCallService() {
         activeCalls[callId] = call
 
         val details = call.details
-        val callerHandle = details.handle?.schemeSpecificPart ?: "Bilinmeyen Numara"
-        val callerName = details.callerDisplayName ?: callerHandle
+        val callerHandle = details.handle?.schemeSpecificPart
+        val resolved = ContactResolver.resolve(this, callerHandle)
 
         val direction = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             if (details.callDirection == Call.Details.DIRECTION_OUTGOING) "outgoing" else "incoming"
@@ -47,18 +47,25 @@ class AetherInCallService : InCallService() {
             if (call.state == Call.STATE_DIALING || call.state == Call.STATE_CONNECTING) "outgoing" else "incoming"
         }
 
+        val contactName = if (resolved.isKnown) {
+            resolved.contactName
+        } else {
+            details.callerDisplayName ?: resolved.contactName
+        }
+
         val payload = JsonObject().apply {
             addProperty("callId", callId)
             addProperty("appType", "cellular")
-            addProperty("callerName", callerName)
-            addProperty("phoneNumber", callerHandle)
+            addProperty("callerName", contactName)
+            addProperty("contact_name", if (resolved.isKnown) resolved.contactName else null)
+            addProperty("phoneNumber", resolved.phoneNumber)
             addProperty("timestamp", System.currentTimeMillis().toDouble())
             addProperty("hasVideo", details.hasProperty(Call.Details.PROPERTY_WIFI))
             addProperty("direction", direction)
         }
 
         AetherCoreService.instance?.sendMessage("CALL_INCOMING", payload)
-        Log.i(TAG, "Call added and relayed to Mac: $callerName ($callId, direction: $direction)")
+        Log.i(TAG, "Call added and relayed to Mac: $contactName ($callId, direction: $direction)")
 
         call.registerCallback(object : Call.Callback() {
             override fun onStateChanged(call: Call?, state: Int) {

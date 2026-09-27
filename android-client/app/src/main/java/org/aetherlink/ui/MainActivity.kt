@@ -96,12 +96,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val runtimePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val grantedCount = results.values.count { it }
+        Log.i(TAG, "Runtime permissions request completed: $grantedCount / ${results.size} granted")
+    }
+
+    private fun requestMissingPermissionsOnLaunch() {
+        val required = org.aetherlink.permission.AetherPermissionManager.getRequiredRuntimePermissions()
+        val missing = required.filter { perm ->
+            androidx.core.content.ContextCompat.checkSelfPermission(this, perm) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) {
+            Log.i(TAG, "Requesting missing permissions on startup: $missing")
+            runtimePermissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         instance = this
 
         // Automatically start the background foreground service on launch
         AetherCoreService.start(this)
+        requestMissingPermissionsOnLaunch()
 
         if (intent?.getBooleanExtra(EXTRA_REQUEST_SCREEN_CAPTURE, false) == true) {
             launchScreenCapturePrompt()

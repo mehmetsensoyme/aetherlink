@@ -70,9 +70,12 @@ public final class CallManager: ObservableObject {
     }
     
     private func showCallBanner(_ payload: CallIncomingPayload) {
+        let panelWidth: CGFloat = 420
+        let panelHeight: CGFloat = 80
+        
         if callWindow == nil {
             let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 370, height: 75),
+                contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -90,23 +93,30 @@ public final class CallManager: ObservableObject {
             callWindow?.contentView = NSHostingView(rootView: CallBannerView())
         }
         
-        // Position at top-right of main screen with smooth slide-down and fade-in animation
+        // Exact screen positioning per specifications:
+        // Use NSScreen.main.visibleFrame (excluding menu bar & dock)
+        // Target Y: visibleFrame.maxY - panelHeight - 20 (centered 20px below menu bar)
+        // Target X: visibleFrame.midX - (panelWidth / 2)
+        // Smooth slide-down spring animation
         if let screen = NSScreen.main, let window = callWindow {
-            let screenRect = screen.visibleFrame
-            let x = screenRect.maxX - 390
-            let targetY = screenRect.maxY - 85
-            let startY = screenRect.maxY + 20
+            let visibleFrame = screen.visibleFrame
+            let targetX = visibleFrame.midX - (panelWidth / 2)
+            let targetY = visibleFrame.maxY - panelHeight - 20
+            let startY = visibleFrame.maxY - panelHeight // Top of window flush with menu bar bottom
             
-            window.setFrameOrigin(NSPoint(x: x, y: startY))
+            window.setFrame(NSRect(x: targetX, y: startY, width: panelWidth, height: panelHeight), display: true)
             window.alphaValue = 0.0
             window.orderFrontRegardless()
             
-            NSAnimationContext.runAnimationGroup { ctx in
+            NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.35
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                window.animator().setFrameOrigin(NSPoint(x: x, y: targetY))
+                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.175, 0.885, 0.32, 1.275)
+                window.animator().setFrame(NSRect(x: targetX, y: targetY, width: panelWidth, height: panelHeight), display: true)
                 window.animator().alphaValue = 1.0
-            }
+            }, completionHandler: {
+                window.setFrame(NSRect(x: targetX, y: targetY, width: panelWidth, height: panelHeight), display: true)
+                window.alphaValue = 1.0
+            })
         }
         
         let isOutgoing = (payload.direction == "outgoing")
@@ -120,7 +130,7 @@ public final class CallManager: ObservableObject {
             key: payload.callId,
             packageName: "telecom",
             appName: callTitle,
-            title: payload.callerName,
+            title: payload.displayName,
             text: payload.phoneNumber ?? "Bilinmeyen Numara",
             subText: nil,
             timestamp: payload.timestamp,
@@ -137,11 +147,12 @@ public final class CallManager: ObservableObject {
         isCallActive = false
         
         if let window = callWindow, let screen = NSScreen.main, window.isVisible {
-            let targetY = screen.visibleFrame.maxY + 30
+            let visibleFrame = screen.visibleFrame
+            let dismissY = visibleFrame.maxY - window.frame.height
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.25
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-                window.animator().setFrameOrigin(NSPoint(x: window.frame.origin.x, y: targetY))
+                window.animator().setFrame(NSRect(x: window.frame.origin.x, y: dismissY, width: window.frame.width, height: window.frame.height), display: true)
                 window.animator().alphaValue = 0.0
             }, completionHandler: {
                 window.orderOut(nil)

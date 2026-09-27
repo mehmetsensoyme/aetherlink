@@ -268,16 +268,22 @@ public final class NetworkManager: ObservableObject {
         case "CALL_INCOMING":
             if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
                let call = try? JSONDecoder().decode(CallIncomingPayload.self, from: payloadData) {
-                CallManager.shared.handleIncomingCall(call)
+                print("[NetworkManager] Received CALL_INCOMING: \(call.displayName) (\(call.callId))")
+                DispatchQueue.main.async {
+                    CallManager.shared.handleIncomingCall(call)
+                }
             }
             
         case "CALL_ACTION":
             if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
                let action = try? JSONDecoder().decode(CallActionPayload.self, from: payloadData) {
-                if action.action == "hangup" || action.action == "decline" {
-                    CallManager.shared.dismissCallBanner()
-                } else if action.action == "answered" {
-                    CallManager.shared.isCallActive = true
+                print("[NetworkManager] Received CALL_ACTION: \(action.action) (\(action.callId))")
+                DispatchQueue.main.async {
+                    if action.action == "hangup" || action.action == "decline" {
+                        CallManager.shared.dismissCallBanner()
+                    } else if action.action == "answered" {
+                        CallManager.shared.isCallActive = true
+                    }
                 }
             }
             

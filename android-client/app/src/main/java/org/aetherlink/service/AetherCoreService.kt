@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
@@ -108,6 +109,7 @@ class AetherCoreService : Service() {
         startForegroundWithType()
         registerBatteryMonitoring()
         registerThermalStatusMonitoring()
+        registerCallLogObserver()
         ClipboardSyncManager.init(this)
         org.aetherlink.bluetooth.BluetoothAudioManager.init(this)
         connectToMacWebSocket()
@@ -599,9 +601,41 @@ class AetherCoreService : Service() {
         sendMessage("MAC_TELEMETRY_REQUEST", JsonObject())
     }
 
+    private var callLogObserver: android.database.ContentObserver? = null
+
+    private fun registerCallLogObserver() {
+        if (callLogObserver != null) return
+        try {
+            callLogObserver = object : android.database.ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean, uri: Uri?) {
+                    super.onChange(selfChange, uri)
+                    org.aetherlink.receiver.CallStateReceiver.onCallLogChanged(this@AetherCoreService)
+                }
+            }
+            contentResolver.registerContentObserver(
+                android.provider.CallLog.Calls.CONTENT_URI,
+                true,
+                callLogObserver!!
+            )
+            Log.i(TAG, "CallLog ContentObserver registered successfully")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to register CallLog observer: ${e.message}")
+        }
+    }
+
+    private fun unregisterCallLogObserver() {
+        callLogObserver?.let {
+            try {
+                contentResolver.unregisterContentObserver(it)
+            } catch (_: Exception) {}
+            callLogObserver = null
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(batteryReceiver)
+        unregisterCallLogObserver()
         webSocket?.close(1000, "Service stopping")
         serviceScope.cancel()
         instance = null

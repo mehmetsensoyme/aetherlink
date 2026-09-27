@@ -32,11 +32,25 @@ public struct CallIncomingPayload: Codable, Sendable {
     public let callId: String
     public let appType: CallAppType
     public let callerName: String
+    public let contact_name: String?
     public let phoneNumber: String?
     public let avatarBase64: String?
     public let timestamp: Double
     public let hasVideo: Bool
     public let direction: String? // "incoming" or "outgoing"
+
+    public var displayName: String {
+        if let contact = contact_name, !contact.isEmpty, contact != "Bilinmeyen Numara", contact != "Numara Çevriliyor" {
+            return contact
+        }
+        if !callerName.isEmpty && callerName != "Bilinmeyen Numara" && callerName != "Numara Çevriliyor" {
+            return callerName
+        }
+        if let phone = phoneNumber, !phone.isEmpty, phone != "Bilinmeyen Numara", phone != "Numara Çevriliyor" {
+            return phone
+        }
+        return (direction == "outgoing") ? "Giden Arama" : "Bilinmeyen Numara"
+    }
 }
 
 public struct CallActionPayload: Codable, Sendable {

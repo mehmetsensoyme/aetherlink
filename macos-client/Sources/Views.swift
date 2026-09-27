@@ -749,72 +749,90 @@ public struct CallBannerView: View {
                     }
                 }
                 
-                Text(callManager.activeCall?.callerName ?? (isOutgoing ? "Numara Çevriliyor" : "Arayan"))
+                Text(callManager.activeCall?.displayName ?? (isOutgoing ? "Giden Arama" : "Arayan"))
                     .font(.headline)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                 
-                if let phone = callManager.activeCall?.phoneNumber {
+                if let phone = callManager.activeCall?.phoneNumber,
+                   phone != callManager.activeCall?.displayName,
+                   phone != "Bilinmeyen Numara",
+                   phone != "Numara Çevriliyor",
+                   phone != "Giden Arama" {
                     Text(phone)
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
             }
+            .layoutPriority(1)
             
-            Spacer()
+            Spacer(minLength: 12)
             
             HStack(spacing: 8) {
                 if !callManager.isCallActive && !isOutgoing {
                     Button(action: {
                         callManager.declineCall()
                     }) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Image(systemName: "phone.down.fill")
+                                .font(.system(size: 11, weight: .bold))
                             Text("Reddet")
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
                         }
-                        .font(.caption.weight(.semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
                         .background(Capsule().fill(Color.red))
                     }
                     .buttonStyle(.plain)
+                    .fixedSize()
                     
                     Button(action: {
                         callManager.answerCall()
                     }) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Image(systemName: "phone.fill")
+                                .font(.system(size: 11, weight: .bold))
                             Text("Cevapla")
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
                         }
-                        .font(.caption.weight(.semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
                         .background(Capsule().fill(Color.green))
                     }
                     .buttonStyle(.plain)
+                    .fixedSize()
                 } else {
                     Button(action: {
                         callManager.endCall()
                     }) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Image(systemName: "phone.down.fill")
+                                .font(.system(size: 11, weight: .bold))
                             Text("Kapat")
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
                         }
-                        .font(.caption.weight(.semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
                         .background(Capsule().fill(Color.red))
                     }
                     .buttonStyle(.plain)
+                    .fixedSize()
                 }
             }
+            .layoutPriority(2)
+            .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .glassCard(cornerRadius: 16, padding: 0)
-        .frame(width: 370)
+        .frame(width: 420, height: 80)
     }
     
     private var appBadgeColor: Color {
