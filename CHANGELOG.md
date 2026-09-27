@@ -27,7 +27,10 @@ AetherLink projesine ait tüm önemli değişiklikler, yeni özellikler ve hata 
   - Alttaki gereksiz büyük buton kaldırılarak sol üste simetrik `chevron.left` geri butonu yerleştirildi.
 - **Tek Aktif Cihaz Politikası:**
   - Telefon bağlıyken eşleştirme arayüzüne ve butonlarına erişim engellendi.
-  - Soket seviyesinde `DEVICE_BUSY` koruması getirilerek eşzamanlı çakışmalar önlendi.
+- **Popover İçi Sayfa Gezinmesi ve Geri Butonu Düzeltmesi:**
+  - "Cihaz Eşleştirme" ve "Cihaz Donanım Bilgileri" ekranlarındaki sol üst geri (`<`) butonuna tıklandığında popover'ın tamamen kapanmasına yol açan `dismiss()` çağrıları kaldırıldı; durum tabanlı yönlendirme (`ActiveScreen` / `currentPage = .dashboard`) ile akıcı `ZStack` sayfa geçişi sağlandı.
+  - Klavye ESC kısayolunun pencereyi kapatmak yerine ana kontrol merkezine (`.dashboard`) dönmesi sağlandı.
+  - Sayfa geçişleri sırasında `window.makeKey()` korunarak `NSPopover`'ın transient olarak odağını kaybetmesi ve arka planda kapanması engellendi.
 
 ---
 

@@ -7,7 +7,11 @@ public enum PopoverPage: String, Equatable {
     case telemetry
     case pairing
     case settings
+    
+    public static var deviceInfo: PopoverPage { .telemetry }
 }
+
+public typealias ActiveScreen = PopoverPage
 
 // MARK: - Pulsing Connection Dot Indicator
 public struct PulsingIndicatorView: View {
@@ -75,7 +79,6 @@ public struct GlassQRCodeCard: View {
 
 // MARK: - Device Telemetry Detail View ("Cihaz Bilgileri")
 public struct DeviceTelemetryDetailView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var telemetryMgr = DeviceTelemetryManager.shared
     @ObservedObject var network = NetworkManager.shared
@@ -117,9 +120,11 @@ public struct DeviceTelemetryDetailView: View {
             onBack()
         } else if let onDismiss = onDismiss {
             onDismiss()
+        } else {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                PopoverStateManager.shared.currentPage = .dashboard
+            }
         }
-        PopoverStateManager.shared.currentPage = .dashboard
-        dismiss()
     }
     
     private var titleText: String {
@@ -331,7 +336,14 @@ public struct DeviceTelemetryDetailView: View {
         }
         .frame(width: 320, height: network.isConnected ? 360 : 270)
         .background(.ultraThinMaterial)
-        .keyboardShortcut(.cancelAction)
+        .background(
+            Button("") {
+                handleBack()
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .opacity(0)
+            .frame(width: 0, height: 0)
+        )
     }
 }
 
@@ -366,7 +378,6 @@ struct TelemetrySpecRow: View {
 
 // MARK: - Pairing QR View ("Cihaz Eşleştirme")
 public struct PairingQRView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var pairing = PairingManager.shared
     @ObservedObject var network = NetworkManager.shared
@@ -389,9 +400,11 @@ public struct PairingQRView: View {
             onBack()
         } else if let onDismiss = onDismiss {
             onDismiss()
+        } else {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                PopoverStateManager.shared.currentPage = .dashboard
+            }
         }
-        PopoverStateManager.shared.currentPage = .dashboard
-        dismiss()
     }
     
     public var body: some View {
@@ -485,7 +498,14 @@ public struct PairingQRView: View {
         }
         .frame(width: 320, height: 330)
         .background(.ultraThinMaterial)
-        .keyboardShortcut(.cancelAction)
+        .background(
+            Button("") {
+                handleBack()
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .opacity(0)
+            .frame(width: 0, height: 0)
+        )
         .onReceive(network.$isConnected) { isConnected in
             if isConnected {
                 handleBack()
@@ -949,7 +969,14 @@ public struct SettingsView: View {
         }
         .frame(width: 320, height: 260)
         .background(.ultraThinMaterial)
-        .keyboardShortcut(.cancelAction)
+        .background(
+            Button("") {
+                onBack()
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .opacity(0)
+            .frame(width: 0, height: 0)
+        )
     }
 }
 
@@ -993,6 +1020,11 @@ struct WindowBackgroundConfigurator: NSViewRepresentable {
         if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
             window.setContentSize(targetSize)
         }
+        
+        // Ensure window retains active key status so NSPopover / MenuBarExtra window doesn't dismiss transiently
+        if window.isVisible && !window.isKeyWindow {
+            window.makeKey()
+        }
     }
 }
 
@@ -1024,37 +1056,49 @@ public struct MenuBarContentView: View {
     }
     
     public var body: some View {
-        Group {
+        ZStack {
             switch state.currentPage {
             case .dashboard:
                 dashboardView
+                    .transition(.opacity)
             case .telemetry:
                 DeviceTelemetryDetailView(
                     showInlineBack: true,
                     onBack: {
-                        state.currentPage = .dashboard
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            state.currentPage = .dashboard
+                        }
                     }
                 )
+                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
             case .pairing:
                 if network.isConnected {
                     dashboardView
+                        .transition(.opacity)
                 } else {
                     PairingQRView(
                         showInlineBack: true,
                         onBack: {
-                            state.currentPage = .dashboard
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                state.currentPage = .dashboard
+                            }
                         }
                     )
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
                 }
             case .settings:
                 SettingsView(
                     onBack: {
-                        state.currentPage = .dashboard
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            state.currentPage = .dashboard
+                        }
                     }
                 )
+                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
             }
         }
         .frame(width: 320, height: currentViewHeight)
+        .animation(.easeInOut(duration: 0.2), value: state.currentPage)
         .background(.ultraThinMaterial)
         .background(WindowBackgroundConfigurator(currentPage: state.currentPage))
     }
