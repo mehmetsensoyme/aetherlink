@@ -8,6 +8,11 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
     
     @Published public var isAuthorized: Bool = false
     @Published public var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @Published public var isNotificationsPaused: Bool = false
+    
+    public func toggleNotificationsPaused() {
+        isNotificationsPaused.toggle()
+    }
     
     public override init() {
         super.init()
@@ -65,6 +70,10 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
     }
     
     public func displayNotification(_ payload: NotificationPayload) {
+        guard !isNotificationsPaused else {
+            print("[NotificationManager] Notification skipped (paused by user): \(payload.title)")
+            return
+        }
         let content = UNMutableNotificationContent()
         content.title = "\(payload.appName): \(payload.title)"
         content.body = payload.text

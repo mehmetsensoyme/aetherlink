@@ -2,14 +2,19 @@ import AppKit
 import Foundation
 
 @MainActor
-public final class ClipboardManager {
+public final class ClipboardManager: ObservableObject {
     public static let shared = ClipboardManager()
     
+    @Published public var isMonitoringActive: Bool = true
     private var lastChangeCount: Int = 0
     private var lastSyncedHash: String = ""
     private var timer: Timer?
     
     public init() {}
+    
+    public func toggleMonitoring() {
+        isMonitoringActive.toggle()
+    }
     
     public func startMonitoring() {
         lastChangeCount = NSPasteboard.general.changeCount
@@ -22,6 +27,7 @@ public final class ClipboardManager {
     }
     
     private func checkLocalClipboard() {
+        guard isMonitoringActive else { return }
         let currentCount = NSPasteboard.general.changeCount
         guard currentCount != lastChangeCount else { return }
         lastChangeCount = currentCount

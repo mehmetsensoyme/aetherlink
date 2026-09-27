@@ -39,9 +39,12 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         win.center()
         
         let hostingView = NSHostingView(
-            rootView: DeviceTelemetryDetailView { [weak self] in
-                self?.closeDeviceTelemetryWindow()
-            }
+            rootView: DeviceTelemetryDetailView(
+                showInlineBack: false,
+                onDismiss: { [weak self] in
+                    self?.closeDeviceTelemetryWindow()
+                }
+            )
             .padding(.top, 24)
             .padding(.horizontal, 10)
             .padding(.bottom, 10)
@@ -82,9 +85,12 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         win.center()
         
         let hostingView = NSHostingView(
-            rootView: PairingQRView { [weak self] in
-                self?.closePairingQRWindow()
-            }
+            rootView: PairingQRView(
+                showInlineBack: false,
+                onDismiss: { [weak self] in
+                    self?.closePairingQRWindow()
+                }
+            )
             .padding(.top, 24)
             .padding(.horizontal, 10)
             .padding(.bottom, 10)
