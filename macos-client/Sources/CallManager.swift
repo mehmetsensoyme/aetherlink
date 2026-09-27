@@ -6,13 +6,23 @@ import SwiftUI
 public final class CallManager: ObservableObject {
     public static let shared = CallManager()
     
+    public static let bannerPositionKey = "aetherlink_call_banner_position"
+    
     @Published public var activeCall: CallIncomingPayload? = nil
     @Published public var isCallActive: Bool = false
+    @Published public var bannerPosition: CallBannerPosition {
+        didSet {
+            UserDefaults.standard.set(bannerPosition.rawValue, forKey: Self.bannerPositionKey)
+        }
+    }
     
     private var callWindow: NSPanel?
     private var ringtoneSound: NSSound?
     
-    public init() {}
+    public init() {
+        let saved = UserDefaults.standard.string(forKey: Self.bannerPositionKey) ?? CallBannerPosition.notch.rawValue
+        self.bannerPosition = CallBannerPosition(rawValue: saved) ?? .notch
+    }
     
     public func handleIncomingCall(_ payload: CallIncomingPayload) {
         self.activeCall = payload
@@ -93,15 +103,21 @@ public final class CallManager: ObservableObject {
             callWindow?.contentView = NSHostingView(rootView: CallBannerView())
         }
         
-        // Exact screen positioning per specifications:
-        // Use NSScreen.main.visibleFrame (excluding menu bar & dock)
-        // Target Y: visibleFrame.maxY - panelHeight - 20 (centered 20px below menu bar)
-        // Target X: visibleFrame.midX - (panelWidth / 2)
-        // Smooth slide-down spring animation
+        // Screen positioning per user preference:
+        // .notch: Centered horizontally right under the MacBook camera notch
+        // .topRight: Aligned to top-right notification corner
         if let screen = NSScreen.main, let window = callWindow {
             let visibleFrame = screen.visibleFrame
-            let targetX = visibleFrame.midX - (panelWidth / 2)
-            let targetY = visibleFrame.maxY - panelHeight - 20
+            
+            let targetX: CGFloat
+            switch bannerPosition {
+            case .notch:
+                targetX = visibleFrame.midX - (panelWidth / 2)
+            case .topRight:
+                targetX = visibleFrame.maxX - panelWidth - 20
+            }
+            
+            let targetY = visibleFrame.maxY - panelHeight - 16
             let startY = visibleFrame.maxY - panelHeight // Top of window flush with menu bar bottom
             
             window.setFrame(NSRect(x: targetX, y: startY, width: panelWidth, height: panelHeight), display: true)

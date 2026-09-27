@@ -867,6 +867,7 @@ public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var updater = UpdateChecker.shared
     @ObservedObject var notifManager = NotificationManager.shared
+    @ObservedObject var callManager = CallManager.shared
     var onBack: () -> Void
     
     public var body: some View {
@@ -912,6 +913,51 @@ public struct SettingsView: View {
                     Spacer()
                     Text(colorScheme == .dark ? "Koyu (Dark)" : "Açık (Light)")
                         .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .glassCard(cornerRadius: 12, padding: 10)
+            
+            // Call Banner HUD Position Card
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "phone.badge.waveform")
+                        .foregroundColor(Color(nsColor: .controlAccentColor))
+                    Text("Arama Bildirim Konumu")
+                        .font(.caption.weight(.semibold))
+                    Spacer()
+                    Button("Test Et") {
+                        let sample = CallIncomingPayload(
+                            callId: "test-\(Int(Date().timeIntervalSince1970))",
+                            appType: .cellular,
+                            callerName: "Hakan YILDIRIM",
+                            contact_name: "Hakan YILDIRIM",
+                            phoneNumber: "+90 555 001 88 38",
+                            avatarBase64: nil,
+                            timestamp: Date().timeIntervalSince1970 * 1000,
+                            hasVideo: false,
+                            direction: "incoming"
+                        )
+                        callManager.handleIncomingCall(sample)
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.plain)
+                    .glassTile(id: "test_call_banner", isActive: false)
+                }
+                
+                Picker("", selection: $callManager.bannerPosition) {
+                    ForEach(CallBannerPosition.allCases) { pos in
+                        Text(pos.title).tag(pos)
+                    }
+                }
+                .pickerStyle(.segmented)
+                
+                HStack(spacing: 4) {
+                    Image(systemName: callManager.bannerPosition.icon)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    Text(callManager.bannerPosition.description)
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
                 }
             }

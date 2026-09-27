@@ -9,6 +9,34 @@ public enum CallAppType: String, Codable, Sendable {
     case instagram
 }
 
+public enum CallBannerPosition: String, CaseIterable, Identifiable, Codable, Sendable {
+    case notch = "notch"
+    case topRight = "topRight"
+    
+    public var id: String { rawValue }
+    
+    public var title: String {
+        switch self {
+        case .notch: return "Çentik Altı (Orta)"
+        case .topRight: return "Bildirim Köşesi (Sağ Üst)"
+        }
+    }
+    
+    public var icon: String {
+        switch self {
+        case .notch: return "macbook"
+        case .topRight: return "bell.badge"
+        }
+    }
+    
+    public var description: String {
+        switch self {
+        case .notch: return "Ekran çentiğinin hemen altından açılır"
+        case .topRight: return "macOS bildirim alanından (sağ üst) açılır"
+        }
+    }
+}
+
 public struct PairingRequestPayload: Codable, Sendable {
     public let deviceId: String
     public let deviceName: String
