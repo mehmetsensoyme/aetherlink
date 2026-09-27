@@ -48,7 +48,7 @@ public struct GlassQRCodeCard: View {
                     y: 4
                 )
             
-            if let qrImage = QRCodeGenerator.generateQRCode(from: payloadUrl, size: CGSize(width: 124, height: 124)) {
+            if let qrImage = QRCodeGenerator.generateQRCode(from: payloadUrl, size: CGSize(width: 114, height: 114)) {
                 Image(nsImage: qrImage)
                     .interpolation(.none)
                     .resizable()
@@ -58,7 +58,7 @@ public struct GlassQRCodeCard: View {
                 ProgressView()
             }
         }
-        .frame(width: 140, height: 140)
+        .frame(width: 130, height: 130)
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(
@@ -125,7 +125,7 @@ public struct DeviceTelemetryDetailView: View {
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 10) {
-                // Header
+                // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
                 HStack {
                     Button(action: {
                         handleBack()
@@ -152,61 +152,55 @@ public struct DeviceTelemetryDetailView: View {
                     
                     Spacer()
                     
-                    Button(action: {
-                        handleBack()
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Kapat")
+                    Color.clear
+                        .frame(width: 24, height: 24)
                 }
                 .padding(.horizontal, 2)
                 
-                // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery)
-                HStack(spacing: 10) {
+                // Apple Health / Activity Style Progress Rings (RAM, Storage, Battery - max 90pt height)
+                HStack(spacing: 8) {
                     ActivityRingView(
                         progress: ramProgress,
                         ringColor: Color.blue,
-                        ringWidth: 7,
+                        ringWidth: 5.5,
+                        diameter: 40,
                         icon: "memorychip",
                         title: "RAM",
                         valueText: telemetryMgr.formattedRam.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? "--",
                         subtitle: "\(Int(ramProgress * 100))% Dolu"
                     )
                     .frame(maxWidth: .infinity)
-                    .glassCard(cornerRadius: 14, padding: 8)
+                    .glassCard(cornerRadius: 12, padding: 6)
                     
                     ActivityRingView(
                         progress: storageProgress,
                         ringColor: Color.purple,
-                        ringWidth: 7,
+                        ringWidth: 5.5,
+                        diameter: 40,
                         icon: "internaldrive",
                         title: "Depolama",
                         valueText: "\(String(format: "%.0f", telemetry?.storageUsedGB ?? 0.0)) GB",
                         subtitle: "\(String(format: "%.0f", telemetry?.storageTotalGB ?? 0.0)) GB Toplam"
                     )
                     .frame(maxWidth: .infinity)
-                    .glassCard(cornerRadius: 14, padding: 8)
+                    .glassCard(cornerRadius: 12, padding: 6)
                     
                     ActivityRingView(
                         progress: batteryProgress,
                         ringColor: Color.green,
-                        ringWidth: 7,
+                        ringWidth: 5.5,
+                        diameter: 40,
                         icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
                         title: "Pil & Isı",
                         valueText: "\(telemetry?.batteryLevel ?? 0)%",
                         subtitle: "\(String(format: "%.1f", telemetry?.batteryTempCelsius ?? 28.5))°C"
                     )
                     .frame(maxWidth: .infinity)
-                    .glassCard(cornerRadius: 14, padding: 8)
+                    .glassCard(cornerRadius: 12, padding: 6)
                 }
                 
-                // Hardware Telemetry Spec Rows
-                VStack(spacing: 7) {
+                // Hardware Telemetry Spec Rows (Tightened padding)
+                VStack(spacing: 6) {
                     TelemetrySpecRow(
                         icon: "wifi",
                         label: "Kablosuz Ağ & Hız",
@@ -235,9 +229,9 @@ public struct DeviceTelemetryDetailView: View {
                         accentColor: .green
                     )
                 }
-                .glassCard(cornerRadius: 14, padding: 10)
+                .glassCard(cornerRadius: 12, padding: 8)
                 
-                // Action Buttons
+                // Action Buttons (Yenile & Bağlantıyı Kes)
                 HStack(spacing: 10) {
                     Button(action: {
                         telemetryMgr.requestTelemetryRefresh()
@@ -271,9 +265,12 @@ public struct DeviceTelemetryDetailView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 350, height: 490)
+        .frame(width: 350, height: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.ultraThinMaterial)
         .keyboardShortcut(.cancelAction)
     }
@@ -340,8 +337,8 @@ public struct PairingQRView: View {
     
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 10) {
-                // 1. Single-line Clean Header Bar
+            VStack(spacing: 12) {
+                // 1. Single-line Clean Header Bar (Symmetrical with Top Safe Area)
                 HStack {
                     Button(action: {
                         handleBack()
@@ -362,24 +359,15 @@ public struct PairingQRView: View {
                     
                     Spacer()
                     
-                    Button(action: {
-                        handleBack()
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Kapat")
+                    Color.clear
+                        .frame(width: 24, height: 24)
                 }
                 
-                // 2. Compact Glass-framed QR Code Card (140x140)
+                // 2. Compact Glass-framed QR Code Card (130x130)
                 GlassQRCodeCard(payloadUrl: pairing.pairingPayloadUrl)
                     .padding(.top, 2)
                 
-                // 3. Compact Confirmation Code Card (SF Mono, padding 8, size 24)
+                // 3. Compact Confirmation Code Card (SF Mono, padding 8, size 22)
                 VStack(spacing: 2) {
                     Text("Eşleşme Onay Kodu")
                         .font(.caption2)
@@ -387,7 +375,7 @@ public struct PairingQRView: View {
                         .foregroundColor(.secondary)
                     
                     Text(pairing.currentConfirmationCode)
-                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .font(.system(size: 22, weight: .bold, design: .monospaced))
                         .tracking(3)
                         .foregroundColor(Color(nsColor: .controlAccentColor))
                 }
@@ -433,9 +421,12 @@ public struct PairingQRView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            .padding(.top, 16)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 300, height: 420)
+        .frame(width: 320, height: 390)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.ultraThinMaterial)
         .keyboardShortcut(.cancelAction)
         .onReceive(network.$isConnected) { isConnected in
@@ -767,7 +758,7 @@ public struct SettingsView: View {
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 10) {
-                // Header
+                // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
                 HStack {
                     Button(action: {
                         onBack()
@@ -789,18 +780,8 @@ public struct SettingsView: View {
                     
                     Spacer()
                     
-                    Button(action: {
-                        onBack()
-                        PopoverStateManager.shared.currentPage = .dashboard
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Kapat")
+                    Color.clear
+                        .frame(width: 24, height: 24)
                 }
                 .padding(.horizontal, 2)
                 
@@ -914,6 +895,47 @@ public struct SettingsView: View {
     }
 }
 
+// MARK: - Window Background & Size Configurator
+struct WindowBackgroundConfigurator: NSViewRepresentable {
+    let currentPage: PopoverPage
+    
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            configure(window: view.window)
+        }
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            configure(window: nsView.window)
+        }
+    }
+    
+    private func configure(window: NSWindow?) {
+        guard let window = window else { return }
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        
+        let targetSize: NSSize
+        switch currentPage {
+        case .pairing:
+            targetSize = NSSize(width: 320, height: 390)
+        case .telemetry:
+            targetSize = NSSize(width: 350, height: 420)
+        case .settings:
+            targetSize = NSSize(width: 350, height: 380)
+        case .dashboard:
+            targetSize = NSSize(width: 350, height: max(window.frame.height, 460))
+        }
+        
+        if currentPage != .dashboard && (abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1) {
+            window.setContentSize(targetSize)
+        }
+    }
+}
+
 // MARK: - Main Menu Bar Content View (Control Center Architecture)
 public struct MenuBarContentView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -959,8 +981,11 @@ public struct MenuBarContentView: View {
                 )
             }
         }
-        .frame(width: state.currentPage == .pairing ? 300 : 350)
+        .frame(width: state.currentPage == .pairing ? 320 : 350)
+        .frame(height: state.currentPage == .pairing ? 390 : nil)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.ultraThinMaterial)
+        .background(WindowBackgroundConfigurator(currentPage: state.currentPage))
     }
     
     // MARK: - Dashboard Content

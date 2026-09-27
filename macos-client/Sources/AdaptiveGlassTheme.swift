@@ -182,6 +182,7 @@ public struct ActivityRingView: View {
     let progress: Double // 0.0 ... 1.0
     let ringColor: Color
     let ringWidth: CGFloat
+    let diameter: CGFloat
     let icon: String?
     let title: String
     let valueText: String
@@ -190,7 +191,8 @@ public struct ActivityRingView: View {
     public init(
         progress: Double,
         ringColor: Color,
-        ringWidth: CGFloat = 7,
+        ringWidth: CGFloat = 5.5,
+        diameter: CGFloat = 40,
         icon: String? = nil,
         title: String,
         valueText: String,
@@ -199,6 +201,7 @@ public struct ActivityRingView: View {
         self.progress = min(max(progress, 0.0), 1.0)
         self.ringColor = ringColor
         self.ringWidth = ringWidth
+        self.diameter = diameter
         self.icon = icon
         self.title = title
         self.valueText = valueText
@@ -206,7 +209,7 @@ public struct ActivityRingView: View {
     }
     
     public var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             ZStack {
                 // Background Track
                 Circle()
@@ -234,27 +237,26 @@ public struct ActivityRingView: View {
                         .foregroundColor(ringColor)
                 } else {
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                 }
             }
-            .frame(width: 52, height: 52)
+            .frame(width: diameter, height: diameter)
             
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text(title)
-                    .font(.caption2)
-                    .fontWeight(.medium)
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                 
                 Text(valueText)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 
                 if let sub = subtitle {
                     Text(sub)
-                        .font(.system(size: 9))
+                        .font(.system(size: 8))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
