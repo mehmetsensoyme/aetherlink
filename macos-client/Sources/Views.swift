@@ -137,7 +137,8 @@ public struct DeviceTelemetryDetailView: View {
     }
     
     public var body: some View {
-        VStack(spacing: 8) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 8) {
             // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
             HStack {
                 Button(action: {
@@ -341,8 +342,8 @@ public struct DeviceTelemetryDetailView: View {
             }
         }
         .padding(.horizontal, 16)
-        .frame(width: 365)
-        .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(width: 365, height: PopoverRouter.shared.currentScreen.preferredHeight)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -414,7 +415,8 @@ public struct PairingQRView: View {
     }
     
     public var body: some View {
-        VStack(spacing: 8) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 8) {
             // 1. Single-line Clean Header Bar (Symmetrical with Top Safe Area)
             HStack {
                 Button(action: {
@@ -500,10 +502,9 @@ public struct PairingQRView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 14)
+            }
         }
-        .padding(.horizontal, 16)
-        .frame(width: 365)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 365, height: PopoverRouter.shared.currentScreen.preferredHeight)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -840,7 +841,8 @@ public struct SettingsView: View {
     var onBack: () -> Void
     
     public var body: some View {
-        VStack(spacing: 10) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 10) {
                 // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
                 HStack {
                     Button(action: {
@@ -971,9 +973,9 @@ public struct SettingsView: View {
                 .glassCard(cornerRadius: 14, padding: 12)
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-            .frame(width: 365)
-            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, 14)
+        }
+        .frame(width: 365, height: PopoverRouter.shared.currentScreen.preferredHeight)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -1027,16 +1029,19 @@ final class AutoSizingNSView: NSView {
             if let contentView = window.contentView {
                 contentView.wantsLayer = true
                 contentView.layer?.backgroundColor = .clear
-                let fittingHeight = contentView.fittingSize.height
-                if fittingHeight > 0 {
-                    let targetSize = NSSize(width: 365, height: max(ceil(fittingHeight), 220))
-                    if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
-                        NSAnimationContext.runAnimationGroup { context in
-                            context.duration = 0.20
-                            context.allowsImplicitAnimation = true
-                            window.setContentSize(targetSize)
-                        }
-                    }
+            }
+            
+            let targetSize = PopoverRouter.shared.currentScreen.preferredSize
+            let currentFrame = window.frame
+            if abs(currentFrame.width - targetSize.width) > 1 || abs(currentFrame.height - targetSize.height) > 1 {
+                let deltaHeight = targetSize.height - currentFrame.height
+                let newOrigin = NSPoint(x: currentFrame.origin.x, y: currentFrame.origin.y - deltaHeight)
+                let newFrame = NSRect(origin: newOrigin, size: targetSize)
+                
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.20
+                    context.allowsImplicitAnimation = true
+                    window.setFrame(newFrame, display: true, animate: true)
                 }
             }
             
@@ -1098,8 +1103,7 @@ public struct MenuBarContentView: View {
                 .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
             }
         }
-        .frame(width: 365)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 365, height: router.currentScreen.preferredHeight)
         .animation(.easeInOut(duration: 0.20), value: router.currentScreen)
         .background(.ultraThinMaterial)
         .background(WindowBackgroundConfigurator(currentPage: router.currentScreen))
@@ -1107,7 +1111,8 @@ public struct MenuBarContentView: View {
     
     // MARK: - Dashboard Content
     private var dashboardView: some View {
-        VStack(spacing: 8) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 8) {
             // 1. Unified Top Header Glass Card
             if network.isConnected {
                 // Connected State: Device market name, AES-256 status, real battery indicator, and red disconnect button
@@ -1448,10 +1453,10 @@ public struct MenuBarContentView: View {
                 .padding(.horizontal, 2)
             }
             .padding(.horizontal, 14)
-            .padding(.top, 22)
+            .padding(.top, 14)
             .padding(.bottom, 12)
-            .frame(width: 365)
-            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(width: 365, height: PopoverRouter.shared.currentScreen.preferredHeight)
     }
 }
 
