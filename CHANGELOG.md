@@ -11,14 +11,22 @@ AetherLink projesine ait tüm önemli değişiklikler, yeni özellikler ve hata 
   - Cihaz bağlı değilken alt başlıkta ve kartlarda görünen sahte model (*"Android 14+ • Samsung"*), sabit sıcaklık (*"28.5°C"*) ve boş donanım halkaları kaldırıldı.
   - Cihaz bağlı değilken modern bir cam kart içinde açıklayıcı **Empty State** mesajı ve doğrudan eşleştirme sayfasına yönlendiren **"Cihaz Eşleştir"** butonu eklendi.
   - Cihaz bağlandığında yalnızca Android soketinden gelen gerçek `DeviceTelemetryPayload` telemetrisi ekrana yansıtılacak şekilde normalize edildi.
-- **Pencere ve Popover Yükseklik Optimizasyonu:**
-  - Tüm popover ve bağımsız pencerelerdeki aşırı yüksek çerçevelerden kaynaklanan alt siyah/ölü boş alanlar (layout gap) giderildi.
-  - Sayfa boyutları içerik yüksekliğini tam saracak şekilde optimize edildi:
-    - **Ana Dashboard:** `370 pt`
+- **Pencere ve Popover Yükseklik Optimizasyonu (Dead Space Fix):**
+  - Tüm popover ve bağımsız pencerelerdeki aşırı yüksek çerçevelerden kaynaklanan alt siyah/ölü boş alanlar (layout gap) tamamen kaldırıldı.
+  - Sayfa boyutları içeriği saran dinamik yüksekliklerle optimize edildi:
+    - **Ana Dashboard:** Bağlantısız `245 pt`, bağlı `250 pt`, medya çalarken `300 pt` (tüm alt boşluklar sıfırlandı).
     - **Cihaz Eşleştirme (PairingQRView):** `330 pt`
     - **Cihaz Donanım Bilgileri (DeviceInfoView):** Bağlıyken `360 pt`, bağlantısızken `270 pt`
     - **Ayarlar ve Durum (SettingsView):** `260 pt`
-  - Aksiyon butonlarının alt boşluğu `14 pt` padding ile pencere sınırına tam oturtuldu.
+  - Aksiyon butonlarının ve altbilgi (footer) çubuğunun alt boşluğu `12 pt` padding ile pencere sınırına tam oturtuldu.
+- **Bağlantı Öncesi (Disconnected) Durum Mantık Düzeltmeleri:**
+  - Üst üste duran iki kart tek bir modern cam kartta birleştirildi: "Bağlı Cihaz Yok" başlığı, sarı sinyal noktası, "Cihaz Aranıyor..." alt metni ve minimal "QR Göster" cam butonu.
+  - Altbilgi (footer) çubuğundaki mükerrer "Eşleştir" butonu kaldırıldı; sol tarafta "Bilgiler" ve "Ayarlar", sağ tarafta sürüm ve kırmızı "Çıkış" butonu dengeli tek bir düzleme yerleştirildi.
+  - Cihaz bağlı değilken 4'lü servis ızgarası (Ekran Yansıt, Bluetooth Ses, Pano, Bildirim) devre dışı bırakıldı (`.disabled(true)`, `.opacity(0.45)`), sahte yeşil noktalar söndürülerek nötr griye çekildi ve durumları "Bağlantı Yok" yapıldı.
+- **Bağlantı Sonrası (Connected) Durum Mantık Düzeltmeleri:**
+  - Üst cihaz kartındaki soluk boş daire kaldırıldı; yerine telefonun gerçek pil yüzdesi (`%78`), şarj durumuna göre renklenen SF Symbol pil ikonu ve minimal kırmızı bağlantıyı kes (`power`) butonu eklendi.
+  - **Dinamik Model Adı Çözümleyici (`DeviceMarketingNameResolver`):** Fabrika kodu ("SM-S938B") yerine tüketici pazar adı ("Samsung Galaxy S25 Ultra") hem macOS hem de Android (`DeviceUtils`) seviyesinde dinamik olarak çözümlendi.
+  - Pasif servislerde ("Ekran Yansıt: Durduruldu") yeşil nokta gösterimi engellendi, nötr gri nokta uygulandı. Aktif servislerde canlı aksan çerçevesi belirginleştirildi.
 - **Menü Çubuğu Popover Çökme Koruması:**
   - Popover açılırken dikeyde sıfıra çöküp ince bir yatay şerit olarak kalma sorunu `WindowBackgroundConfigurator` ve açık çerçeve kurallarıyla engellendi.
 - **Eşleştirme Ekranı Dikey Taşma ve Kenarlık Düzeltmesi:**

@@ -129,7 +129,8 @@ public struct DeviceTelemetryDetailView: View {
     
     private var titleText: String {
         if network.isConnected {
-            return telemetry?.model ?? (network.connectedDeviceName.isEmpty ? "Bağlı Android Cihazı" : network.connectedDeviceName)
+            let raw = telemetry?.model ?? (network.connectedDeviceName.isEmpty ? "Bağlı Android Cihazı" : network.connectedDeviceName)
+            return DeviceMarketingNameResolver.resolve(raw)
         } else {
             return "Bağlı Cihaz Yok"
         }
@@ -138,7 +139,8 @@ public struct DeviceTelemetryDetailView: View {
     private var subtitleText: String {
         if network.isConnected {
             if let t = telemetry {
-                return "Android \(t.androidVersion) • \(t.manufacturer)"
+                let resolvedBrand = t.manufacturer.capitalized
+                return "Android \(t.androidVersion) • \(resolvedBrand)"
             } else {
                 return "Telemetri Bekleniyor..."
             }
@@ -1014,7 +1016,14 @@ struct WindowBackgroundConfigurator: NSViewRepresentable {
         case .settings:
             targetSize = NSSize(width: 320, height: 260)
         case .dashboard:
-            targetSize = NSSize(width: 320, height: 370)
+            let h: CGFloat
+            if NetworkManager.shared.isConnected {
+                let hasMedia = NetworkManager.shared.mediaState?.isPlaying == true && !(NetworkManager.shared.mediaState?.trackTitle.isEmpty ?? true)
+                h = hasMedia ? 300 : 250
+            } else {
+                h = 245
+            }
+            targetSize = NSSize(width: 320, height: h)
         }
         
         if abs(window.frame.width - targetSize.width) > 1 || abs(window.frame.height - targetSize.height) > 1 {
@@ -1042,6 +1051,15 @@ public struct MenuBarContentView: View {
     
     public init() {}
     
+    private var currentDashboardHeight: CGFloat {
+        if network.isConnected {
+            let hasMedia = network.mediaState?.isPlaying == true && !(network.mediaState?.trackTitle.isEmpty ?? true)
+            return hasMedia ? 300 : 250
+        } else {
+            return 245
+        }
+    }
+    
     private var currentViewHeight: CGFloat {
         switch state.currentPage {
         case .pairing:
@@ -1051,7 +1069,7 @@ public struct MenuBarContentView: View {
         case .settings:
             return 260
         case .dashboard:
-            return 370
+            return currentDashboardHeight
         }
     }
     
@@ -1106,348 +1124,346 @@ public struct MenuBarContentView: View {
     // MARK: - Dashboard Content
     private var dashboardView: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 10) {
-            // 1. Top Header Glass Card (Control Center Device Pill)
-            HStack(spacing: 10) {
-                PulsingIndicatorView(isConnected: network.isConnected)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(network.connectedDeviceName.isEmpty ? "Cihaz Aranıyor..." : network.connectedDeviceName)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .lineLimit(1)
-                    
-                    Text(network.isConnected ? "Yerel Ağda Bağlı • AES-256" : "Cihaz Aranıyor (mDNS & UDP)...")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+            VStack(spacing: 8) {
+                // 1. Unified Top Header Glass Card
+                if network.isConnected {
+                    // Connected State: Device market name, AES-256 status, real battery indicator, and red disconnect button
+                    HStack(spacing: 10) {
+                        PulsingIndicatorView(isConnected: true)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(DeviceMarketingNameResolver.resolve(network.connectedDeviceName))
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundColor(.primary)
+                                .lineLimit(1)
+                            
+                            Text("Yerel Ağda Bağlı • AES-256")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        
+                        Spacer()
+                        
+                        // Battery Indicator Capsule
+                        let batteryPct = network.batteryState?.batteryLevel ?? telemetryMgr.telemetry?.batteryLevel ?? 0
+                        let isCharging = network.batteryState?.isCharging ?? (telemetryMgr.telemetry?.isCharging ?? false)
+                        
+                        if batteryPct > 0 {
+                            HStack(spacing: 4) {
+                                Text("%\(batteryPct)")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundColor(.primary)
+                                
+                                Image(systemName: isCharging ? "battery.100.bolt" : (batteryPct < 20 ? "battery.25" : "battery.75"))
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(batteryPct < 20 ? .red : (isCharging ? .green : Color(nsColor: .controlAccentColor)))
+                            }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.06))
+                            )
+                        }
+                        
+                        // Minimal Red Disconnect Button
+                        Button(action: {
+                            network.disconnectDevice(forget: false)
+                        }) {
+                            Image(systemName: "power")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.red)
+                                .frame(width: 24, height: 24)
+                                .background(Circle().fill(Color.red.opacity(colorScheme == .dark ? 0.18 : 0.10)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Bağlantıyı Kes")
+                    }
+                    .glassCard(cornerRadius: 14, padding: 10, isHighlighted: true)
+                } else {
+                    // Disconnected State: Single unified card ("Bağlı Cihaz Yok", "Cihaz Aranıyor...", "QR Göster" button)
+                    HStack(spacing: 10) {
+                        PulsingIndicatorView(isConnected: false)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Bağlı Cihaz Yok")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundColor(.primary)
+                            
+                            Text("Cihaz Aranıyor...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                state.currentPage = .pairing
+                            }
+                        }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "qrcode")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("QR Göster")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "header_pair_qr_btn", isActive: true)
+                    }
+                    .glassCard(cornerRadius: 14, padding: 10, isHighlighted: false)
                 }
                 
-                Spacer()
-                
-                // Battery Indicator Capsule
-                if let battery = network.batteryState {
-                    HStack(spacing: 4) {
-                        Text("\(battery.batteryLevel)%")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                        
-                        Image(systemName: battery.isCharging ? "battery.100.bolt" : (battery.batteryLevel < 20 ? "battery.25" : "battery.75"))
-                            .font(.system(size: 13))
-                            .foregroundColor(battery.batteryLevel < 20 ? .red : (battery.isCharging ? .green : .primary))
+                // 2. Interactive Quick Tiles (2-Column Grid)
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                    // Tile 1: Ekran Yansıt (Wireless Screen Mirroring via scrcpy)
+                    Button(action: {
+                        guard network.isConnected else { return }
+                        if mirror.isScrcpyRunning {
+                            mirror.stopMirroring()
+                        } else {
+                            mirror.startMirroring()
+                        }
+                    }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: mirror.isScrcpyRunning ? "display.trianglebadge.exclamationmark" : "display")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? (mirror.isScrcpyRunning ? .blue : Color(nsColor: .controlAccentColor)) : .secondary)
+                                Spacer()
+                                Circle()
+                                    .fill(network.isConnected && mirror.isScrcpyRunning ? Color.green : Color.secondary.opacity(0.25))
+                                    .frame(width: 6, height: 6)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Ekran Yansıt")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? .primary : .secondary)
+                                Text(network.isConnected ? (mirror.isScrcpyRunning ? "Aktif (60 FPS)" : "Durduruldu") : "Bağlantı Yok")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05))
+                    .buttonStyle(.plain)
+                    .glassTile(
+                        id: "screen_mirror",
+                        isActive: network.isConnected && mirror.isScrcpyRunning,
+                        activeTint: Color(nsColor: .controlAccentColor)
+                    )
+                    
+                    // Tile 2: Bluetooth / Sistem Ses Senkronizasyonu
+                    Button(action: {
+                        guard network.isConnected else { return }
+                        state.isAudioRoutingActive.toggle()
+                    }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: state.isAudioRoutingActive ? "speaker.wave.3.fill" : "speaker.wave.2")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? (state.isAudioRoutingActive ? .purple : .secondary) : .secondary)
+                                Spacer()
+                                Circle()
+                                    .fill(network.isConnected && state.isAudioRoutingActive ? Color.purple : Color.secondary.opacity(0.25))
+                                    .frame(width: 6, height: 6)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Bluetooth Ses")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? .primary : .secondary)
+                                Text(network.isConnected ? (state.isAudioRoutingActive ? "Aktif (Mac)" : "Telefon Sesinde") : "Bağlantı Yok")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(
+                        id: "audio_sync",
+                        isActive: network.isConnected && state.isAudioRoutingActive,
+                        activeTint: .purple
+                    )
+                    
+                    // Tile 3: Evrensel Pano (Universal Clipboard Sync)
+                    Button(action: {
+                        guard network.isConnected else { return }
+                        clipboard.toggleMonitoring()
+                    }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: clipboard.isMonitoringActive ? "doc.on.clipboard.fill" : "doc.on.clipboard")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? (clipboard.isMonitoringActive ? .blue : .secondary) : .secondary)
+                                Spacer()
+                                Circle()
+                                    .fill(network.isConnected && clipboard.isMonitoringActive ? Color.blue : Color.secondary.opacity(0.25))
+                                    .frame(width: 6, height: 6)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Evrensel Pano")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? .primary : .secondary)
+                            Text(network.isConnected ? (clipboard.isMonitoringActive ? "Eşzamanlı" : "Duraklatıldı") : "Bağlantı Yok")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(
+                        id: "clipboard_sync",
+                        isActive: network.isConnected && clipboard.isMonitoringActive,
+                        activeTint: .blue
+                    )
+                    
+                    // Tile 4: Bildirimler ve Aramalar
+                    Button(action: {
+                        guard network.isConnected else { return }
+                        notifManager.toggleNotificationsPaused()
+                    }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: notifManager.isNotificationsPaused ? "bell.slash.fill" : "bell.badge.fill")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? (!notifManager.isNotificationsPaused ? Color(nsColor: .controlAccentColor) : .orange) : .secondary)
+                                Spacer()
+                                Circle()
+                                    .fill(network.isConnected && !notifManager.isNotificationsPaused ? Color.green : Color.secondary.opacity(0.25))
+                                    .frame(width: 6, height: 6)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Bildirim & Çağrı")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? .primary : .secondary)
+                                Text(network.isConnected ? (notifManager.isNotificationsPaused ? "Sessizde" : "Canlı Akış") : "Bağlantı Yok")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(
+                        id: "notifications_sync",
+                        isActive: network.isConnected && !notifManager.isNotificationsPaused,
+                        activeTint: Color(nsColor: .controlAccentColor)
                     )
                 }
+                .opacity(network.isConnected ? 1.0 : 0.45)
+                .disabled(!network.isConnected)
                 
-                // Minimal Disconnect Icon Button
-                if network.isConnected {
+                // 3. Dynamic Media Player Card (If Media is Playing)
+                if let media = network.mediaState, media.isPlaying && !media.trackTitle.isEmpty {
+                    HStack(spacing: 10) {
+                        Image(systemName: media.packageName.contains("spotify") ? "play.circle.fill" : "music.note")
+                            .font(.system(size: 20))
+                            .foregroundColor(media.packageName.contains("spotify") ? .green : .pink)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(media.trackTitle)
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
+                            Text(media.artist.isEmpty ? (media.packageName.contains("spotify") ? "Spotify" : "Apple Music") : media.artist)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            MediaContinuityManager.shared.openCurrentMedia(media)
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.up.right.square")
+                                Text("Aç")
+                            }
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "open_media_player", isActive: false)
+                    }
+                    .glassCard(cornerRadius: 14, padding: 10)
+                }
+                
+                // 4. Minimal Balanced Footer Bar
+                HStack(spacing: 8) {
+                    // "Cihaz Bilgileri" Button
                     Button(action: {
-                        network.disconnectDevice(forget: false)
-                    }) {
-                        Image(systemName: "link.badge.slash")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .frame(width: 26, height: 26)
-                            .background(Circle().fill(Color.primary.opacity(0.06)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Bağlantıyı Kes")
-                }
-            }
-            .glassCard(cornerRadius: 16, padding: 12, isHighlighted: network.isConnected)
-            
-            // 2. Disconnected Hero Pairing Card (Only visible when disconnected)
-            if !network.isConnected {
-                HStack(spacing: 12) {
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.system(size: 24))
-                        .foregroundColor(Color(nsColor: .controlAccentColor))
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Cihaz Eşleştir")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("QR kod veya onay koduyla bağlanın")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            state.currentPage = .pairing
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            state.currentPage = .telemetry
                         }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "qrcode")
-                            Text("QR Göster")
-                        }
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                    }
-                    .buttonStyle(.plain)
-                    .glassTile(id: "hero_pair_btn", isActive: true)
-                }
-                .glassCard(cornerRadius: 14, padding: 10, isHighlighted: true)
-            }
-            
-            // 3. Interactive Quick Tiles (2-Column Grid)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                // Tile 1: Ekran Yansıt (Wireless Screen Mirroring via scrcpy)
-                Button(action: {
-                    if mirror.isScrcpyRunning {
-                        mirror.stopMirroring()
-                    } else {
-                        mirror.startMirroring()
-                    }
-                }) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: mirror.isScrcpyRunning ? "display.trianglebadge.exclamationmark" : "display")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(mirror.isScrcpyRunning ? .red : Color(nsColor: .controlAccentColor))
-                            Spacer()
-                            Circle()
-                                .fill(mirror.isScrcpyRunning ? Color.green : Color.clear)
-                                .frame(width: 6, height: 6)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Ekran Yansıt")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.primary)
-                            Text(mirror.isScrcpyRunning ? "Aktif (60 FPS)" : "Durduruldu")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .glassTile(
-                    id: "screen_mirror",
-                    isActive: mirror.isScrcpyRunning,
-                    activeTint: Color(nsColor: .controlAccentColor)
-                )
-                
-                // Tile 2: Bluetooth / Sistem Ses Senkronizasyonu
-                Button(action: {
-                    state.isAudioRoutingActive.toggle()
-                }) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: state.isAudioRoutingActive ? "speaker.wave.3.fill" : "speaker.wave.2")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(state.isAudioRoutingActive ? .green : .secondary)
-                            Spacer()
-                            Circle()
-                                .fill(state.isAudioRoutingActive ? Color.green : Color.clear)
-                                .frame(width: 6, height: 6)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Bluetooth Ses")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.primary)
-                            Text(state.isAudioRoutingActive ? "Aktif (Mac)" : "Telefon Sesinde")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .glassTile(
-                    id: "audio_sync",
-                    isActive: state.isAudioRoutingActive,
-                    activeTint: .green
-                )
-                
-                // Tile 3: Evrensel Pano (Universal Clipboard Sync)
-                Button(action: {
-                    clipboard.toggleMonitoring()
-                }) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: clipboard.isMonitoringActive ? "doc.on.clipboard.fill" : "doc.on.clipboard")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(clipboard.isMonitoringActive ? .blue : .orange)
-                            Spacer()
-                            Circle()
-                                .fill(clipboard.isMonitoringActive ? Color.green : Color.orange)
-                                .frame(width: 6, height: 6)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Evrensel Pano")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.primary)
-                            Text(clipboard.isMonitoringActive ? "Eşzamanlı" : "Duraklatıldı")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .glassTile(
-                    id: "clipboard_sync",
-                    isActive: clipboard.isMonitoringActive,
-                    activeTint: .blue
-                )
-                
-                // Tile 4: Bildirimler ve Aramalar
-                Button(action: {
-                    notifManager.toggleNotificationsPaused()
-                }) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: notifManager.isNotificationsPaused ? "bell.slash.fill" : "bell.badge.fill")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(notifManager.isNotificationsPaused ? .orange : Color(nsColor: .controlAccentColor))
-                            Spacer()
-                            Circle()
-                                .fill(!notifManager.isNotificationsPaused ? Color.green : Color.orange)
-                                .frame(width: 6, height: 6)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Bildirim & Çağrı")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.primary)
-                            Text(notifManager.isNotificationsPaused ? "Sessizde" : "Canlı Akış")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .glassTile(
-                    id: "notifications_sync",
-                    isActive: !notifManager.isNotificationsPaused,
-                    activeTint: Color(nsColor: .controlAccentColor)
-                )
-            }
-            
-            // 3. Dynamic Media Player Card (If Media is Playing)
-            if let media = network.mediaState, media.isPlaying && !media.trackTitle.isEmpty {
-                HStack(spacing: 10) {
-                    Image(systemName: media.packageName.contains("spotify") ? "play.circle.fill" : "music.note")
-                        .font(.system(size: 20))
-                        .foregroundColor(media.packageName.contains("spotify") ? .green : .pink)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(media.trackTitle)
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                        Text(media.artist.isEmpty ? (media.packageName.contains("spotify") ? "Spotify" : "Apple Music") : media.artist)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        MediaContinuityManager.shared.openCurrentMedia(media)
+                        telemetryMgr.requestTelemetryRefresh()
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "arrow.up.right.square")
-                            Text("Aç")
+                            Image(systemName: "info.circle")
+                            Text("Bilgiler")
                         }
                         .font(.caption2.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.plain)
-                    .glassTile(id: "open_media_player", isActive: false)
-                }
-                .glassCard(cornerRadius: 14, padding: 10)
-            }
-            
-            // 4. Minimal Footer Bar
-            HStack {
-                // "Cihaz Bilgileri" Button
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        state.currentPage = .telemetry
-                    }
-                    telemetryMgr.requestTelemetryRefresh()
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "info.circle")
-                        Text("Bilgiler")
-                    }
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-                
-                // "Eşleştir" Button (Only visible when disconnected)
-                if !network.isConnected {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            state.currentPage = .pairing
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "qrcode")
-                            Text("Eşleştir")
-                        }
-                        .font(.caption2)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)))
                     }
                     .buttonStyle(.plain)
-                }
-                
-                // "Ayarlar" Button
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        state.currentPage = .settings
+                    .help("Cihaz Bilgileri ve Donanım Telemetrisi")
+                    
+                    // "Ayarlar" Button
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            state.currentPage = .settings
+                        }
+                    }) {
+                        Image(systemName: "gearshape")
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(.secondary)
+                            .padding(5)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)))
                     }
-                }) {
-                    Image(systemName: "gearshape")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(4)
+                    .buttonStyle(.plain)
+                    .help("Uygulama Ayarları")
+                    
+                    Spacer()
+                    
+                    Text("v\(updater.currentVersion)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary.opacity(0.8))
+                    
+                    Button("Çıkış") {
+                        NSApplication.shared.terminate(nil)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(.red.opacity(0.85))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.red.opacity(colorScheme == .dark ? 0.12 : 0.06)))
                 }
-                .buttonStyle(.plain)
-                
-                Spacer()
-                
-                Text("v\(updater.currentVersion)")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary.opacity(0.8))
-                
-                Button("Çıkış") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .buttonStyle(.plain)
-                .font(.caption2)
-                .foregroundColor(.red.opacity(0.85))
-                .padding(.leading, 4)
+                .padding(.top, 2)
+                .padding(.horizontal, 2)
             }
-            .padding(.top, 2)
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
-        .padding(.bottom, 14)
-        }
-        .frame(width: 320, height: 370)
+        .frame(width: 320, height: currentDashboardHeight)
     }
 }
 
