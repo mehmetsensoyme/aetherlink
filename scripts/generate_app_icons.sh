@@ -78,32 +78,69 @@ cat <<'EOF' > "$XCASSETS_DIR/Contents.json"
 EOF
 
 # ==============================================================================
-# 3. Generate icon sizes via sips
+# 3. Generate Apple HIG squircle icon sizes via Python & PIL
 # ==============================================================================
-echo "==> 2. Resizing icons via sips for macOS standard..."
+echo "==> 2. Generating Apple HIG standard squircle (824x824 on 1024x1024) icons..."
 
-generate_icon() {
-  local name="$1"
-  local size="$2"
-  sips -z "$size" "$size" "$SOURCE_ICON" --out "$TEMP_ICONSET/$name" >/dev/null
-  cp "$TEMP_ICONSET/$name" "$APPICONSET_XCASSETS/$name"
-  cp "$TEMP_ICONSET/$name" "$APPICONSET_ROOT/$name"
-  echo "    Generated: $name (${size}x${size})"
-}
+python3 -c "
+import os
+from PIL import Image, ImageDraw, ImageFilter
 
-generate_icon "icon_16x16.png" 16
-generate_icon "icon_16x16@2x.png" 32
-generate_icon "icon_32x32.png" 32
-generate_icon "icon_32x32@2x.png" 64
-generate_icon "icon_128x128.png" 128
-generate_icon "icon_128x128@2x.png" 256
-generate_icon "icon_256x256.png" 256
-generate_icon "icon_256x256@2x.png" 512
-generate_icon "icon_512x512.png" 512
-generate_icon "icon_512x512@2x.png" 1024
+src_path = '$SOURCE_ICON'
+temp_iconset = '$TEMP_ICONSET'
+appiconset_xcassets = '$APPICONSET_XCASSETS'
+appiconset_root = '$APPICONSET_ROOT'
 
-cp "$SOURCE_ICON" "$APPICONSET_XCASSETS/AppIcon-1024.png"
-cp "$SOURCE_ICON" "$APPICONSET_ROOT/AppIcon-1024.png"
+src = Image.open(src_path).convert('RGBA')
+
+# Crop tile tightly to align glass bevel directly with macOS squircle
+tile = src.crop((180, 175, 834, 829))
+
+SQUIRCLE_SIZE = 824
+CORNER_RADIUS = 185
+CANVAS_SIZE = 1024
+OFFSET = (CANVAS_SIZE - SQUIRCLE_SIZE) // 2
+
+tile_resized = tile.resize((SQUIRCLE_SIZE, SQUIRCLE_SIZE), Image.Resampling.LANCZOS)
+
+mask = Image.new('L', (SQUIRCLE_SIZE, SQUIRCLE_SIZE), 0)
+draw = ImageDraw.Draw(mask)
+draw.rounded_rectangle((0, 0, SQUIRCLE_SIZE, SQUIRCLE_SIZE), radius=CORNER_RADIUS, fill=255)
+
+tile_masked = Image.new('RGBA', (SQUIRCLE_SIZE, SQUIRCLE_SIZE), (0, 0, 0, 0))
+tile_masked.paste(tile_resized, (0, 0), mask)
+
+master = Image.new('RGBA', (CANVAS_SIZE, CANVAS_SIZE), (0, 0, 0, 0))
+shadow = Image.new('RGBA', (CANVAS_SIZE, CANVAS_SIZE), (0, 0, 0, 0))
+shadow_draw = ImageDraw.Draw(shadow)
+shadow_draw.rounded_rectangle((OFFSET, OFFSET + 14, OFFSET + SQUIRCLE_SIZE, OFFSET + SQUIRCLE_SIZE + 14), radius=CORNER_RADIUS, fill=(0, 0, 0, 70))
+shadow = shadow.filter(ImageFilter.GaussianBlur(16))
+
+master.paste(shadow, (0, 0), shadow)
+master.paste(tile_masked, (OFFSET, OFFSET), mask)
+
+master.save(os.path.join(appiconset_xcassets, 'AppIcon-1024.png'))
+master.save(os.path.join(appiconset_root, 'AppIcon-1024.png'))
+
+sizes = [
+    ('icon_16x16.png', 16),
+    ('icon_16x16@2x.png', 32),
+    ('icon_32x32.png', 32),
+    ('icon_32x32@2x.png', 64),
+    ('icon_128x128.png', 128),
+    ('icon_128x128@2x.png', 256),
+    ('icon_256x256.png', 256),
+    ('icon_256x256@2x.png', 512),
+    ('icon_512x512.png', 512),
+    ('icon_512x512@2x.png', 1024),
+]
+
+for filename, sz in sizes:
+    resized = master.resize((sz, sz), Image.Resampling.LANCZOS)
+    resized.save(os.path.join(temp_iconset, filename))
+    resized.save(os.path.join(appiconset_xcassets, filename))
+    resized.save(os.path.join(appiconset_root, filename))
+"
 
 # ==============================================================================
 # 4. Generate AppIcon.appiconset/Contents.json
@@ -193,6 +230,10 @@ rm -rf "$TEMP_ICONSET"
 # Copy AppIcon.icns to bundles
 if [[ -d "$REPO_ROOT/macos-client/AetherLink.app/Contents/Resources" ]]; then
   cp "$RESOURCES_DIR/AppIcon.icns" "$REPO_ROOT/macos-client/AetherLink.app/Contents/Resources/AppIcon.icns"
+fi
+
+if [[ -d "/Applications/AetherLink.app/Contents/Resources" ]]; then
+  cp "$RESOURCES_DIR/AppIcon.icns" "/Applications/AetherLink.app/Contents/Resources/AppIcon.icns"
 fi
 
 if [[ -d "/Users/mehmetsensoy/Applications/AetherLink.app/Contents/Resources" ]]; then
