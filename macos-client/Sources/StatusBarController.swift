@@ -21,23 +21,20 @@ public final class StatusBarController: NSObject {
     }
     
     public func syncPopoverToFittingSize() {
-        let targetSize = PopoverRouter.shared.currentScreen.preferredSize
-        
-        if let popover = popover {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.20
-                context.allowsImplicitAnimation = true
-                popover.contentSize = targetSize
-            }
-        }
-        
-        // Also ensure any hosting window in MenuBarExtra is seamlessly animated downwards
         for window in NSApp.windows {
             if window.isVisible {
                 window.isOpaque = false
                 window.backgroundColor = .clear
                 window.contentView?.wantsLayer = true
                 window.contentView?.layer?.backgroundColor = .clear
+                
+                let targetHeight: CGFloat
+                if let fitting = window.contentView?.fittingSize.height, fitting > 100 {
+                    targetHeight = ceil(fitting)
+                } else {
+                    targetHeight = PopoverRouter.shared.currentScreen.preferredHeight
+                }
+                let targetSize = NSSize(width: 365, height: targetHeight)
                 
                 let currentFrame = window.frame
                 if abs(currentFrame.width - targetSize.width) > 1 || abs(currentFrame.height - targetSize.height) > 1 {
@@ -51,6 +48,15 @@ public final class StatusBarController: NSObject {
                         window.setFrame(newFrame, display: true, animate: true)
                     }
                 }
+            }
+        }
+        
+        if let popover = popover {
+            let targetSize = PopoverRouter.shared.currentScreen.preferredSize
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.20
+                context.allowsImplicitAnimation = true
+                popover.contentSize = targetSize
             }
         }
     }

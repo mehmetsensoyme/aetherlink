@@ -65,6 +65,54 @@ public struct GlassQRCodeCard: View {
     }
 }
 
+// MARK: - Unified Screen Header Bar
+public struct PopoverScreenHeader: View {
+    let title: String
+    let subtitle: String?
+    let onBack: () -> Void
+    
+    public init(title: String, subtitle: String? = nil, onBack: @escaping () -> Void) {
+        self.title = title
+        self.subtitle = subtitle
+        self.onBack = onBack
+    }
+    
+    public var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onBack) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(Color(nsColor: .controlAccentColor))
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Color.primary.opacity(0.08)))
+            }
+            .buttonStyle(.plain)
+            .help("Geri")
+            
+            Spacer()
+            
+            VStack(spacing: 1) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                if let subtitle = subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer()
+            
+            Color.clear
+                .frame(width: 26, height: 26)
+        }
+        .padding(.horizontal, 2)
+    }
+}
+
 // MARK: - Device Telemetry Detail View ("Cihaz Bilgileri")
 public struct DeviceTelemetryDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -137,44 +185,16 @@ public struct DeviceTelemetryDetailView: View {
     }
     
     public var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 8) {
-            // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
-            HStack {
-                Button(action: {
-                    handleBack()
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Color(nsColor: .controlAccentColor))
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
-                }
-                .buttonStyle(.plain)
-                .help("Geri")
-                
-                Spacer()
-                
-                VStack(spacing: 1) {
-                    Text(titleText)
-                        .font(.headline)
-                        .lineLimit(1)
-                    Text(subtitleText)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-                
-                Spacer()
-                
-                Color.clear
-                    .frame(width: 24, height: 24)
-            }
-            .padding(.horizontal, 2)
-            .padding(.top, 22)
+        VStack(spacing: 8) {
+            // Symmetrical Unified Header
+            PopoverScreenHeader(
+                title: titleText,
+                subtitle: subtitleText,
+                onBack: handleBack
+            )
             
             if network.isConnected {
-                // 3 Progress Rings (RAM, Storage, Battery - diameter: 36, height: 70)
+                // 3 Progress Rings (RAM, Storage, Battery & Temp)
                 HStack(spacing: 8) {
                     ActivityRingView(
                         progress: ramProgress,
@@ -187,7 +207,7 @@ public struct DeviceTelemetryDetailView: View {
                         subtitle: telemetry != nil ? "\(Int(ramProgress * 100))% Dolu" : "--"
                     )
                     .frame(maxWidth: .infinity)
-                    .frame(height: 70)
+                    .frame(height: 68)
                     .glassCard(cornerRadius: 10, padding: 4)
                     
                     ActivityRingView(
@@ -201,7 +221,7 @@ public struct DeviceTelemetryDetailView: View {
                         subtitle: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageTotalGB)) GB Toplam" : "--"
                     )
                     .frame(maxWidth: .infinity)
-                    .frame(height: 70)
+                    .frame(height: 68)
                     .glassCard(cornerRadius: 10, padding: 4)
                     
                     let phoneTemp = telemetry != nil ? String(format: "%.1f°C", telemetry!.effectiveTemp) : "--"
@@ -218,11 +238,11 @@ public struct DeviceTelemetryDetailView: View {
                         subtitle: telemetry != nil ? "\(phoneTemp) • \(macTemp)" : "--"
                     )
                     .frame(maxWidth: .infinity)
-                    .frame(height: 70)
+                    .frame(height: 68)
                     .glassCard(cornerRadius: 10, padding: 4)
                 }
                 
-                // Hardware Telemetry Spec Rows (Tightened padding)
+                // Hardware Telemetry Spec Rows
                 VStack(spacing: 4) {
                     let phoneTempStr = telemetry != nil ? String(format: "%.1f", telemetry!.effectiveTemp) : "--"
                     let macTempStr = String(format: "%.1f", thermalService.currentTemperature)
@@ -265,7 +285,7 @@ public struct DeviceTelemetryDetailView: View {
                 .glassCard(cornerRadius: 12, padding: 6)
                 
                 // Pinned Action Buttons (Yenile & Bağlantıyı Kes)
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Button(action: {
                         telemetryMgr.requestTelemetryRefresh()
                         thermalService.readHardwareTemperature(forceFresh: true)
@@ -277,7 +297,7 @@ public struct DeviceTelemetryDetailView: View {
                         }
                         .font(.caption.weight(.medium))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 32)
+                        .frame(height: 30)
                     }
                     .buttonStyle(.plain)
                     .glassTile(id: "refresh_telemetry", isActive: false)
@@ -293,22 +313,20 @@ public struct DeviceTelemetryDetailView: View {
                         .font(.caption.weight(.medium))
                         .foregroundColor(.red)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 32)
+                        .frame(height: 30)
                     }
                     .buttonStyle(.plain)
                     .glassTile(id: "disconnect_telemetry", isActive: false, activeTint: .red)
                 }
-                .padding(.top, 4)
-                .padding(.bottom, 14)
             } else {
                 // Empty State Glass Card (When Disconnected)
                 VStack(spacing: 12) {
                     ZStack {
                         Circle()
                             .fill(Color.primary.opacity(0.06))
-                            .frame(width: 48, height: 48)
+                            .frame(width: 44, height: 44)
                         Image(systemName: "iphone.slash")
-                            .font(.system(size: 22))
+                            .font(.system(size: 20))
                             .foregroundColor(.secondary)
                     }
                     
@@ -331,19 +349,19 @@ public struct DeviceTelemetryDetailView: View {
                         }
                         .font(.caption.weight(.semibold))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 34)
+                        .frame(height: 32)
                     }
                     .buttonStyle(.plain)
                     .glassTile(id: "telemetry_empty_pair_btn", isActive: true)
                 }
-                .padding(16)
+                .padding(14)
                 .glassCard(cornerRadius: 14, padding: 0)
-                .padding(.bottom, 14)
             }
         }
-        .padding(.horizontal, 16)
-        }
-        .frame(width: 365, height: PopoverRouter.shared.currentScreen.preferredHeight)
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+        .frame(width: 365)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -415,40 +433,18 @@ public struct PairingQRView: View {
     }
     
     public var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 8) {
-            // 1. Single-line Clean Header Bar (Symmetrical with Top Safe Area)
-            HStack {
-                Button(action: {
-                    handleBack()
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Color(nsColor: .controlAccentColor))
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
-                }
-                .buttonStyle(.plain)
-                .help("Geri")
-                
-                Spacer()
-                
-                Text("Cihaz Eşleştirme")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Color.clear
-                    .frame(width: 24, height: 24)
-            }
-            .padding(.horizontal, 2)
-            .padding(.top, 22)
+        VStack(spacing: 8) {
+            // Symmetrical Unified Header
+            PopoverScreenHeader(
+                title: "Cihaz Eşleştirme",
+                subtitle: "AetherLink Mobil ile Tara",
+                onBack: handleBack
+            )
             
-            // 2. Compact Glass-framed QR Code Card (130x130)
+            // Compact Glass-framed QR Code Card
             GlassQRCodeCard(payloadUrl: pairing.pairingPayloadUrl)
-                .padding(.top, 2)
             
-            // 3. Compact Confirmation Code Card (SF Mono, padding 8, size 22)
+            // Compact Confirmation Code Card
             VStack(spacing: 2) {
                 Text("Eşleşme Onay Kodu")
                     .font(.caption2)
@@ -456,7 +452,7 @@ public struct PairingQRView: View {
                     .foregroundColor(.secondary)
                 
                 Text(pairing.currentConfirmationCode)
-                    .font(.system(size: 22, weight: .bold, design: .monospaced))
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
                     .tracking(3)
                     .foregroundColor(Color(nsColor: .controlAccentColor))
             }
@@ -464,7 +460,7 @@ public struct PairingQRView: View {
             .padding(.vertical, 6)
             .glassCard(cornerRadius: 12, padding: 0, isHighlighted: true)
             
-            // 4. Instructions Text (2 lines max, fixedSize)
+            // Instructions Text
             Text("Telefonunuzdaki AetherLink uygulamasından bu QR kodu okutun.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
@@ -473,7 +469,7 @@ public struct PairingQRView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 4)
             
-            // 5. Local IP & Refresh Button Row
+            // Local IP & Refresh Button Row
             HStack {
                 HStack(spacing: 4) {
                     Image(systemName: "network")
@@ -500,11 +496,12 @@ public struct PairingQRView: View {
                 .buttonStyle(.plain)
                 .glassTile(id: "new_pairing_code", isActive: false)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 14)
-            }
+            .padding(.top, 2)
         }
-        .frame(width: 365, height: PopoverRouter.shared.currentScreen.preferredHeight)
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+        .frame(width: 365)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -841,141 +838,122 @@ public struct SettingsView: View {
     var onBack: () -> Void
     
     public var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 10) {
-                // Header (Symmetrical: Back Button, Centered Title, Dummy Spacer)
-                HStack {
-                    Button(action: {
-                        onBack()
-                        PopoverRouter.shared.popToDashboard()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color(nsColor: .controlAccentColor))
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Geri")
-                    
-                    Spacer()
-                    
-                    Text("Ayarlar & Durum")
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Color.clear
-                        .frame(width: 24, height: 24)
+        VStack(spacing: 8) {
+            // Symmetrical Unified Header
+            PopoverScreenHeader(
+                title: "Ayarlar & Durum",
+                subtitle: "AetherLink Tercihleri",
+                onBack: {
+                    onBack()
+                    PopoverRouter.shared.popToDashboard()
                 }
-                .padding(.horizontal, 2)
-                .padding(.top, 22)
-                
-                // Environment & OS Status Card
-                VStack(spacing: 8) {
-                    HStack {
-                        Image(systemName: "macwindow.and.cursorarrow")
-                            .foregroundColor(Color(nsColor: .controlAccentColor))
-                        Text("macOS Uyumluluğu")
-                            .font(.caption)
-                        Spacer()
-                        Text("macOS \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.minorVersion)")
-                            .font(.caption.bold())
-                    }
-                    
-                    HStack {
-                        Image(systemName: "drop.fill")
-                            .foregroundColor(.cyan)
-                        Text("Liquid Glass Efekti")
-                            .font(.caption)
-                        Spacer()
-                        Text("Ultra-Thin Material")
-                            .font(.caption2)
-                            .foregroundColor(.green)
-                    }
-                    
-                    HStack {
-                        Image(systemName: "paintpalette.fill")
-                            .foregroundColor(.purple)
-                        Text("Tema Görünümü")
-                            .font(.caption)
-                        Spacer()
-                        Text(colorScheme == .dark ? "Koyu (Dark)" : "Açık (Light)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .glassCard(cornerRadius: 14, padding: 12)
-                
-                // Notification Settings Card
+            )
+            
+            // Environment & OS Status Card
+            VStack(spacing: 6) {
                 HStack {
-                    Image(systemName: notifManager.isAuthorized ? "bell.badge.fill" : "bell.slash.fill")
-                        .foregroundColor(notifManager.isAuthorized ? .green : .orange)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Sistem Bildirimleri")
-                            .font(.caption.weight(.semibold))
-                        Text(notifManager.isAuthorized ? "İzin Verildi" : "İzin Gerekli")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        notifManager.openNotificationSettings()
-                    }) {
-                        Text(notifManager.isAuthorized ? "Yönet" : "İzin İste")
-                            .font(.caption2)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.plain)
-                    .glassTile(id: "open_notifs", isActive: false)
-                }
-                .glassCard(cornerRadius: 14, padding: 12)
-                
-                // Updater Card
-                HStack {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Image(systemName: "macwindow.and.cursorarrow")
                         .foregroundColor(Color(nsColor: .controlAccentColor))
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("AetherLink Sürümü")
-                            .font(.caption.weight(.semibold))
-                        Text("v\(updater.currentVersion)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    
+                    Text("macOS Uyumluluğu")
+                        .font(.caption)
                     Spacer()
-                    
-                    Button(action: {
-                        Task {
-                            await updater.checkForUpdates(manual: true)
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            if updater.isChecking {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            Text("Denetle")
-                        }
+                    Text("macOS \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.minorVersion)")
+                        .font(.caption.bold())
+                }
+                
+                HStack {
+                    Image(systemName: "drop.fill")
+                        .foregroundColor(.cyan)
+                    Text("Liquid Glass Efekti")
+                        .font(.caption)
+                    Spacer()
+                    Text("Ultra-Thin Material")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                }
+                
+                HStack {
+                    Image(systemName: "paintpalette.fill")
+                        .foregroundColor(.purple)
+                    Text("Tema Görünümü")
+                        .font(.caption)
+                    Spacer()
+                    Text(colorScheme == .dark ? "Koyu (Dark)" : "Açık (Light)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .glassCard(cornerRadius: 12, padding: 10)
+            
+            // Notification Settings Card
+            HStack {
+                Image(systemName: notifManager.isAuthorized ? "bell.badge.fill" : "bell.slash.fill")
+                    .foregroundColor(notifManager.isAuthorized ? .green : .orange)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Sistem Bildirimleri")
+                        .font(.caption.weight(.semibold))
+                    Text(notifManager.isAuthorized ? "İzin Verildi" : "İzin Gerekli")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    notifManager.openNotificationSettings()
+                }) {
+                    Text(notifManager.isAuthorized ? "Yönet" : "İzin İste")
                         .font(.caption2)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.plain)
-                    .glassTile(id: "check_updates_settings", isActive: false)
                 }
-                .glassCard(cornerRadius: 14, padding: 12)
+                .buttonStyle(.plain)
+                .glassTile(id: "open_notifs", isActive: false)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 14)
+            .glassCard(cornerRadius: 12, padding: 10)
+            
+            // Updater Card
+            HStack {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundColor(Color(nsColor: .controlAccentColor))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("AetherLink Sürümü")
+                        .font(.caption.weight(.semibold))
+                    Text("v\(updater.currentVersion)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    Task {
+                        await updater.checkForUpdates(manual: true)
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        if updater.isChecking {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        Text("Denetle")
+                    }
+                    .font(.caption2)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+                .glassTile(id: "check_updates_settings", isActive: false)
+            }
+            .glassCard(cornerRadius: 12, padding: 10)
         }
-        .frame(width: 365, height: PopoverRouter.shared.currentScreen.preferredHeight)
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+        .frame(width: 365)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -1003,6 +981,8 @@ public class AutoSizingHostingController<Content: View>: NSHostingController<Con
 // MARK: - Window Background & Auto-Sizing Configurator
 struct WindowBackgroundConfigurator: NSViewRepresentable {
     let currentPage: PopoverPage
+    let isConnected: Bool
+    let isMediaPlaying: Bool
     
     func makeNSView(context: Context) -> AutoSizingNSView {
         let view = AutoSizingNSView()
@@ -1029,19 +1009,27 @@ final class AutoSizingNSView: NSView {
             if let contentView = window.contentView {
                 contentView.wantsLayer = true
                 contentView.layer?.backgroundColor = .clear
-            }
-            
-            let targetSize = PopoverRouter.shared.currentScreen.preferredSize
-            let currentFrame = window.frame
-            if abs(currentFrame.width - targetSize.width) > 1 || abs(currentFrame.height - targetSize.height) > 1 {
-                let deltaHeight = targetSize.height - currentFrame.height
-                let newOrigin = NSPoint(x: currentFrame.origin.x, y: currentFrame.origin.y - deltaHeight)
-                let newFrame = NSRect(origin: newOrigin, size: targetSize)
                 
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.20
-                    context.allowsImplicitAnimation = true
-                    window.setFrame(newFrame, display: true, animate: true)
+                let fittingHeight = contentView.fittingSize.height
+                let targetHeight: CGFloat
+                if fittingHeight > 100 {
+                    targetHeight = ceil(fittingHeight)
+                } else {
+                    targetHeight = PopoverRouter.shared.currentScreen.preferredHeight
+                }
+                
+                let targetSize = NSSize(width: 365, height: targetHeight)
+                let currentFrame = window.frame
+                if abs(currentFrame.width - targetSize.width) > 1 || abs(currentFrame.height - targetSize.height) > 1 {
+                    let deltaHeight = targetSize.height - currentFrame.height
+                    let newOrigin = NSPoint(x: currentFrame.origin.x, y: currentFrame.origin.y - deltaHeight)
+                    let newFrame = NSRect(origin: newOrigin, size: targetSize)
+                    
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0.20
+                        context.allowsImplicitAnimation = true
+                        window.setFrame(newFrame, display: true, animate: true)
+                    }
                 }
             }
             
@@ -1103,16 +1091,22 @@ public struct MenuBarContentView: View {
                 .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
             }
         }
-        .frame(width: 365, height: router.currentScreen.preferredHeight)
+        .frame(width: 365)
+        .fixedSize(horizontal: true, vertical: true)
         .animation(.easeInOut(duration: 0.20), value: router.currentScreen)
         .background(.ultraThinMaterial)
-        .background(WindowBackgroundConfigurator(currentPage: router.currentScreen))
+        .background(
+            WindowBackgroundConfigurator(
+                currentPage: router.currentScreen,
+                isConnected: network.isConnected,
+                isMediaPlaying: network.mediaState?.isPlaying == true
+            )
+        )
     }
     
     // MARK: - Dashboard Content
     private var dashboardView: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 8) {
+        VStack(spacing: 8) {
             // 1. Unified Top Header Glass Card
             if network.isConnected {
                 // Connected State: Device market name, AES-256 status, real battery indicator, and red disconnect button
@@ -1455,8 +1449,7 @@ public struct MenuBarContentView: View {
             .padding(.horizontal, 14)
             .padding(.top, 14)
             .padding(.bottom, 12)
-        }
-        .frame(width: 365, height: PopoverRouter.shared.currentScreen.preferredHeight)
+            .frame(width: 365)
     }
 }
 

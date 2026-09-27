@@ -15,13 +15,13 @@ public enum ActiveScreen: String, CaseIterable, Equatable {
     public var preferredHeight: CGFloat {
         switch self {
         case .dashboard:
-            return 270
+            return NetworkManager.shared.mediaState?.isPlaying == true ? 295 : 240
         case .pairing:
-            return 320
+            return 305
         case .deviceInfo:
-            return NetworkManager.shared.isConnected ? 370 : 230
+            return NetworkManager.shared.isConnected ? 295 : 210
         case .settings:
-            return 255
+            return 250
         }
     }
     
