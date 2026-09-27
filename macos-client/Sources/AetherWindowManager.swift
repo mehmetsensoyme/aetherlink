@@ -62,6 +62,10 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
     
     // MARK: - Pairing QR & PIN Code Window ("Cihaz Eşleştirme")
     public func showPairingQRWindow() {
+        guard !NetworkManager.shared.isConnected else {
+            print("[AetherWindowManager] Pairing QR window cannot be opened: a device is already actively connected.")
+            return
+        }
         if let win = pairingQRWindow {
             win.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -69,7 +73,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         }
         
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 350, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 420),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -91,9 +95,6 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
                     self?.closePairingQRWindow()
                 }
             )
-            .padding(.top, 24)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 10)
         )
         win.contentView = hostingView
         self.pairingQRWindow = win

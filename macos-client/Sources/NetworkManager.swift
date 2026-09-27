@@ -38,6 +38,7 @@ public final class NetworkManager: ObservableObject {
     }
     
     private var listener: NWListener?
+    private var primaryConnection: NWConnection?
     private var activeConnections: [NWConnection] = []
     private var connectionBuffers: [ObjectIdentifier: Data] = [:]
     private let port: NWEndpoint.Port = 8443
@@ -86,12 +87,19 @@ public final class NetworkManager: ObservableObject {
     }
     
     private func handleNewConnection(_ connection: NWConnection) {
-        self.activeConnections.append(connection)
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             guard let self, let connection else { return }
             Task { @MainActor in
                 switch state {
                 case .ready:
+                    if self.isConnected && self.primaryConnection != nil && self.primaryConnection !== connection {
+                        print("[NetworkManager] Secondary connection established while primary device '\(self.connectedDeviceName)' is active. Awaiting handshake to reject with DEVICE_BUSY...")
+                        self.receiveNextMessage(from: connection)
+                        return
+                    }
+                    
+                    self.primaryConnection = connection
+                    self.activeConnections = [connection]
                     self.isConnected = true
                     if self.connectedDeviceName == "Bağlantı Kesildi" || self.connectedDeviceName.isEmpty {
                         self.connectedDeviceName = "Bağlanıyor..."
@@ -101,7 +109,11 @@ public final class NetworkManager: ObservableObject {
                         self.connectedDeviceIP = hostStr
                         print("[NetworkManager] Remote client endpoint IP: \(hostStr)")
                     }
-                    print("[NetworkManager] Android client connected! (Active: \(self.activeConnections.count))")
+                    print("[NetworkManager] Primary client connected: \(self.connectedDeviceIP ?? "unknown")")
+                    
+                    // Auto-dismiss pairing modal and return to dashboard
+                    PopoverStateManager.shared.currentPage = .dashboard
+                    AetherWindowManager.shared.closePairingQRWindow()
                     
                     let macName = Host.current().localizedName ?? "MacBook Pro"
                     let helloPayload = MacHelloPayload(
@@ -111,14 +123,16 @@ public final class NetworkManager: ObservableObject {
                     self.send(type: "MAC_HELLO", payload: helloPayload)
                     MacBatteryMonitor.shared.broadcastBatteryState()
                     self.receiveNextMessage(from: connection)
+                    
                 case .cancelled, .failed:
                     let wasConnected = self.isConnected
                     self.connectionBuffers.removeValue(forKey: ObjectIdentifier(connection))
                     self.activeConnections.removeAll { $0 === connection }
-                    if self.activeConnections.isEmpty {
+                    if self.primaryConnection === connection {
+                        self.primaryConnection = nil
                         self.resetSessionState(showNotification: wasConnected, reasonText: "Telefon bağlantısı kesildi")
                     }
-                    print("[NetworkManager] Client disconnected (Remaining: \(self.activeConnections.count))")
+                    print("[NetworkManager] Connection closed (Active: \(self.activeConnections.count))")
                 default:
                     break
                 }
@@ -137,7 +151,7 @@ public final class NetworkManager: ObservableObject {
                     current.append(data)
                     if isComplete {
                         self.connectionBuffers.removeValue(forKey: id)
-                        self.parseIncomingData(current)
+                        self.parseIncomingData(current, from: connection)
                     } else {
                         self.connectionBuffers[id] = current
                     }
@@ -151,13 +165,44 @@ public final class NetworkManager: ObservableObject {
         }
     }
     
-    private func parseIncomingData(_ data: Data) {
+    private func sendDeviceBusyAndReject(to connection: NWConnection) {
+        let busyEnvelope: [String: Any] = [
+            "type": "DEVICE_BUSY",
+            "payload": [
+                "error": "DEVICE_BUSY",
+                "message": "Mac başka bir cihaza bağlı",
+                "activeDevice": self.connectedDeviceName,
+                "timestamp": Date().timeIntervalSince1970 * 1000
+            ]
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: busyEnvelope) {
+            let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
+            let context = NWConnection.ContentContext(identifier: "wsText", metadata: [metadata])
+            connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed({ [weak connection] _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    connection?.cancel()
+                }
+            }))
+        } else {
+            connection.cancel()
+        }
+        print("[NetworkManager] Successfully dispatched DEVICE_BUSY and cancelled competing connection.")
+    }
+    
+    private func parseIncomingData(_ data: Data, from connection: NWConnection) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = json["type"] as? String else {
             print("[NetworkManager] Failed to parse JSON or missing type")
             return
         }
         print("[NetworkManager] Received message type: \(type)")
+        
+        // Single Active Device Lock: Reject if another device is active
+        if self.isConnected && self.primaryConnection != nil && connection !== self.primaryConnection {
+            print("[NetworkManager] Competing connection sent type '\(type)' while connected to '\(self.connectedDeviceName)'. Rejecting...")
+            self.sendDeviceBusyAndReject(to: connection)
+            return
+        }
         
         switch type {
         case "DEVICE_INFO", "CLIENT_HANDSHAKE":
@@ -279,10 +324,14 @@ public final class NetworkManager: ObservableObject {
     @MainActor
     public func resetSessionState(showNotification: Bool = false, reasonText: String = "Telefon bağlantısı kesildi") {
         self.isConnected = false
+        self.primaryConnection = nil
         self.connectedDeviceName = "Bağlantı Kesildi"
         self.connectedDeviceIP = nil
         self.batteryState = nil
         self.mediaState = nil
+        
+        // Single Active Device Policy: Ensure Popover returns to dashboard where pairing hero is visible
+        PopoverStateManager.shared.currentPage = .dashboard
         
         // 1. Terminate scrcpy process and clean up mirroring lifecycle
         ScreenMirrorManager.shared.terminateScrcpy()
@@ -293,7 +342,7 @@ public final class NetworkManager: ObservableObject {
         // 3. Clear Widget Extension state via App Group
         AetherWidgetDataManager.shared.clear()
         
-        // 3. Post native system alert on Mac if disconnected from phone
+        // 4. Post native system alert on Mac if disconnected from phone
         if showNotification {
             NotificationManager.shared.displayNotification(NotificationPayload(
                 id: UUID().uuidString,
@@ -326,6 +375,8 @@ public final class NetworkManager: ObservableObject {
         self.send(type: "DISCONNECT", payload: payload)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.primaryConnection?.cancel()
+            self.primaryConnection = nil
             for conn in self.activeConnections {
                 conn.cancel()
             }
@@ -336,7 +387,7 @@ public final class NetworkManager: ObservableObject {
     }
     
     public func send<T: Encodable>(type: String, payload: T) {
-        guard !activeConnections.isEmpty else { return }
+        guard let target = primaryConnection ?? activeConnections.first else { return }
         let envelope: [String: Any] = [
             "type": type,
             "payload": (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(payload))) ?? [:]
@@ -346,13 +397,11 @@ public final class NetworkManager: ObservableObject {
         let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
         let context = NWConnection.ContentContext(identifier: "wsText", metadata: [metadata])
         
-        print("[NetworkManager] Sending type: \(type) to \(activeConnections.count) connections")
-        for conn in activeConnections {
-            conn.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed({ error in
-                if let error = error {
-                    print("[NetworkManager] Send error to connection: \(error)")
-                }
-            }))
-        }
+        print("[NetworkManager] Sending type: \(type) to primary connection")
+        target.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed({ error in
+            if let error = error {
+                print("[NetworkManager] Send error to connection: \(error)")
+            }
+        }))
     }
 }

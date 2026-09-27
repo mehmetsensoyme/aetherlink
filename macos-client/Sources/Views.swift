@@ -39,35 +39,35 @@ public struct GlassQRCodeCard: View {
     
     public var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(colorScheme == .dark ? Color.white.opacity(0.95) : Color.white)
                 .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.12),
-                    radius: 12,
+                    color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.10),
+                    radius: 8,
                     x: 0,
-                    y: 6
+                    y: 4
                 )
             
-            if let qrImage = QRCodeGenerator.generateQRCode(from: payloadUrl, size: CGSize(width: 170, height: 170)) {
+            if let qrImage = QRCodeGenerator.generateQRCode(from: payloadUrl, size: CGSize(width: 124, height: 124)) {
                 Image(nsImage: qrImage)
                     .interpolation(.none)
                     .resizable()
                     .scaledToFit()
-                    .padding(12)
+                    .padding(8)
             } else {
                 ProgressView()
             }
         }
-        .frame(width: 180, height: 180)
+        .frame(width: 140, height: 140)
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(
                     LinearGradient(
                         colors: [Color.white.opacity(0.8), Color.white.opacity(0.2)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    lineWidth: 1.5
+                    lineWidth: 1
                 )
         )
     }
@@ -358,121 +358,110 @@ public struct PairingQRView: View {
     }
     
     public var body: some View {
-        VStack(spacing: 14) {
-            // Header
-            HStack {
-                Button(action: {
-                    handleBack()
-                }) {
-                    HStack(spacing: 4) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 10) {
+                // 1. Single-line Clean Header Bar
+                HStack {
+                    Button(action: {
+                        handleBack()
+                    }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 12, weight: .bold))
-                        Text("Geri")
-                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
                     }
-                    .foregroundColor(Color(nsColor: .controlAccentColor))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06))
-                    )
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .help("Geri")
+                    
+                    Spacer()
+                    
+                    Text("Cihaz Eşleştirme")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        handleBack()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Kapat")
                 }
-                .buttonStyle(.plain)
                 
-                Spacer()
+                // 2. Compact Glass-framed QR Code Card (140x140)
+                GlassQRCodeCard(payloadUrl: pairing.pairingPayloadUrl)
+                    .padding(.top, 2)
                 
-                Text("Cihaz Eşleştirme")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Button(action: {
-                    handleBack()
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.secondary)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Kapat")
-            }
-            .padding(.horizontal, 2)
-            
-            // Glass-framed QR Code Card
-            GlassQRCodeCard(payloadUrl: pairing.pairingPayloadUrl)
-            
-            // Confirmation Code Glass Card (SF Mono)
-            VStack(spacing: 4) {
-                Text("Eşleşme Onay Kodu")
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                
-                Text(pairing.currentConfirmationCode)
-                    .font(.system(size: 26, weight: .bold, design: .monospaced))
-                    .tracking(4)
-                    .foregroundColor(Color(nsColor: .controlAccentColor))
-            }
-            .frame(maxWidth: .infinity)
-            .glassCard(cornerRadius: 14, padding: 8, isHighlighted: true)
-            
-            Text("Telefonunuzdaki AetherLink uygulamasından bu QR kodu okutun veya aynı Wi-Fi ağında otomatik bağlanın.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
-            
-            // Local IP & Refresh Button
-            HStack {
-                HStack(spacing: 4) {
-                    Image(systemName: "network")
+                // 3. Compact Confirmation Code Card (SF Mono, padding 8, size 24)
+                VStack(spacing: 2) {
+                    Text("Eşleşme Onay Kodu")
                         .font(.caption2)
+                        .fontWeight(.medium)
                         .foregroundColor(.secondary)
-                    Text("\(network.localIPAddress):8443")
-                        .font(.caption2.monospaced())
-                        .foregroundColor(.secondary)
+                    
+                    Text(pairing.currentConfirmationCode)
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .tracking(3)
+                        .foregroundColor(Color(nsColor: .controlAccentColor))
                 }
-                
-                Spacer()
-                
-                Button(action: {
-                    pairing.generateNewConfirmationCode()
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                        Text("Yeni Kod")
-                    }
-                    .font(.caption)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                }
-                .buttonStyle(.plain)
-                .glassTile(id: "new_pairing_code", isActive: false)
-            }
-            
-            // Full Width Primary Back Button
-            Button(action: {
-                handleBack()
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.backward.circle.fill")
-                    Text("Ana Menüye Dön")
-                }
-                .font(.caption.weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .contentShape(Rectangle())
+                .glassCard(cornerRadius: 12, padding: 0, isHighlighted: true)
+                
+                // 4. Instructions Text (2 lines max, fixedSize)
+                Text("Telefonunuzdaki AetherLink uygulamasından bu QR kodu okutun.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
+                
+                // 5. Local IP & Refresh Button Row
+                HStack {
+                    HStack(spacing: 4) {
+                        Image(systemName: "network")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("\(network.localIPAddress):8443")
+                            .font(.caption2.monospaced())
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        pairing.generateNewConfirmationCode()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                            Text("Yeni Kod")
+                        }
+                        .font(.caption2.weight(.medium))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "new_pairing_code", isActive: false)
+                }
             }
-            .buttonStyle(.plain)
-            .glassTile(id: "pairing_back_bottom", isActive: true)
-            .keyboardShortcut(.cancelAction)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
         }
-        .padding(14)
-        .frame(width: 350)
+        .frame(width: 300, height: 420)
         .background(.ultraThinMaterial)
+        .keyboardShortcut(.cancelAction)
+        .onReceive(network.$isConnected) { isConnected in
+            if isConnected {
+                handleBack()
+            }
+        }
     }
 }
 
@@ -986,12 +975,16 @@ public struct MenuBarContentView: View {
                     }
                 )
             case .pairing:
-                PairingQRView(
-                    showInlineBack: true,
-                    onBack: {
-                        state.currentPage = .dashboard
-                    }
-                )
+                if network.isConnected {
+                    dashboardView
+                } else {
+                    PairingQRView(
+                        showInlineBack: true,
+                        onBack: {
+                            state.currentPage = .dashboard
+                        }
+                    )
+                }
             case .settings:
                 SettingsView(
                     onBack: {
@@ -1000,7 +993,7 @@ public struct MenuBarContentView: View {
                 )
             }
         }
-        .frame(width: 350)
+        .frame(width: state.currentPage == .pairing ? 300 : 350)
         .background(.ultraThinMaterial)
     }
     
@@ -1059,7 +1052,43 @@ public struct MenuBarContentView: View {
             }
             .glassCard(cornerRadius: 16, padding: 12, isHighlighted: network.isConnected)
             
-            // 2. Interactive Quick Tiles (2-Column Grid)
+            // 2. Disconnected Hero Pairing Card (Only visible when disconnected)
+            if !network.isConnected {
+                HStack(spacing: 12) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.system(size: 24))
+                        .foregroundColor(Color(nsColor: .controlAccentColor))
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cihaz Eşleştir")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("QR kod veya onay koduyla bağlanın")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            state.currentPage = .pairing
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "qrcode")
+                            Text("QR Göster")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "hero_pair_btn", isActive: true)
+                }
+                .glassCard(cornerRadius: 14, padding: 10, isHighlighted: true)
+            }
+            
+            // 3. Interactive Quick Tiles (2-Column Grid)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 // Tile 1: Ekran Yansıt (Wireless Screen Mirroring via scrcpy)
                 Button(action: {
@@ -1258,22 +1287,24 @@ public struct MenuBarContentView: View {
                 }
                 .buttonStyle(.plain)
                 
-                // "Eşleştir" Button
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        state.currentPage = .pairing
+                // "Eşleştir" Button (Only visible when disconnected)
+                if !network.isConnected {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            state.currentPage = .pairing
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "qrcode")
+                            Text("Eşleştir")
+                        }
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
                     }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "qrcode")
-                        Text("Eşleştir")
-                    }
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
                 
                 // "Ayarlar" Button
                 Button(action: {

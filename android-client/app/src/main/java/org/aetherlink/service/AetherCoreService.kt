@@ -478,6 +478,12 @@ class AetherCoreService : Service() {
                     }
                     handleRemoteDisconnect(shouldForget)
                 }
+                "DEVICE_BUSY" -> {
+                    val message = payload.get("message")?.asString ?: "Mac başka bir cihaza bağlı"
+                    Log.w(TAG, "Mac is busy: $message")
+                    showDisconnectAlert(message)
+                    disconnect(userInitiated = false, forget = false)
+                }
                 "BLUETOOTH_HANDSHAKE" -> {
                     org.aetherlink.bluetooth.BluetoothAudioManager.handleIncomingBluetoothHandshake(payload, this)
                 }

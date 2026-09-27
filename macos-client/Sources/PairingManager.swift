@@ -29,6 +29,19 @@ public final class PairingManager: ObservableObject {
     }
     
     public func handleIncomingPairingRequest(_ payload: PairingRequestPayload) {
+        // Single Active Device Policy: Reject if Mac is already actively connected to another device
+        if NetworkManager.shared.isConnected && NetworkManager.shared.connectedDeviceName != payload.deviceName {
+            print("[PairingManager] Rejected pairing request from \(payload.deviceName) because Mac is already connected to \(NetworkManager.shared.connectedDeviceName)")
+            let response = PairingResponsePayload(
+                approved: false,
+                token: nil,
+                macName: Host.current().localizedName ?? "MacBook Pro",
+                timestamp: Date().timeIntervalSince1970 * 1000
+            )
+            NetworkManager.shared.send(type: "PAIRING_RESPONSE", payload: response)
+            return
+        }
+        
         // If already paired with this device id, automatically approve
         let savedId = UserDefaults.standard.string(forKey: pairedDeviceIdKey)
         if savedId == payload.deviceId {
