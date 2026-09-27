@@ -558,12 +558,22 @@ class AetherCoreService : Service() {
                 "CALL_ACTION" -> {
                     val callId = payload.get("callId")?.asString ?: ""
                     val action = payload.get("action")?.asString ?: ""
-                    if (action == "answer") {
+                    if (action == "answer" || action == "ACCEPT_CALL") {
                         org.aetherlink.telecom.CallActionHelper.answerCall(this)
-                    } else if (action == "decline" || action == "hangup") {
+                    } else if (action == "decline" || action == "hangup" || action == "REJECT_CALL") {
                         org.aetherlink.telecom.CallActionHelper.endCall(this)
                     }
                     AetherInCallService.handleRemoteAction(callId, action)
+                }
+                "ACCEPT_CALL" -> {
+                    val callId = payload.get("callId")?.asString ?: ""
+                    org.aetherlink.telecom.CallActionHelper.answerCall(this)
+                    AetherInCallService.handleRemoteAction(callId, "answer")
+                }
+                "REJECT_CALL" -> {
+                    val callId = payload.get("callId")?.asString ?: ""
+                    org.aetherlink.telecom.CallActionHelper.endCall(this)
+                    AetherInCallService.handleRemoteAction(callId, "decline")
                 }
                 "NOTIFICATION_REPLY" -> {
                     val key = payload.get("notificationKey")?.asString ?: ""

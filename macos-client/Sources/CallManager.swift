@@ -29,7 +29,7 @@ public final class CallManager: ObservableObject {
         self.isCallActive = false
         
         let isOutgoing = (payload.direction == "outgoing")
-        if !isOutgoing {
+        if !isOutgoing && bannerPosition != .notch {
             // Play system ringtone for incoming calls only
             ringtoneSound = NSSound(named: "Glass")
             ringtoneSound?.loops = true
@@ -103,19 +103,17 @@ public final class CallManager: ObservableObject {
             callWindow?.contentView = NSHostingView(rootView: CallBannerView())
         }
         
-        // Screen positioning per user preference:
-        // .notch: Centered horizontally right under the MacBook camera notch
-        // .topRight: Aligned to top-right notification corner
+        // If user chose Notch position, present via modern Dynamic Notch manager
+        if bannerPosition == .notch {
+            NotchCallManager.shared.show(payload: payload)
+            postCallNotification(payload)
+            return
+        }
+        
+        // Notification corner position (.topRight)
         if let screen = NSScreen.main, let window = callWindow {
             let visibleFrame = screen.visibleFrame
-            
-            let targetX: CGFloat
-            switch bannerPosition {
-            case .notch:
-                targetX = visibleFrame.midX - (panelWidth / 2)
-            case .topRight:
-                targetX = visibleFrame.maxX - panelWidth - 20
-            }
+            let targetX = visibleFrame.maxX - panelWidth - 20
             
             let targetY = visibleFrame.maxY - panelHeight - 16
             let startY = visibleFrame.maxY - panelHeight // Top of window flush with menu bar bottom
@@ -135,6 +133,10 @@ public final class CallManager: ObservableObject {
             })
         }
         
+        postCallNotification(payload)
+    }
+    
+    private func postCallNotification(_ payload: CallIncomingPayload) {
         let isOutgoing = (payload.direction == "outgoing")
         let callTitle = isOutgoing
             ? (payload.appType == .cellular ? "Giden Telefon Araması" : "Giden Arama")
@@ -161,6 +163,7 @@ public final class CallManager: ObservableObject {
         ringtoneSound?.stop()
         activeCall = nil
         isCallActive = false
+        NotchCallManager.shared.dismiss()
         
         if let window = callWindow, let screen = NSScreen.main, window.isVisible {
             let visibleFrame = screen.visibleFrame

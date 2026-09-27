@@ -265,12 +265,34 @@ public final class NetworkManager: ObservableObject {
                 NotificationManager.shared.displayNotification(notif)
             }
             
-        case "CALL_INCOMING":
-            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
-               let call = try? JSONDecoder().decode(CallIncomingPayload.self, from: payloadData) {
-                print("[NetworkManager] Received CALL_INCOMING: \(call.displayName) (\(call.callId))")
-                DispatchQueue.main.async {
+        case "CALL_INCOMING", "INCOMING_CALL":
+            let payloadDict = json["payload"] as? [String: Any] ?? [:]
+            let callerName = (payloadDict["contact_name"] as? String)
+                ?? (payloadDict["callerName"] as? String)
+                ?? (payloadDict["caller"] as? String)
+                ?? "Bilinmeyen Numara"
+            let phoneNumber = (payloadDict["phoneNumber"] as? String)
+                ?? (payloadDict["number"] as? String)
+                ?? ""
+            let callId = (payloadDict["callId"] as? String) ?? UUID().uuidString
+            let appTypeStr = (payloadDict["appType"] as? String) ?? "cellular"
+            let appType = CallAppType(rawValue: appTypeStr) ?? .cellular
+            let avatar = payloadDict["avatarBase64"] as? String
+            
+            print("[NetworkManager] Received INCOMING_CALL / CALL_INCOMING: \(callerName) (\(phoneNumber))")
+            
+            DispatchQueue.main.async {
+                if let payloadData = try? JSONSerialization.data(withJSONObject: payloadDict),
+                   let call = try? JSONDecoder().decode(CallIncomingPayload.self, from: payloadData) {
                     CallManager.shared.handleIncomingCall(call)
+                } else {
+                    NotchCallManager.shared.show(
+                        caller: callerName,
+                        number: phoneNumber,
+                        callId: callId,
+                        appType: appType,
+                        avatarBase64: avatar
+                    )
                 }
             }
             
@@ -279,12 +301,26 @@ public final class NetworkManager: ObservableObject {
                let action = try? JSONDecoder().decode(CallActionPayload.self, from: payloadData) {
                 print("[NetworkManager] Received CALL_ACTION: \(action.action) (\(action.callId))")
                 DispatchQueue.main.async {
-                    if action.action == "hangup" || action.action == "decline" {
+                    if action.action == "hangup" || action.action == "decline" || action.action == "rejected" {
                         CallManager.shared.dismissCallBanner()
-                    } else if action.action == "answered" {
+                        NotchCallManager.shared.dismiss()
+                    } else if action.action == "answered" || action.action == "accept" {
                         CallManager.shared.isCallActive = true
+                        NotchCallManager.shared.isCallActive = true
                     }
                 }
+            }
+            
+        case "REJECT_CALL", "END_CALL":
+            DispatchQueue.main.async {
+                CallManager.shared.dismissCallBanner()
+                NotchCallManager.shared.dismiss()
+            }
+            
+        case "ACCEPT_CALL":
+            DispatchQueue.main.async {
+                CallManager.shared.isCallActive = true
+                NotchCallManager.shared.isCallActive = true
             }
             
         case "DEVICE_TELEMETRY":
