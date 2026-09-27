@@ -17,10 +17,16 @@ public final class StatusBarController: NSObject {
             DispatchQueue.main.async {
                 self?.syncPopoverToFittingSize()
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                self?.syncPopoverToFittingSize()
+            }
         }
     }
     
     public func syncPopoverToFittingSize() {
+        let preferred = PopoverRouter.shared.currentScreen.preferredHeight
+        var calculatedTargetHeight = preferred
+        
         for window in NSApp.windows {
             if window.isVisible {
                 window.isOpaque = false
@@ -28,12 +34,19 @@ public final class StatusBarController: NSObject {
                 window.contentView?.wantsLayer = true
                 window.contentView?.layer?.backgroundColor = .clear
                 
+                let fittingHeight = window.contentView?.fittingSize.height ?? 0
                 let targetHeight: CGFloat
-                if let fitting = window.contentView?.fittingSize.height, fitting > 100 {
-                    targetHeight = ceil(fitting)
-                } else {
-                    targetHeight = PopoverRouter.shared.currentScreen.preferredHeight
+                switch PopoverRouter.shared.currentScreen {
+                case .deviceInfo:
+                    targetHeight = fittingHeight > 100 ? max(ceil(fittingHeight), preferred) : preferred
+                case .dashboard, .pairing, .settings:
+                    if fittingHeight > 100 && abs(fittingHeight - preferred) < 60 {
+                        targetHeight = ceil(fittingHeight)
+                    } else {
+                        targetHeight = preferred
+                    }
                 }
+                calculatedTargetHeight = targetHeight
                 let targetSize = NSSize(width: 365, height: targetHeight)
                 
                 let currentFrame = window.frame
@@ -52,11 +65,11 @@ public final class StatusBarController: NSObject {
         }
         
         if let popover = popover {
-            let targetSize = PopoverRouter.shared.currentScreen.preferredSize
+            let finalSize = NSSize(width: 365, height: calculatedTargetHeight)
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.20
                 context.allowsImplicitAnimation = true
-                popover.contentSize = targetSize
+                popover.contentSize = finalSize
             }
         }
     }

@@ -212,7 +212,7 @@ public struct ActivityRingView: View {
     }
     
     public var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             ZStack {
                 // Background Track
                 Circle()
@@ -223,10 +223,10 @@ public struct ActivityRingView: View {
                     .trim(from: 0.0, to: CGFloat(progress))
                     .stroke(
                         AngularGradient(
-                            gradient: Gradient(colors: [ringColor.opacity(0.7), ringColor]),
+                            gradient: Gradient(colors: [ringColor.opacity(0.65), ringColor]),
                             center: .center,
-                            startAngle: .degrees(-90),
-                            endAngle: .degrees(270)
+                            startAngle: .degrees(0),
+                            endAngle: .degrees(360)
                         ),
                         style: StrokeStyle(lineWidth: ringWidth, lineCap: .round)
                     )
@@ -236,11 +236,11 @@ public struct ActivityRingView: View {
                 // Center Icon or Percentage
                 if let icon = icon {
                     Image(systemName: icon)
-                        .font(.system(size: ringWidth * 1.8, weight: .bold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(ringColor)
                 } else {
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                 }
             }
@@ -248,20 +248,22 @@ public struct ActivityRingView: View {
             
             VStack(spacing: 1) {
                 Text(title)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 9.5, weight: .medium))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                 
                 Text(valueText)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10.5, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 
                 if let sub = subtitle {
                     Text(sub)
-                        .font(.system(size: 8))
+                        .font(.system(size: 8.5))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             }
         }

@@ -19,7 +19,7 @@ public enum ActiveScreen: String, CaseIterable, Equatable {
         case .pairing:
             return 305
         case .deviceInfo:
-            return NetworkManager.shared.isConnected ? 295 : 210
+            return NetworkManager.shared.isConnected ? 350 : 210
         case .settings:
             return 250
         }

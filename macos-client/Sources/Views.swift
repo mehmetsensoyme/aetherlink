@@ -96,11 +96,13 @@ public struct PopoverScreenHeader: View {
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 if let subtitle = subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
             }
             
@@ -175,7 +177,11 @@ public struct DeviceTelemetryDetailView: View {
         if network.isConnected {
             if let t = telemetry {
                 let resolvedBrand = t.manufacturer.capitalized
-                return "Android \(t.androidVersion) • \(resolvedBrand)"
+                if titleText.contains(resolvedBrand) {
+                    return "Android \(t.androidVersion) • Canlı Bağlantı"
+                } else {
+                    return "Android \(t.androidVersion) • \(resolvedBrand)"
+                }
             } else {
                 return "Telemetri Bekleniyor..."
             }
@@ -194,95 +200,92 @@ public struct DeviceTelemetryDetailView: View {
             )
             
             if network.isConnected {
-                // 3 Progress Rings (RAM, Storage, Battery & Temp)
+                // 3 Progress Rings (RAM, Storage, Battery)
                 HStack(spacing: 8) {
                     ActivityRingView(
                         progress: ramProgress,
                         ringColor: Color.blue,
-                        ringWidth: 4.5,
-                        diameter: 36,
+                        ringWidth: 3.5,
+                        diameter: 32,
                         icon: "memorychip",
                         title: "RAM",
-                        valueText: telemetry != nil ? (telemetryMgr.formattedRam.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? "--") : "--",
-                        subtitle: telemetry != nil ? "\(Int(ramProgress * 100))% Dolu" : "--"
+                        valueText: telemetry != nil ? String(format: "%.1f GB", Double(telemetry!.ramUsedMB) / 1024.0) : "--",
+                        subtitle: telemetry != nil ? "%\(Int(ramProgress * 100)) Dolu" : "--"
                     )
                     .frame(maxWidth: .infinity)
-                    .frame(height: 68)
-                    .glassCard(cornerRadius: 10, padding: 4)
+                    .frame(height: 74)
+                    .glassCard(cornerRadius: 10, padding: 6)
                     
                     ActivityRingView(
                         progress: storageProgress,
                         ringColor: Color.purple,
-                        ringWidth: 4.5,
-                        diameter: 36,
+                        ringWidth: 3.5,
+                        diameter: 32,
                         icon: "internaldrive",
                         title: "Depolama",
-                        valueText: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageUsedGB)) GB" : "--",
-                        subtitle: telemetry != nil ? "\(String(format: "%.0f", telemetry!.storageTotalGB)) GB Toplam" : "--"
+                        valueText: telemetry != nil ? String(format: "%.0f GB", telemetry!.storageUsedGB) : "--",
+                        subtitle: telemetry != nil ? String(format: "%.0f GB Toplam", telemetry!.storageTotalGB) : "--"
                     )
                     .frame(maxWidth: .infinity)
-                    .frame(height: 68)
-                    .glassCard(cornerRadius: 10, padding: 4)
-                    
-                    let phoneTemp = telemetry != nil ? String(format: "%.1f°C", telemetry!.effectiveTemp) : "--"
-                    let macTemp = String(format: "%.1f°C", thermalService.currentTemperature)
+                    .frame(height: 74)
+                    .glassCard(cornerRadius: 10, padding: 6)
                     
                     ActivityRingView(
                         progress: batteryProgress,
                         ringColor: Color.green,
-                        ringWidth: 4.5,
-                        diameter: 36,
+                        ringWidth: 3.5,
+                        diameter: 32,
                         icon: telemetry?.isCharging == true ? "bolt.fill" : "battery.100",
-                        title: "Pil & Isı",
-                        valueText: telemetry != nil ? "\(telemetry!.batteryLevel)%" : "--%",
-                        subtitle: telemetry != nil ? "\(phoneTemp) • \(macTemp)" : "--"
+                        title: "Pil",
+                        valueText: telemetry != nil ? "%\(telemetry!.batteryLevel)" : "--%",
+                        subtitle: telemetry?.isCharging == true ? "Şarj Oluyor" : (telemetry?.batteryLevel == 100 ? "Tam Dolu" : "Deşarj Oluyor")
                     )
                     .frame(maxWidth: .infinity)
-                    .frame(height: 68)
-                    .glassCard(cornerRadius: 10, padding: 4)
+                    .frame(height: 74)
+                    .glassCard(cornerRadius: 10, padding: 6)
                 }
                 
                 // Hardware Telemetry Spec Rows
-                VStack(spacing: 4) {
+                VStack(spacing: 3) {
                     let phoneTempStr = telemetry != nil ? String(format: "%.1f", telemetry!.effectiveTemp) : "--"
                     let macTempStr = String(format: "%.1f", thermalService.currentTemperature)
                     
                     TelemetrySpecRow(
                         icon: "thermometer.medium",
-                        label: "Donanım Isıları",
-                        value: "📱 Tel: \(phoneTempStr)°C • 💻 Mac: \(macTempStr)°C",
+                        label: "Donanım Isısı",
+                        value: "📱 Tel: \(phoneTempStr)°C  •  💻 Mac: \(macTempStr)°C",
                         accentColor: .orange
                     )
                     
                     TelemetrySpecRow(
                         icon: "wifi",
-                        label: "Kablosuz Ağ & Hız",
+                        label: "Kablosuz Ağ",
                         value: telemetryMgr.formattedNetwork,
                         accentColor: .blue
                     )
                     
                     TelemetrySpecRow(
                         icon: "antenna.radiowaves.left.and.right",
-                        label: "Hücresel Bağlantı",
-                        value: telemetry?.cellularOperator ?? "Mobil Veri",
+                        label: "Hücresel Ağ",
+                        value: (telemetry?.cellularOperator?.isEmpty == false) ? telemetry!.cellularOperator! : "Mobil Veri",
                         accentColor: .indigo
-                    )
-                    
-                    TelemetrySpecRow(
-                        icon: "clock.arrow.circlepath",
-                        label: "Sistem Çalışma Süresi",
-                        value: telemetryMgr.formattedUptime,
-                        accentColor: .orange
                     )
                     
                     TelemetrySpecRow(
                         icon: "heart.text.square.fill",
                         label: "Pil Sağlığı",
-                        value: telemetry != nil ? "\(telemetry!.batteryHealth) • \(telemetry!.isCharging ? "Hızlı Şarj" : "Deşarj")" : "--",
+                        value: telemetry != nil ? "\(telemetry!.batteryHealth) • \(telemetry!.isCharging ? "Şarjda" : "Normal")" : "--",
                         accentColor: .green
                     )
+                    
+                    TelemetrySpecRow(
+                        icon: "clock.arrow.circlepath",
+                        label: "Açık Kalma",
+                        value: telemetryMgr.formattedUptime,
+                        accentColor: .purple
+                    )
                 }
-                .glassCard(cornerRadius: 12, padding: 6)
+                .glassCard(cornerRadius: 12, padding: 8)
                 
                 // Pinned Action Buttons (Yenile & Bağlantıyı Kes)
                 HStack(spacing: 8) {
@@ -291,11 +294,12 @@ public struct DeviceTelemetryDetailView: View {
                         thermalService.readHardwareTemperature(forceFresh: true)
                         thermalService.broadcastTelemetry()
                     }) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11, weight: .semibold))
                             Text("Yenile")
+                                .font(.system(size: 11, weight: .semibold))
                         }
-                        .font(.caption.weight(.medium))
                         .frame(maxWidth: .infinity)
                         .frame(height: 30)
                     }
@@ -306,11 +310,13 @@ public struct DeviceTelemetryDetailView: View {
                         network.disconnectDevice(forget: false)
                         handleBack()
                     }) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             Image(systemName: "link.badge.slash")
+                                .font(.system(size: 11, weight: .semibold))
                             Text("Bağlantıyı Kes")
+                                .font(.system(size: 11, weight: .semibold))
                         }
-                        .font(.caption.weight(.medium))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.red)
                         .frame(maxWidth: .infinity)
                         .frame(height: 30)
@@ -363,6 +369,12 @@ public struct DeviceTelemetryDetailView: View {
         .padding(.bottom, 12)
         .frame(width: 365)
         .background(.ultraThinMaterial)
+        .onAppear {
+            telemetryMgr.requestTelemetryRefresh()
+            thermalService.readHardwareTemperature(forceFresh: true)
+            thermalService.broadcastTelemetry()
+            StatusBarController.shared.syncPopoverToFittingSize()
+        }
         .background(
             Button("") {
                 handleBack()
@@ -382,24 +394,26 @@ struct TelemetrySpecRow: View {
     let accentColor: Color
     
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(accentColor)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(accentColor.opacity(0.12)))
             
             Text(label)
-                .font(.caption)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
             
-            Spacer()
+            Spacer(minLength: 4)
             
             Text(value)
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundColor(.primary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
+        .padding(.vertical, 1.5)
     }
 }
 
@@ -1011,13 +1025,18 @@ final class AutoSizingNSView: NSView {
                 contentView.layer?.backgroundColor = .clear
                 
                 let fittingHeight = contentView.fittingSize.height
+                let preferred = PopoverRouter.shared.currentScreen.preferredHeight
                 let targetHeight: CGFloat
-                if fittingHeight > 100 {
-                    targetHeight = ceil(fittingHeight)
-                } else {
-                    targetHeight = PopoverRouter.shared.currentScreen.preferredHeight
+                switch PopoverRouter.shared.currentScreen {
+                case .deviceInfo:
+                    targetHeight = fittingHeight > 100 ? max(ceil(fittingHeight), preferred) : preferred
+                case .dashboard, .pairing, .settings:
+                    if fittingHeight > 100 && abs(fittingHeight - preferred) < 60 {
+                        targetHeight = ceil(fittingHeight)
+                    } else {
+                        targetHeight = preferred
+                    }
                 }
-                
                 let targetSize = NSSize(width: 365, height: targetHeight)
                 let currentFrame = window.frame
                 if abs(currentFrame.width - targetSize.width) > 1 || abs(currentFrame.height - targetSize.height) > 1 {
