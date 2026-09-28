@@ -62,6 +62,7 @@ object CallActionHelper {
         }
 
         routeAudioToBluetooth(context)
+        org.aetherlink.audio.CallAudioRelayManager.start(context)
     }
 
     @SuppressLint("MissingPermission")
@@ -113,6 +114,7 @@ object CallActionHelper {
         }
 
         AetherNotificationListener.clearActiveCallIntents()
+        org.aetherlink.audio.CallAudioRelayManager.stop(context)
     }
 
     fun routeAudioToBluetooth(context: Context) {

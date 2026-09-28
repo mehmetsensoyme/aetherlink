@@ -304,9 +304,12 @@ public final class NetworkManager: ObservableObject {
                     if action.action == "hangup" || action.action == "decline" || action.action == "rejected" {
                         CallManager.shared.dismissCallBanner()
                         NotchCallManager.shared.dismiss()
+                        CallAudioStreamEngine.shared.stop()
                     } else if action.action == "answered" || action.action == "accept" {
                         CallManager.shared.isCallActive = true
                         NotchCallManager.shared.isCallActive = true
+                        let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
+                        CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
                     }
                 }
             }
@@ -315,12 +318,15 @@ public final class NetworkManager: ObservableObject {
             DispatchQueue.main.async {
                 CallManager.shared.dismissCallBanner()
                 NotchCallManager.shared.dismiss()
+                CallAudioStreamEngine.shared.stop()
             }
             
         case "ACCEPT_CALL":
             DispatchQueue.main.async {
                 CallManager.shared.isCallActive = true
                 NotchCallManager.shared.isCallActive = true
+                let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
+                CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
             }
             
         case "DEVICE_TELEMETRY":
@@ -460,6 +466,21 @@ public final class NetworkManager: ObservableObject {
                let base64 = payload["base64Data"] as? String {
                 AetherShareManager.shared.handleIncomingFile(fileName: fileName, base64Data: base64)
             }
+            
+        case "CALL_AUDIO_START":
+            let phoneIp: String = {
+                if let payload = json["payload"] as? [String: Any],
+                   let ip = payload["phoneIp"] as? String, !ip.isEmpty {
+                    return ip
+                }
+                return NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
+            }()
+            let rxPort = (json["payload"] as? [String: Any])?["udpPort"] as? UInt16 ?? 8444
+            let txPort = (json["payload"] as? [String: Any])?["macMicPort"] as? UInt16 ?? 8445
+            CallAudioStreamEngine.shared.start(phoneIp: phoneIp, incomingPort: rxPort, outgoingMicPort: txPort)
+            
+        case "CALL_AUDIO_STOP":
+            CallAudioStreamEngine.shared.stop()
             
         default:
             print("[NetworkManager] Unhandled message type: \(type)")

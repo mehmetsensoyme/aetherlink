@@ -131,7 +131,10 @@ public final class NotchCallManager: ObservableObject {
         )
         NetworkManager.shared.send(type: "CALL_ACTION", payload: action)
         NetworkManager.shared.send(type: "ACCEPT_CALL", payload: ["callId": self.callId])
-        print("[NotchCallManager] Accepted call: \(callId)")
+        
+        let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
+        CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
+        print("[NotchCallManager] Accepted call and started audio relay: \(callId)")
     }
     
     public func rejectCall() {
@@ -176,6 +179,7 @@ public final class NotchCallManager: ObservableObject {
         waveTimer = nil
         
         MediaContinuityManager.shared.resumeMediaAfterCall()
+        CallAudioStreamEngine.shared.stop()
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             self.isExpanded = false

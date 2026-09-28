@@ -136,8 +136,10 @@ class CallStateReceiver : BroadcastReceiver() {
                         }
                         AetherCoreService.instance?.sendMessage("CALL_ACTION", answeredPayload)
                         Log.i(TAG, "Relayed answered call state to Mac: $callId")
+                        org.aetherlink.audio.CallAudioRelayManager.start(context)
                     } else if (previousState == TelephonyManager.EXTRA_STATE_IDLE) {
                         // Outgoing call was initiated
+                        org.aetherlink.audio.CallAudioRelayManager.start(context)
                         isCurrentCallOutgoing = true
                         val callId = System.currentTimeMillis().toString()
                         activeCallId = callId
@@ -187,6 +189,7 @@ class CallStateReceiver : BroadcastReceiver() {
                     AetherCoreService.instance?.sendMessage("CALL_ACTION", dropPayload)
                     Log.i(TAG, "Relayed IDLE / call ended to Mac: $callId")
 
+                    org.aetherlink.audio.CallAudioRelayManager.stop(context)
                     activeCallId = null
                     lastOutgoingNumber = null
                     isCurrentCallOutgoing = false

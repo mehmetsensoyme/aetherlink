@@ -710,6 +710,12 @@ class AetherCoreService : Service() {
                     val base64 = payload.get("base64Data")?.asString ?: ""
                     org.aetherlink.share.AetherShareManager.handleIncomingFile(this, fileName, base64)
                 }
+                "CALL_AUDIO_START" -> {
+                    org.aetherlink.audio.CallAudioRelayManager.start(this, macIpAddress)
+                }
+                "CALL_AUDIO_STOP" -> {
+                    org.aetherlink.audio.CallAudioRelayManager.stop(this)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing incoming Mac payload: ${e.message}")
