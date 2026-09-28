@@ -1156,6 +1156,7 @@ public struct MenuBarContentView: View {
     @ObservedObject var findMy = FindMyDeviceManager.shared
     @ObservedObject var remoteLock = RemoteLockManager.shared
     @ObservedObject var remoteVol = RemoteVolumeManager.shared
+    @ObservedObject var caffeinate = CaffeinateManager.shared
     
     public init() {}
     
@@ -1553,6 +1554,28 @@ public struct MenuBarContentView: View {
                             activeTint: .cyan
                         )
                         .help("Telefon ile Mac arasındaki anlık ağ gecikmesini (ping) ölç")
+                        
+                        // Kafein / Keep Awake
+                        Button(action: {
+                            caffeinate.toggleCaffeinate()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: caffeinate.isCaffeinateActive ? "cup.and.saucer.fill" : "cup.and.saucer")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(caffeinate.isCaffeinateActive ? .orange : .secondary)
+                                Text("Kafein")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(
+                            id: "caffeinate_tile",
+                            isActive: caffeinate.isCaffeinateActive,
+                            activeTint: .orange
+                        )
+                        .help("Mac ekranının uykuya dalmasını engelle (Amphetamine / Caffeine)")
                     }
                 }
                 

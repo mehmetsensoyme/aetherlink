@@ -95,4 +95,81 @@ public final class MediaContinuityManager: ObservableObject {
             }
         }
     }
+    
+    // MARK: - Auto-Pause Media on Call (KDE Connect pausemusic port)
+    @Published public var wasSpotifyPlayingBeforeCall: Bool = false
+    @Published public var wasMusicPlayingBeforeCall: Bool = false
+    
+    public func pauseMediaForIncomingCall() {
+        print("[MediaContinuityManager] Pausing active media for incoming call...")
+        
+        let spotifyCheck = """
+        tell application "System Events"
+            set isRunning to (exists (processes where name is "Spotify"))
+        end tell
+        if isRunning then
+            tell application "Spotify"
+                if player state is playing then
+                    pause
+                    return "playing"
+                end if
+            end tell
+        end if
+        return "not_playing"
+        """
+        if let script = NSAppleScript(source: spotifyCheck) {
+            var err: NSDictionary?
+            let res = script.executeAndReturnError(&err)
+            if res.stringValue == "playing" {
+                wasSpotifyPlayingBeforeCall = true
+                print("[MediaContinuityManager] Paused Spotify playback")
+            }
+        }
+        
+        let musicCheck = """
+        tell application "System Events"
+            set isRunning to (exists (processes where name is "Music"))
+        end tell
+        if isRunning then
+            tell application "Music"
+                if player state is playing then
+                    pause
+                    return "playing"
+                end if
+            end tell
+        end if
+        return "not_playing"
+        """
+        if let script = NSAppleScript(source: musicCheck) {
+            var err: NSDictionary?
+            let res = script.executeAndReturnError(&err)
+            if res.stringValue == "playing" {
+                wasMusicPlayingBeforeCall = true
+                print("[MediaContinuityManager] Paused Apple Music playback")
+            }
+        }
+    }
+    
+    public func resumeMediaAfterCall() {
+        guard wasSpotifyPlayingBeforeCall || wasMusicPlayingBeforeCall else { return }
+        print("[MediaContinuityManager] Resuming media after call completed...")
+        
+        if wasSpotifyPlayingBeforeCall {
+            wasSpotifyPlayingBeforeCall = false
+            let scriptSource = """
+            tell application "Spotify" to play
+            """
+            NSAppleScript(source: scriptSource)?.executeAndReturnError(nil)
+            print("[MediaContinuityManager] Resumed Spotify playback")
+        }
+        
+        if wasMusicPlayingBeforeCall {
+            wasMusicPlayingBeforeCall = false
+            let scriptSource = """
+            tell application "Music" to play
+            """
+            NSAppleScript(source: scriptSource)?.executeAndReturnError(nil)
+            print("[MediaContinuityManager] Resumed Apple Music playback")
+        }
+    }
 }

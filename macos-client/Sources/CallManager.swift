@@ -36,6 +36,8 @@ public final class CallManager: ObservableObject {
         self.activeCall = payload
         self.isCallActive = false
         
+        MediaContinuityManager.shared.pauseMediaForIncomingCall()
+        
         let isOutgoing = (payload.direction == "outgoing")
         if !isOutgoing && bannerPosition != .notch && bannerPosition != .floating {
             // Play system ringtone for incoming calls only
@@ -175,6 +177,7 @@ public final class CallManager: ObservableObject {
         activeCall = nil
         isCallActive = false
         NotchCallManager.shared.dismiss()
+        MediaContinuityManager.shared.resumeMediaAfterCall()
         
         if let window = callWindow, let screen = NSScreen.main, window.isVisible {
             let visibleFrame = screen.visibleFrame

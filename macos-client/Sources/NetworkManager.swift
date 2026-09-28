@@ -424,6 +424,43 @@ public final class NetworkManager: ObservableObject {
                 RemoteInputManager.shared.handleRemoteInput(payload)
             }
             
+        case "CAFFEINATE_REQUEST":
+            if let payload = json["payload"] as? [String: Any],
+               let active = payload["isActive"] as? Bool {
+                CaffeinateManager.shared.setCaffeinate(active: active)
+            }
+            
+        case "PRESENTER_COMMAND":
+            if let payload = json["payload"] as? [String: Any],
+               let action = payload["action"] as? String {
+                PresenterManager.shared.handleCommand(action)
+            }
+            
+        case "REMOTE_COMMAND":
+            if let payload = json["payload"] as? [String: Any],
+               let key = payload["key"] as? String {
+                RemoteCommandManager.shared.executeCommand(key)
+            }
+            
+        case "SHARE_URL":
+            if let payload = json["payload"] as? [String: Any],
+               let url = payload["url"] as? String {
+                AetherShareManager.shared.handleIncomingUrl(url)
+            }
+            
+        case "SHARE_TEXT":
+            if let payload = json["payload"] as? [String: Any],
+               let text = payload["text"] as? String {
+                AetherShareManager.shared.handleIncomingText(text)
+            }
+            
+        case "SHARE_FILE":
+            if let payload = json["payload"] as? [String: Any],
+               let fileName = payload["fileName"] as? String,
+               let base64 = payload["base64Data"] as? String {
+                AetherShareManager.shared.handleIncomingFile(fileName: fileName, base64Data: base64)
+            }
+            
         default:
             print("[NetworkManager] Unhandled message type: \(type)")
         }

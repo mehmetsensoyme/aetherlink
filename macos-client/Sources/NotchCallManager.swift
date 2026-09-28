@@ -67,6 +67,8 @@ public final class NotchCallManager: ObservableObject {
         self.isCallActive = false
         self.callDurationSeconds = 0
         
+        MediaContinuityManager.shared.pauseMediaForIncomingCall()
+        
         durationTimer?.invalidate()
         durationTimer = nil
         
@@ -172,6 +174,8 @@ public final class NotchCallManager: ObservableObject {
         durationTimer = nil
         waveTimer?.invalidate()
         waveTimer = nil
+        
+        MediaContinuityManager.shared.resumeMediaAfterCall()
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             self.isExpanded = false

@@ -116,7 +116,9 @@ class AetherCoreService : Service() {
         registerPhoneStateMonitoring()
         ClipboardSyncManager.init(this)
         org.aetherlink.bluetooth.BluetoothAudioManager.init(this)
-        connectToMacWebSocket()
+        val prefs = getSharedPreferences("aetherlink_prefs", Context.MODE_PRIVATE)
+        macIpAddress = prefs.getString("last_mac_ip", null) ?: "192.168.1.15"
+        connectToMacWebSocket(macIpAddress)
         Log.i(TAG, "AetherCoreService started.")
     }
 
@@ -408,6 +410,14 @@ class AetherCoreService : Service() {
 
     fun connectToMacWebSocket(ip: String = macIpAddress) {
         this.macIpAddress = ip
+        if (ip.isNotBlank() && ip != "127.0.0.1") {
+            try {
+                val prefs = getSharedPreferences("aetherlink_prefs", Context.MODE_PRIVATE)
+                prefs.edit().putString("last_mac_ip", ip).apply()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to save last_mac_ip: ${e.message}")
+            }
+        }
         serviceScope.launch {
             try {
                 val request = Request.Builder()
@@ -448,7 +458,23 @@ class AetherCoreService : Service() {
                         isConnectedState.value = false
                         macBatteryState.value = null
                         updateForegroundNotification()
-                        Log.w(TAG, "WebSocket closing: $reason")
+                        Log.w(TAG, "WebSocket closing: $reason. Retrying in 3 seconds...")
+                        serviceScope.launch {
+                            delay(3000)
+                            connectToMacWebSocket(macIpAddress)
+                        }
+                    }
+
+                    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                        isConnected = false
+                        isConnectedState.value = false
+                        macBatteryState.value = null
+                        updateForegroundNotification()
+                        Log.w(TAG, "WebSocket closed: $reason. Retrying in 3 seconds...")
+                        serviceScope.launch {
+                            delay(3000)
+                            connectToMacWebSocket(macIpAddress)
+                        }
                     }
 
                     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -674,6 +700,15 @@ class AetherCoreService : Service() {
                 }
                 "PONG" -> {
                     org.aetherlink.ping.PingManager.handlePong(payload)
+                }
+                "CAFFEINATE_STATUS" -> {
+                    val isActive = payload.get("isActive")?.asBoolean ?: false
+                    org.aetherlink.caffeinate.CaffeinateManager.handleStatus(isActive)
+                }
+                "SHARE_FILE" -> {
+                    val fileName = payload.get("fileName")?.asString ?: "alinan_dosya"
+                    val base64 = payload.get("base64Data")?.asString ?: ""
+                    org.aetherlink.share.AetherShareManager.handleIncomingFile(this, fileName, base64)
                 }
             }
         } catch (e: Exception) {

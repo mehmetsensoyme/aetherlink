@@ -50,7 +50,10 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var macIpInput by remember { mutableStateOf("127.0.0.1") }
+    val prefs = remember { context.getSharedPreferences("aetherlink_prefs", android.content.Context.MODE_PRIVATE) }
+    var macIpInput by remember {
+        mutableStateOf(prefs.getString("last_mac_ip", null) ?: "192.168.1.15")
+    }
     var discoveredMacName by remember { mutableStateOf<String?>(null) }
     var discoveredMacIp by remember { mutableStateOf<String?>(null) }
     var isDiscovering by remember { mutableStateOf(false) }
@@ -74,8 +77,12 @@ fun MainScreen(
     val pingLatency by PingManager.pingLatencyMs.collectAsState()
     val isPinging by PingManager.isPinging.collectAsState()
     val macVolume by RemoteVolumeManager.macVolume.collectAsState()
+    val isCaffeinateActive by org.aetherlink.caffeinate.CaffeinateManager.isCaffeinateActive.collectAsState()
     var showTrackpadSheet by remember { mutableStateOf(false) }
     var showVolumeDialog by remember { mutableStateOf(false) }
+    var showPresenterSheet by remember { mutableStateOf(false) }
+    var showCommandsSheet by remember { mutableStateOf(false) }
+    var showShareSheet by remember { mutableStateOf(false) }
 
     // Automatic update check on app launch (silent background check)
     LaunchedEffect(Unit) {
@@ -727,6 +734,61 @@ fun MainScreen(
                             Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Ses Denetimi", fontSize = 12.sp, maxLines = 1)
+                        }
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Tile: Sunum Kumandası
+                        OutlinedButton(
+                            onClick = { showPresenterSheet = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.CoPresent, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sunum", fontSize = 12.sp, maxLines = 1)
+                        }
+
+                        // Tile: Kafein Modu
+                        OutlinedButton(
+                            onClick = { org.aetherlink.caffeinate.CaffeinateManager.toggleCaffeinate() },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isCaffeinateActive) Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Icon(
+                                if (isCaffeinateActive) Icons.Default.Coffee else Icons.Default.CoffeeMaker,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isCaffeinateActive) "Kafein Açık" else "Kafein Modu", fontSize = 12.sp, maxLines = 1)
+                        }
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Tile: Hızlı Mac Komutları
+                        OutlinedButton(
+                            onClick = { showCommandsSheet = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Mac Komutları", fontSize = 12.sp, maxLines = 1)
+                        }
+
+                        // Tile: AetherDrop Paylaşım
+                        OutlinedButton(
+                            onClick = { showShareSheet = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("AetherDrop", fontSize = 12.sp, maxLines = 1)
                         }
                     }
 
@@ -1392,7 +1454,20 @@ fun MainScreen(
             }
         )
     }
+
+    if (showPresenterSheet) {
+        RemotePresenterSheet(onDismiss = { showPresenterSheet = false })
+    }
+
+    if (showCommandsSheet) {
+        RemoteCommandsSheet(onDismiss = { showCommandsSheet = false })
+    }
+
+    if (showShareSheet) {
+        AetherShareSheet(onDismiss = { showShareSheet = false })
+    }
 }
+
 
 @Composable
 fun PermissionCard(title: String, desc: String, icon: ImageVector, actionLabel: String, onClick: () -> Unit) {

@@ -12,26 +12,26 @@ android {
         applicationId = "org.aetherlink"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "1.3.8"
+        versionCode = 15
+        versionName = "1.3.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         create("shared") {
-            val keystoreFile = file("aetherlink.keystore")
-            if (keystoreFile.exists()) {
+            val systemDebugKeystore = File(System.getProperty("user.home"), ".android/debug.keystore")
+            if (systemDebugKeystore.exists()) {
+                storeFile = systemDebugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            } else {
+                val keystoreFile = file("aetherlink.keystore")
                 storeFile = keystoreFile
                 storePassword = "aetherlink_sign_key"
                 keyAlias = "aetherlink"
                 keyPassword = "aetherlink_sign_key"
-            } else {
-                val debugConfig = signingConfigs.getByName("debug")
-                storeFile = debugConfig.storeFile
-                storePassword = debugConfig.storePassword
-                keyAlias = debugConfig.keyAlias
-                keyPassword = debugConfig.keyPassword
             }
         }
     }
