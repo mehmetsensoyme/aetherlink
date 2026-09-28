@@ -15,6 +15,50 @@ public final class UDPDiscoveryResponder: @unchecked Sendable {
         }
     }
     
+    public func broadcastWakeBeacon() {
+        queue.async {
+            let fd = socket(AF_INET, SOCK_DGRAM, 0)
+            guard fd >= 0 else {
+                print("[UDPDiscoveryResponder] Failed to create socket for wake beacon")
+                return
+            }
+            defer { close(fd) }
+            
+            var opt: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &opt, socklen_t(MemoryLayout<Int32>.size))
+            
+            var addr = sockaddr_in()
+            addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = in_port_t(8444).bigEndian
+            addr.sin_addr.s_addr = inet_addr("255.255.255.255")
+            
+            let localIP = NetworkManager.getLocalIPAddress()
+            let macName = Host.current().localizedName ?? "MacBook Pro"
+            
+            let responseJson: [String: Any] = [
+                "action": "AETHER_WAKE_BEACON",
+                "macName": macName,
+                "ip": localIP,
+                "port": 8443
+            ]
+            
+            guard let resData = try? JSONSerialization.data(withJSONObject: responseJson) else { return }
+            
+            for _ in 1...3 {
+                _ = resData.withUnsafeBytes { rawPtr in
+                    withUnsafePointer(to: &addr) {
+                        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                            sendto(fd, rawPtr.baseAddress, resData.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                        }
+                    }
+                }
+                Thread.sleep(forTimeInterval: 0.15)
+            }
+            print("[UDPDiscoveryResponder] Wake beacon broadcasted to 255.255.255.255:8444 (IP: \(localIP))")
+        }
+    }
+    
     private func runLoop() {
         let fd = socket(AF_INET, SOCK_DGRAM, 0)
         guard fd >= 0 else {

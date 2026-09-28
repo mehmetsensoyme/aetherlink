@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import AppKit
 import AetherShared
 
 @MainActor
@@ -12,7 +13,12 @@ public final class NetworkManager: ObservableObject {
     @Published public var batteryState: BatteryPayload? = nil
     @Published public var mediaState: MediaSessionPayload? = nil
     
-    public var localIPAddress: String {
+    public var isSystemSleeping: Bool = false
+    private var sleepObserver: Any?
+    private var wakeObserver: Any?
+    private var heartbeatTimer: Timer?
+    
+    nonisolated public static func getLocalIPAddress() -> String {
         var address: String = "127.0.0.1"
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0 else { return address }
@@ -21,20 +27,30 @@ public final class NetworkManager: ObservableObject {
         for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
             let interface = ptr.pointee
             let addrFamily = interface.ifa_addr.pointee.sa_family
-            if addrFamily == UInt8(AF_INET) {
+            let flags = Int32(interface.ifa_flags)
+            if addrFamily == UInt8(AF_INET) && (flags & IFF_LOOPBACK) == 0 && (flags & IFF_UP) != 0 {
                 let name = String(cString: interface.ifa_name)
-                if name == "en0" || name == "en1" {
+                if name.starts(with: "en") || name.starts(with: "bridge") {
                     var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
                     getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
                                 &hostname, socklen_t(hostname.count),
                                 nil, socklen_t(0), NI_NUMERICHOST)
-                    address = String(cString: hostname)
-                    break
+                    let candidate = String(cString: hostname)
+                    if candidate != "127.0.0.1" && !candidate.isEmpty {
+                        address = candidate
+                        if name == "en0" || name == "en1" {
+                            break
+                        }
+                    }
                 }
             }
         }
         freeifaddrs(ifaddr)
         return address
+    }
+    
+    nonisolated public var localIPAddress: String {
+        return NetworkManager.getLocalIPAddress()
     }
     
     private var listener: NWListener?
@@ -43,7 +59,79 @@ public final class NetworkManager: ObservableObject {
     private var connectionBuffers: [ObjectIdentifier: Data] = [:]
     private let port: NWEndpoint.Port = 8443
     
-    public init() {}
+    public init() {
+        setupSleepWakeMonitoring()
+    }
+    
+    private func setupSleepWakeMonitoring() {
+        sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            print("[NetworkManager] macOS willSleepNotification received.")
+            Task { @MainActor in
+                self.handleSystemWillSleep()
+            }
+        }
+        
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            print("[NetworkManager] macOS didWakeNotification received.")
+            Task { @MainActor in
+                self.handleSystemDidWake()
+            }
+        }
+    }
+    
+    private func handleSystemWillSleep() {
+        isSystemSleeping = true
+        let payload = MacSleepPayload(reason: "mac_sleep", timestamp: Date().timeIntervalSince1970 * 1000)
+        self.send(type: "MAC_SLEEP", payload: payload)
+        
+        heartbeatTimer?.invalidate()
+        heartbeatTimer = nil
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            self.primaryConnection?.cancel()
+            self.primaryConnection = nil
+            self.resetSessionState(showNotification: false)
+        }
+    }
+    
+    private func handleSystemDidWake() {
+        isSystemSleeping = false
+        print("[NetworkManager] System woke up. Waiting for network interfaces...")
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self else { return }
+            print("[NetworkManager] Re-verifying listener on wake (IP: \(self.localIPAddress))...")
+            
+            if self.listener?.state != .ready {
+                self.listener?.cancel()
+                self.startServer()
+            }
+            
+            UDPDiscoveryResponder.shared.broadcastWakeBeacon()
+            self.startHeartbeatTimer()
+        }
+    }
+    
+    public func startHeartbeatTimer() {
+        heartbeatTimer?.invalidate()
+        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self, self.isConnected else { return }
+                self.send(type: "HEARTBEAT_PING", payload: HeartbeatPayload(timestamp: Date().timeIntervalSince1970 * 1000))
+            }
+        }
+    }
+
     
     public func startServer() {
         do {
@@ -122,6 +210,7 @@ public final class NetworkManager: ObservableObject {
                     )
                     self.send(type: "MAC_HELLO", payload: helloPayload)
                     MacBatteryMonitor.shared.broadcastBatteryState()
+                    self.startHeartbeatTimer()
                     self.receiveNextMessage(from: connection)
                     
                 case .cancelled, .failed:
@@ -366,7 +455,10 @@ public final class NetworkManager: ObservableObject {
             MacThermalService.shared.broadcastTelemetry()
             
         case "HEARTBEAT_PING":
-            self.send(type: "HEARTBEAT_PONG", payload: ["timestamp": Date().timeIntervalSince1970 * 1000])
+            self.send(type: "HEARTBEAT_PONG", payload: HeartbeatPayload(timestamp: Date().timeIntervalSince1970 * 1000))
+            
+        case "HEARTBEAT_PONG":
+            break
             
         // MARK: - KDE Connect Ported Modules
         case "FIND_MY_MAC_REQUEST":
@@ -484,6 +576,8 @@ public final class NetworkManager: ObservableObject {
         self.connectedDeviceIP = nil
         self.batteryState = nil
         self.mediaState = nil
+        self.heartbeatTimer?.invalidate()
+        self.heartbeatTimer = nil
         
         // Single Active Device Policy: Ensure Popover returns to dashboard where pairing hero is visible
         PopoverStateManager.shared.currentPage = .dashboard
@@ -497,8 +591,8 @@ public final class NetworkManager: ObservableObject {
         // 3. Clear Widget Extension state via App Group
         AetherWidgetDataManager.shared.clear()
         
-        // 4. Post native system alert on Mac if disconnected from phone
-        if showNotification {
+        // 4. Post native system alert on Mac if disconnected from phone (suppressed if Mac is sleeping)
+        if showNotification && !isSystemSleeping {
             NotificationManager.shared.displayNotification(NotificationPayload(
                 id: UUID().uuidString,
                 key: "disconnect_alert",
@@ -513,7 +607,7 @@ public final class NetworkManager: ObservableObject {
                 appIconBase64: nil
             ))
         }
-        print("[NetworkManager] Reset session state complete (Notification: \(showNotification))")
+        print("[NetworkManager] Reset session state complete (Notification: \(showNotification && !isSystemSleeping))")
     }
     
     public func disconnectDevice(forget: Bool = false) {

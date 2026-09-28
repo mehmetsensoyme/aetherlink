@@ -27,6 +27,7 @@ import kotlinx.coroutines.*
 import okhttp3.*
 import org.aetherlink.AetherLinkApplication
 import org.aetherlink.clipboard.ClipboardSyncManager
+import org.aetherlink.discovery.AetherDiscoveryManager
 import org.aetherlink.telecom.AetherInCallService
 import org.aetherlink.ui.MainActivity
 import org.aetherlink.util.DeviceUtils
@@ -91,6 +92,11 @@ class AetherCoreService : Service() {
     private var connectedMacName: String = "MacBook"
     private var isMediaProjectionRunning: Boolean = false
 
+    private var reconnectJob: Job? = null
+    private var reconnectAttempts = 0
+    private var isMacSleeping = false
+    private var userRequestedDisconnect = false
+
     private var thermalListener: Any? = null
     private var lastDispatchedTemp: Double = 0.0
     private var lastDispatchedThermalStatus: String = "NORMAL"
@@ -117,8 +123,19 @@ class AetherCoreService : Service() {
         ClipboardSyncManager.init(this)
         org.aetherlink.bluetooth.BluetoothAudioManager.init(this)
         val prefs = getSharedPreferences("aetherlink_prefs", Context.MODE_PRIVATE)
-        macIpAddress = prefs.getString("last_mac_ip", null) ?: "192.168.1.15"
-        connectToMacWebSocket(macIpAddress)
+        val savedIp = prefs.getString("last_mac_ip", null)
+        if (savedIp.isNullOrBlank() || savedIp == "127.0.0.1") {
+            Log.i(TAG, "No cached Mac IP found on startup. Initiating mDNS & UDP discovery...")
+            AetherDiscoveryManager.startDiscovery(this) { macName, discoveredIp, port ->
+                Log.i(TAG, "Startup discovery resolved '$macName' at $discoveredIp:$port")
+                macIpAddress = discoveredIp
+                connectedMacName = macName
+                connectToMacWebSocket(discoveredIp)
+            }
+        } else {
+            macIpAddress = savedIp
+            connectToMacWebSocket(savedIp)
+        }
         Log.i(TAG, "AetherCoreService started.")
     }
 
@@ -409,6 +426,10 @@ class AetherCoreService : Service() {
     }
 
     fun connectToMacWebSocket(ip: String = macIpAddress) {
+        if (userRequestedDisconnect) {
+            Log.d(TAG, "Not connecting because user manually requested disconnect.")
+            return
+        }
         this.macIpAddress = ip
         if (ip.isNotBlank() && ip != "127.0.0.1") {
             try {
@@ -420,6 +441,9 @@ class AetherCoreService : Service() {
         }
         serviceScope.launch {
             try {
+                try { webSocket?.cancel() } catch (_: Exception) {}
+                webSocket = null
+
                 val request = Request.Builder()
                     .url("ws://$macIpAddress:8443")
                     .build()
@@ -427,6 +451,11 @@ class AetherCoreService : Service() {
                 webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
                     override fun onOpen(webSocket: WebSocket, response: Response) {
                         isConnected = true
+                        reconnectAttempts = 0
+                        isMacSleeping = false
+                        userRequestedDisconnect = false
+                        reconnectJob?.cancel()
+                        AetherDiscoveryManager.stopDiscovery()
                         Log.i(TAG, "Connected to macOS AetherLink listener at $macIpAddress:8443")
 
                         val infoPayload = JsonObject().apply {
@@ -458,11 +487,8 @@ class AetherCoreService : Service() {
                         isConnectedState.value = false
                         macBatteryState.value = null
                         updateForegroundNotification()
-                        Log.w(TAG, "WebSocket closing: $reason. Retrying in 3 seconds...")
-                        serviceScope.launch {
-                            delay(3000)
-                            connectToMacWebSocket(macIpAddress)
-                        }
+                        Log.w(TAG, "WebSocket closing: $reason (code: $code)")
+                        scheduleReconnect("WebSocket closing: $reason")
                     }
 
                     override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -470,32 +496,67 @@ class AetherCoreService : Service() {
                         isConnectedState.value = false
                         macBatteryState.value = null
                         updateForegroundNotification()
-                        Log.w(TAG, "WebSocket closed: $reason. Retrying in 3 seconds...")
-                        serviceScope.launch {
-                            delay(3000)
-                            connectToMacWebSocket(macIpAddress)
-                        }
+                        Log.w(TAG, "WebSocket closed: $reason (code: $code)")
+                        scheduleReconnect("WebSocket closed: $reason")
                     }
 
                     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                        val wasConnected = isConnected
                         isConnected = false
                         isConnectedState.value = false
                         macBatteryState.value = null
                         updateForegroundNotification()
-                        if (wasConnected) {
-                            showDisconnectAlert("Mac bağlantısı kesildi")
-                        }
-                        Log.w(TAG, "WebSocket connection failed: ${t.message}. Retrying in 5 seconds...")
-                        serviceScope.launch {
-                            delay(5000)
-                            connectToMacWebSocket(macIpAddress)
-                        }
+                        Log.w(TAG, "WebSocket connection failed: ${t.message}")
+                        scheduleReconnect("WebSocket failure: ${t.message}")
                     }
                 })
             } catch (e: Exception) {
                 Log.e(TAG, "Error initiating WebSocket: ${e.message}")
+                scheduleReconnect("Exception: ${e.message}")
             }
+        }
+    }
+
+    @Synchronized
+    private fun scheduleReconnect(reason: String) {
+        if (userRequestedDisconnect) {
+            Log.d(TAG, "User requested disconnect; ignoring reconnect schedule.")
+            return
+        }
+        if (isConnected) return
+
+        if (reconnectJob?.isActive == true) {
+            Log.d(TAG, "Reconnect already scheduled, reason: $reason")
+            return
+        }
+
+        reconnectJob = serviceScope.launch {
+            reconnectAttempts++
+
+            // Exponential backoff: 1.5s, 3s, 6s, 12s, max 15s (15s if Mac is in sleep mode)
+            val delayMs = if (isMacSleeping) {
+                15000L
+            } else {
+                minOf(1500L * (1 shl minOf(reconnectAttempts - 1, 3)), 15000L)
+            }
+
+            Log.d(TAG, "Scheduling reconnect #$reconnectAttempts in ${delayMs}ms (Reason: $reason, MacSleeping: $isMacSleeping)")
+            delay(delayMs)
+
+            if (isConnected || userRequestedDisconnect) return@launch
+
+            // If reconnect has failed twice or more, trigger dynamic mDNS + UDP broadcast discovery to locate Mac
+            if (reconnectAttempts >= 2) {
+                Log.i(TAG, "Attempt #$reconnectAttempts: Launching AetherDiscoveryManager...")
+                AetherDiscoveryManager.startDiscovery(this@AetherCoreService) { macName, discoveredIp, port ->
+                    Log.i(TAG, "mDNS/UDP Discovered Mac '$macName' at $discoveredIp:$port")
+                    macIpAddress = discoveredIp
+                    connectedMacName = macName
+                    reconnectAttempts = 0
+                    connectToMacWebSocket(discoveredIp)
+                }
+            }
+
+            connectToMacWebSocket(macIpAddress)
         }
     }
 
@@ -522,6 +583,9 @@ class AetherCoreService : Service() {
     }
 
     fun disconnect(userInitiated: Boolean = true, forget: Boolean = false) {
+        userRequestedDisconnect = userInitiated
+        reconnectJob?.cancel()
+        AetherDiscoveryManager.stopDiscovery()
         if (isConnected) {
             val payload = JsonObject().apply {
                 addProperty("source", "android")
@@ -547,6 +611,9 @@ class AetherCoreService : Service() {
     }
 
     private fun handleRemoteDisconnect(shouldForget: Boolean) {
+        userRequestedDisconnect = true
+        reconnectJob?.cancel()
+        AetherDiscoveryManager.stopDiscovery()
         isConnected = false
         isConnectedState.value = false
         macBatteryState.value = null
@@ -616,12 +683,27 @@ class AetherCoreService : Service() {
                         stopScreenCapture()
                     }
                 }
+                "MAC_SLEEP" -> {
+                    isMacSleeping = true
+                    Log.i(TAG, "Mac notified sleep mode. Standby engaged.")
+                }
+                "MAC_WAKE" -> {
+                    isMacSleeping = false
+                    reconnectAttempts = 0
+                    Log.i(TAG, "Mac notified wake mode. Reconnecting immediately...")
+                    reconnectJob?.cancel()
+                    connectToMacWebSocket(macIpAddress)
+                }
+                "HEARTBEAT_PING" -> {
+                    sendMessage("HEARTBEAT_PONG", JsonObject().apply {
+                        addProperty("timestamp", System.currentTimeMillis())
+                    })
+                }
+                "HEARTBEAT_PONG" -> {
+                    Log.d(TAG, "Heartbeat PONG received from Mac")
+                }
                 "DISCONNECT" -> {
                     val shouldForget = payload.get("shouldForget")?.asBoolean ?: false
-                    val source = payload.get("source")?.asString ?: "macos"
-                    if (source == "macos") {
-                        showDisconnectAlert("Mac bağlantısı kesildi")
-                    }
                     handleRemoteDisconnect(shouldForget)
                 }
                 "DEVICE_BUSY" -> {
@@ -778,6 +860,8 @@ class AetherCoreService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        reconnectJob?.cancel()
+        AetherDiscoveryManager.stopDiscovery()
         unregisterReceiver(batteryReceiver)
         unregisterCallLogObserver()
         unregisterPhoneStateMonitoring()

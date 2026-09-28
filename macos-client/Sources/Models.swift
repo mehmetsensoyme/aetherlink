@@ -60,6 +60,23 @@ public struct MacHelloPayload: Codable, Sendable {
     public let timestamp: Double
 }
 
+public struct MacSleepPayload: Codable, Sendable {
+    public let reason: String
+    public let timestamp: Double
+}
+
+public struct MacWakePayload: Codable, Sendable {
+    public let macName: String
+    public let ip: String
+    public let port: Int
+    public let timestamp: Double
+}
+
+public struct HeartbeatPayload: Codable, Sendable {
+    public let timestamp: Double
+}
+
+
 public struct CallIncomingPayload: Codable, Sendable {
     public let callId: String
     public let appType: CallAppType
