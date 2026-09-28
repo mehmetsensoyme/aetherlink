@@ -122,14 +122,15 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
     
     public func refreshStatus() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let status = settings.authorizationStatus
             Task { @MainActor in
-                self.authorizationStatus = settings.authorizationStatus
-                self.isAuthorized = (settings.authorizationStatus == .authorized)
+                self.authorizationStatus = status
+                self.isAuthorized = (status == .authorized)
             }
         }
     }
     
-    public func requestAuthorization(completion: ((Bool) -> Void)? = nil) {
+    public func requestAuthorization(completion: (@Sendable (Bool) -> Void)? = nil) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             Task { @MainActor in
                 self.isAuthorized = granted

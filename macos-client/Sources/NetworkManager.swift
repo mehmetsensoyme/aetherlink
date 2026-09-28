@@ -69,10 +69,9 @@ public final class NetworkManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self = self else { return }
             print("[NetworkManager] macOS willSleepNotification received.")
-            Task { @MainActor in
-                self.handleSystemWillSleep()
+            Task { @MainActor [weak self] in
+                self?.handleSystemWillSleep()
             }
         }
         
@@ -81,10 +80,9 @@ public final class NetworkManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self = self else { return }
             print("[NetworkManager] macOS didWakeNotification received.")
-            Task { @MainActor in
-                self.handleSystemDidWake()
+            Task { @MainActor [weak self] in
+                self?.handleSystemDidWake()
             }
         }
     }
@@ -125,7 +123,7 @@ public final class NetworkManager: ObservableObject {
     public func startHeartbeatTimer() {
         heartbeatTimer?.invalidate()
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self = self, self.isConnected else { return }
                 self.send(type: "HEARTBEAT_PING", payload: HeartbeatPayload(timestamp: Date().timeIntervalSince1970 * 1000))
             }
@@ -159,9 +157,8 @@ public final class NetworkManager: ObservableObject {
             }
             
             listener?.newConnectionHandler = { [weak self] connection in
-                guard let self else { return }
-                Task { @MainActor in
-                    self.handleNewConnection(connection)
+                Task { @MainActor [weak self] in
+                    self?.handleNewConnection(connection)
                 }
             }
             
@@ -176,8 +173,8 @@ public final class NetworkManager: ObservableObject {
     
     private func handleNewConnection(_ connection: NWConnection) {
         connection.stateUpdateHandler = { [weak self, weak connection] state in
-            guard let self, let connection else { return }
-            Task { @MainActor in
+            Task { @MainActor [weak self, weak connection] in
+                guard let self, let connection else { return }
                 switch state {
                 case .ready:
                     if self.isConnected && self.primaryConnection != nil && self.primaryConnection !== connection {
@@ -232,8 +229,8 @@ public final class NetworkManager: ObservableObject {
     
     private func receiveNextMessage(from connection: NWConnection) {
         connection.receiveMessage { [weak self, weak connection] (data, context, isComplete, error) in
-            guard let self, let connection else { return }
-            Task { @MainActor in
+            Task { @MainActor [weak self, weak connection] in
+                guard let self, let connection else { return }
                 let id = ObjectIdentifier(connection)
                 if let data = data, !data.isEmpty {
                     var current = self.connectionBuffers[id] ?? Data()
@@ -268,7 +265,7 @@ public final class NetworkManager: ObservableObject {
             let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
             let context = NWConnection.ContentContext(identifier: "wsText", metadata: [metadata])
             connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed({ [weak connection] _ in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak connection] in
                     connection?.cancel()
                 }
             }))

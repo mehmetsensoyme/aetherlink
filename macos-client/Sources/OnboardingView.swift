@@ -1,7 +1,7 @@
 import AppKit
 import AVFoundation
 import SwiftUI
-import UserNotifications
+@preconcurrency import UserNotifications
 
 @MainActor
 public final class OnboardingViewModel: ObservableObject {
@@ -14,8 +14,9 @@ public final class OnboardingViewModel: ObservableObject {
     
     public func checkPermissions() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let isAuth = (settings.authorizationStatus == .authorized)
             DispatchQueue.main.async {
-                self.hasNotificationPermission = (settings.authorizationStatus == .authorized)
+                self.hasNotificationPermission = isAuth
             }
         }
         let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)

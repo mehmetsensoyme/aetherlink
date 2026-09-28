@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-@MainActor
 public enum ActiveScreen: String, CaseIterable, Equatable {
     case dashboard
     case pairing
@@ -12,6 +11,7 @@ public enum ActiveScreen: String, CaseIterable, Equatable {
     
     public static let defaultWidth: CGFloat = 365
     
+    @MainActor
     public var preferredHeight: CGFloat {
         switch self {
         case .dashboard:
@@ -25,6 +25,7 @@ public enum ActiveScreen: String, CaseIterable, Equatable {
         }
     }
     
+    @MainActor
     public var preferredSize: NSSize {
         return NSSize(width: Self.defaultWidth, height: preferredHeight)
     }

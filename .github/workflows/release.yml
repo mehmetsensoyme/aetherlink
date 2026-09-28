@@ -65,12 +65,22 @@ jobs:
           cp .build/release/AetherLink AetherLink.app/Contents/MacOS/AetherLink
           cp Info.plist AetherLink.app/Contents/Info.plist
           
+          # Assemble Widget Extension
+          mkdir -p AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/MacOS
+          cp .build/release/AetherLinkWidget AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/MacOS/AetherLinkWidget
+          cp WidgetExtension/Info.plist AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex/Contents/Info.plist
+          
+          mkdir -p AetherLink.app/Contents/Extensions
+          cp -R AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex AetherLink.app/Contents/Extensions/
+          
           if [ -d "Resources" ]; then
             cp -R Resources/* AetherLink.app/Contents/Resources/ 2>/dev/null || true
           fi
           
-          # Ad-hoc sign bundle non-interactively (no keychain prompt)
-          codesign --force --deep -s - AetherLink.app
+          # Ad-hoc sign bundle and extension non-interactively
+          codesign --force --sign - --entitlements WidgetExtension/WidgetExtension.entitlements AetherLink.app/Contents/PlugIns/AetherLinkWidget.appex
+          codesign --force --sign - --entitlements WidgetExtension/WidgetExtension.entitlements AetherLink.app/Contents/Extensions/AetherLinkWidget.appex
+          codesign --force --deep -s - --entitlements AetherLink.entitlements AetherLink.app
           
           # Assemble clean DMG
           mkdir -p dmg_staging

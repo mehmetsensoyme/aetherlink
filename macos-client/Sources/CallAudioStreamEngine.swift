@@ -81,8 +81,8 @@ public final class CallAudioStreamEngine: ObservableObject {
             engine.stop()
         }
         
-        DispatchQueue.main.async {
-            self.isStreaming = false
+        DispatchQueue.main.async { [weak self] in
+            self?.isStreaming = false
         }
         print("[CallAudioStreamEngine] Audio relay stopped cleanly.")
     }
