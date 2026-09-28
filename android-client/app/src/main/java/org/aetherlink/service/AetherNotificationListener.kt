@@ -86,6 +86,12 @@ class AetherNotificationListener : NotificationListenerService() {
             return
         }
 
+        // Check duplicate suppression (e.g. WhatsApp or Telegram is active on Mac)
+        if (org.aetherlink.notifications.AetherNotificationFilter.isSuppressed(pkg)) {
+            Log.d(TAG, "Suppressed forwarding notification from '$pkg' because it is already active on Mac.")
+            return
+        }
+
         val title = extras.getString(Notification.EXTRA_TITLE) ?: return
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
 

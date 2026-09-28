@@ -88,7 +88,9 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         val result = AndroidUpdateChecker.check(context)
         if (result is UpdateCheckResult.Available) {
-            updateInfo = result.info
+            if (!AndroidUpdateChecker.isVersionDismissed(context, result.info.latestVersion)) {
+                updateInfo = result.info
+            }
         }
     }
 
@@ -1226,6 +1228,24 @@ fun MainScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.Medium
                                 )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        try {
+                                            val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.downloadUrl))
+                                            browserIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            context.startActivity(browserIntent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Tarayıcı açılamadı: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Tarayıcıda Doğrudan İndir (.apk)", fontSize = 11.sp)
+                                }
                             }
                         }
                     }
@@ -1267,7 +1287,10 @@ fun MainScreen(
             },
             dismissButton = {
                 if (!isDownloadingApk) {
-                    TextButton(onClick = { updateInfo = null }) {
+                    TextButton(onClick = {
+                        AndroidUpdateChecker.dismissVersion(context, info.latestVersion)
+                        updateInfo = null
+                    }) {
                         Text("Daha Sonra")
                     }
                 }

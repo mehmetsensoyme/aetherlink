@@ -716,6 +716,12 @@ class AetherCoreService : Service() {
                 "CALL_AUDIO_STOP" -> {
                     org.aetherlink.audio.CallAudioRelayManager.stop(this)
                 }
+                "NOTIFICATION_FILTER_SYNC" -> {
+                    val array = payload.getAsJsonArray("suppressedPackages")
+                    val list = mutableListOf<String>()
+                    array?.forEach { list.add(it.asString) }
+                    org.aetherlink.notifications.AetherNotificationFilter.setSuppressedPackages(list)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing incoming Mac payload: ${e.message}")

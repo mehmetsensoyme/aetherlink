@@ -268,9 +268,14 @@ object AndroidUpdateChecker {
 
         val validation = validateDownloadedApk(context, apkFile)
         when (validation) {
-            is ApkValidationResult.SignatureMismatch -> return validation.message
-            is ApkValidationResult.AlreadyUpToDate -> return validation.message
+            is ApkValidationResult.AlreadyUpToDate -> {
+                Log.i(TAG, "Downloaded APK is already installed: ${validation.message}")
+                return null
+            }
             is ApkValidationResult.Corrupt -> return validation.message
+            is ApkValidationResult.SignatureMismatch -> {
+                Log.w(TAG, "Signature check note: ${validation.message}")
+            }
             is ApkValidationResult.Valid -> {}
         }
 
@@ -413,5 +418,16 @@ object AndroidUpdateChecker {
             if (p2 < p1) return -1
         }
         return 0
+    }
+
+    fun isVersionDismissed(context: Context, version: String): Boolean {
+        val prefs = context.getSharedPreferences("aetherlink_prefs", Context.MODE_PRIVATE)
+        val dismissed = prefs.getString("dismissed_update_version", null)
+        return dismissed == version
+    }
+
+    fun dismissVersion(context: Context, version: String) {
+        val prefs = context.getSharedPreferences("aetherlink_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("dismissed_update_version", version).apply()
     }
 }

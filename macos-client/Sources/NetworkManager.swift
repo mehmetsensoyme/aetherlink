@@ -220,6 +220,7 @@ public final class NetworkManager: ObservableObject {
                         temp: battery.temperatureCelsius
                     )
                 }
+                NotificationManager.shared.broadcastSuppressedPackagesToAndroid()
             }
 
         case "PAIRING_REQUEST":
