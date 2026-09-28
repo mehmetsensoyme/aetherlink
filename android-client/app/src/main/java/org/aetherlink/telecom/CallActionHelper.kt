@@ -2,71 +2,132 @@ package org.aetherlink.telecom
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.media.AudioManager
-import android.os.Build
 import android.telecom.TelecomManager
-import android.telephony.TelephonyManager
 import android.util.Log
+import android.view.KeyEvent
+import org.aetherlink.service.AetherNotificationListener
 
 object CallActionHelper {
     private const val TAG = "CallActionHelper"
 
     @SuppressLint("MissingPermission")
     fun answerCall(context: Context) {
+        Log.i(TAG, "Executing multi-tier answerCall strategy...")
+        var answered = false
+
+        // Strategy 1: Dialer Notification PendingIntent (High reliability on Samsung One UI & Android 14/15)
+        val answerIntent = AetherNotificationListener.activeCallAnswerIntent
+        if (answerIntent != null) {
+            try {
+                answerIntent.send()
+                answered = true
+                Log.i(TAG, "Strategy 1: Answered call via dialer notification PendingIntent")
+            } catch (e: Exception) {
+                Log.w(TAG, "Strategy 1 failed: ${e.message}")
+            }
+        }
+
+        // Strategy 2: Media Key Dispatch via AudioManager (Standard Headset Hook / Call Key)
         try {
-            // Method 1: TelecomManager (Android 8+)
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager != null) {
+                val hookDown = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_HEADSETHOOK)
+                val hookUp = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_HEADSETHOOK)
+                audioManager.dispatchMediaKeyEvent(hookDown)
+                audioManager.dispatchMediaKeyEvent(hookUp)
+
+                val callDown = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_CALL)
+                val callUp = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_CALL)
+                audioManager.dispatchMediaKeyEvent(callDown)
+                audioManager.dispatchMediaKeyEvent(callUp)
+
+                Log.i(TAG, "Strategy 2: Dispatched KEYCODE_HEADSETHOOK & KEYCODE_CALL to AudioManager")
+                answered = true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Strategy 2 media key dispatch failed: ${e.message}")
+        }
+
+        // Strategy 3: TelecomManager.acceptRingingCall()
+        try {
             val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
             if (telecom != null) {
                 telecom.acceptRingingCall()
-                Log.i(TAG, "Accepted call using TelecomManager.acceptRingingCall()")
-                routeAudioToBluetooth(context)
-                return
+                Log.i(TAG, "Strategy 3: Accepted call using TelecomManager.acceptRingingCall()")
+                answered = true
             }
         } catch (e: Exception) {
-            Log.w(TAG, "TelecomManager answer failed: ${e.message}")
+            Log.w(TAG, "Strategy 3 TelecomManager answer failed: ${e.message}")
         }
 
-        // Method 2: Media button headset hook emulation fallback
-        try {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            val down = Intent(Intent.ACTION_MEDIA_BUTTON).apply {
-                putExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HEADSETHOOK))
-            }
-            val up = Intent(Intent.ACTION_MEDIA_BUTTON).apply {
-                putExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HEADSETHOOK))
-            }
-            context.sendOrderedBroadcast(down, null)
-            context.sendOrderedBroadcast(up, null)
-            Log.i(TAG, "Answered call using KEYCODE_HEADSETHOOK broadcast")
-            routeAudioToBluetooth(context)
-        } catch (e: Exception) {
-            Log.e(TAG, "Media button hook fallback failed: ${e.message}")
-        }
+        routeAudioToBluetooth(context)
     }
 
     @SuppressLint("MissingPermission")
     fun endCall(context: Context) {
+        Log.i(TAG, "Executing multi-tier endCall/rejectCall strategy...")
+
+        // Strategy 1: Dialer Notification PendingIntent (Direct rejection of ringing call)
+        val rejectIntent = AetherNotificationListener.activeCallRejectIntent
+        if (rejectIntent != null) {
+            try {
+                rejectIntent.send()
+                Log.i(TAG, "Strategy 1: Rejected call via dialer notification PendingIntent")
+                AetherNotificationListener.clearActiveCallIntents()
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "Strategy 1 failed: ${e.message}")
+            }
+        }
+
+        // Strategy 2: Media Key Dispatch via AudioManager (KEYCODE_ENDCALL & KEYCODE_HEADSETHOOK)
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager != null) {
+                val endDown = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENDCALL)
+                val endUp = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENDCALL)
+                audioManager.dispatchMediaKeyEvent(endDown)
+                audioManager.dispatchMediaKeyEvent(endUp)
+
+                val hookDown = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_HEADSETHOOK)
+                val hookUp = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_HEADSETHOOK)
+                audioManager.dispatchMediaKeyEvent(hookDown)
+                audioManager.dispatchMediaKeyEvent(hookUp)
+
+                Log.i(TAG, "Strategy 2: Dispatched KEYCODE_ENDCALL & KEYCODE_HEADSETHOOK to AudioManager")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Strategy 2 media key dispatch failed: ${e.message}")
+        }
+
+        // Strategy 3: TelecomManager.endCall()
         try {
             val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
             if (telecom != null) {
                 val ended = telecom.endCall()
-                Log.i(TAG, "Ended call using TelecomManager: $ended")
-                return
+                Log.i(TAG, "Strategy 3: Ended call using TelecomManager: $ended")
             }
         } catch (e: Exception) {
-            Log.w(TAG, "TelecomManager endCall failed: ${e.message}")
+            Log.w(TAG, "Strategy 3 TelecomManager endCall failed: ${e.message}")
         }
+
+        AetherNotificationListener.clearActiveCallIntents()
     }
 
     fun routeAudioToBluetooth(context: Context) {
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-            audioManager.isBluetoothScoOn = true
-            audioManager.startBluetoothSco()
-            audioManager.isSpeakerphoneOn = false
-            Log.i(TAG, "Audio routed to Bluetooth SCO for Mac voice continuity")
+            // Only route SCO if Bluetooth is bonded with Mac
+            if (org.aetherlink.bluetooth.BluetoothAudioManager.isPairedWithMac.value) {
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                audioManager.isBluetoothScoOn = true
+                audioManager.startBluetoothSco()
+                audioManager.isSpeakerphoneOn = false
+                Log.i(TAG, "Audio routed to Bluetooth SCO for Mac voice continuity")
+            } else {
+                Log.d(TAG, "Mac not bonded via Bluetooth, skipping SCO routing")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed routing audio to Bluetooth SCO: ${e.message}")
         }

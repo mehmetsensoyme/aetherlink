@@ -14,19 +14,19 @@ class AetherInCallService : InCallService() {
         private val activeCalls = ConcurrentHashMap<String, Call>()
 
         fun handleRemoteAction(callId: String, action: String) {
-            val call = activeCalls[callId] ?: run {
-                Log.w(TAG, "No active call found with id: $callId")
+            val call = activeCalls[callId] ?: activeCalls.values.firstOrNull() ?: run {
+                Log.w(TAG, "No active call found with id: $callId (active count: ${activeCalls.size})")
                 return
             }
 
             when (action) {
-                "answer" -> {
+                "answer", "ACCEPT_CALL", "accept" -> {
                     call.answer(0)
-                    Log.i(TAG, "Answered call via remote Mac command: $callId")
+                    Log.i(TAG, "Answered call via InCallService: $callId")
                 }
-                "decline", "hangup" -> {
+                "decline", "hangup", "REJECT_CALL", "reject" -> {
                     call.disconnect()
-                    Log.i(TAG, "Disconnected call via remote Mac command: $callId")
+                    Log.i(TAG, "Disconnected call via InCallService: $callId")
                 }
             }
         }

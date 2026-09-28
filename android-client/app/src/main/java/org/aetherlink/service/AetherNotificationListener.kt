@@ -1,8 +1,10 @@
 package org.aetherlink.service
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.RemoteInput
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -18,6 +20,24 @@ class AetherNotificationListener : NotificationListenerService() {
         var instance: AetherNotificationListener? = null
             private set
 
+        @Volatile
+        var activeCallAnswerIntent: PendingIntent? = null
+            private set
+
+        @Volatile
+        var activeCallRejectIntent: PendingIntent? = null
+            private set
+
+        @Volatile
+        var activeCallKey: String? = null
+            private set
+
+        fun clearActiveCallIntents() {
+            activeCallAnswerIntent = null
+            activeCallRejectIntent = null
+            activeCallKey = null
+        }
+
         // Whitelisted messaging apps for high-priority mirroring
         private val MESSAGING_PACKAGES = setOf(
             "com.whatsapp",
@@ -28,6 +48,15 @@ class AetherNotificationListener : NotificationListenerService() {
             "com.instagram.android",
             "com.discord",
             "com.Slack"
+        )
+
+        private val CALL_PACKAGES = setOf(
+            "com.samsung.android.incallui",
+            "com.samsung.android.dialer",
+            "com.google.android.dialer",
+            "com.android.server.telecom",
+            "com.android.dialer",
+            "com.android.phone"
         )
     }
 
@@ -46,6 +75,16 @@ class AetherNotificationListener : NotificationListenerService() {
         val pkg = sbn.packageName
         val notification = sbn.notification ?: return
         val extras = notification.extras ?: return
+
+        // Intercept Phone Call Notifications (Samsung One UI, Pixel, Telecom)
+        val isCallNotification = notification.category == Notification.CATEGORY_CALL ||
+            pkg in CALL_PACKAGES ||
+            extras.getString(Notification.EXTRA_TEMPLATE) == "android.app.Notification\$CallStyle"
+
+        if (isCallNotification) {
+            handleCallNotification(sbn, notification, extras)
+            return
+        }
 
         val title = extras.getString(Notification.EXTRA_TITLE) ?: return
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
@@ -134,6 +173,104 @@ class AetherNotificationListener : NotificationListenerService() {
         Log.d(TAG, "Mirrored notification from $appName ($title): canReply=$canReply")
     }
 
+    private fun handleCallNotification(
+        sbn: StatusBarNotification,
+        notification: Notification,
+        extras: Bundle
+    ) {
+        val title = extras.getString(Notification.EXTRA_TITLE)
+            ?: extras.getCharSequence(Notification.EXTRA_TITLE_BIG)?.toString()
+            ?: extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
+            ?: ""
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+
+        Log.i(TAG, "Detected Call Notification from ${sbn.packageName}: title='$title', text='$text'")
+
+        // 1. Extract Call Action PendingIntents (Answer & Reject/Decline)
+        var foundAnswer: PendingIntent? = null
+        var foundReject: PendingIntent? = null
+
+        // Android 12+ (API 31+) CallStyle extras
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val answerPi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    extras.getParcelable("android.answerIntent", PendingIntent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    extras.getParcelable("android.answerIntent") as? PendingIntent
+                }
+                if (answerPi != null) foundAnswer = answerPi
+
+                val declinePi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    extras.getParcelable("android.declineIntent", PendingIntent::class.java)
+                        ?: extras.getParcelable("android.hangUpIntent", PendingIntent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    (extras.get("android.declineIntent") ?: extras.get("android.hangUpIntent")) as? PendingIntent
+                }
+                if (declinePi != null) foundReject = declinePi
+            } catch (e: Exception) {
+                Log.w(TAG, "Error reading CallStyle intent extras: ${e.message}")
+            }
+        }
+
+        // Notification.actions array
+        notification.actions?.forEach { act ->
+            val actTitle = act.title?.toString()?.lowercase() ?: ""
+            val isAnswer = actTitle.contains("yanıt") || actTitle.contains("cevap") ||
+                    actTitle.contains("answer") || actTitle.contains("accept") ||
+                    actTitle == "aç" || actTitle == "katıl"
+
+            val isReject = actTitle.contains("red") || actTitle.contains("decline") ||
+                    actTitle.contains("reject") || actTitle.contains("kapat") ||
+                    actTitle.contains("sonlandır") || actTitle.contains("meşgul") ||
+                    actTitle.contains("yoksay") || actTitle.contains("dismiss")
+
+            if (isAnswer && foundAnswer == null) {
+                foundAnswer = act.actionIntent
+                Log.i(TAG, "Found call answer action: ${act.title}")
+            }
+            if (isReject && foundReject == null) {
+                foundReject = act.actionIntent
+                Log.i(TAG, "Found call reject action: ${act.title}")
+            }
+        }
+
+        // NotificationCompat actions fallback
+        val actionCount = NotificationCompat.getActionCount(notification)
+        for (i in 0 until actionCount) {
+            val act = NotificationCompat.getAction(notification, i) ?: continue
+            val actTitle = act.title?.toString()?.lowercase() ?: ""
+            val isAnswer = actTitle.contains("yanıt") || actTitle.contains("cevap") ||
+                    actTitle.contains("answer") || actTitle.contains("accept") || actTitle == "aç"
+            val isReject = actTitle.contains("red") || actTitle.contains("decline") ||
+                    actTitle.contains("reject") || actTitle.contains("kapat") ||
+                    actTitle.contains("sonlandır") || actTitle.contains("meşgul")
+
+            if (isAnswer && foundAnswer == null) {
+                foundAnswer = act.actionIntent
+            }
+            if (isReject && foundReject == null) {
+                foundReject = act.actionIntent
+            }
+        }
+
+        if (foundAnswer != null) activeCallAnswerIntent = foundAnswer
+        if (foundReject != null) activeCallRejectIntent = foundReject
+        activeCallKey = sbn.key
+
+        // 2. Resolve Caller Name & Number and update Mac immediately
+        if (title.isNotBlank()) {
+            val resolved = org.aetherlink.telecom.ContactResolver.resolveFromNotification(this, title, text)
+            Log.i(TAG, "Call notification resolved: name='${resolved.contactName}', number='${resolved.phoneNumber}'")
+            org.aetherlink.receiver.CallStateReceiver.updateCallInfoFromNotification(
+                this,
+                resolved.contactName,
+                resolved.phoneNumber
+            )
+        }
+    }
+
     fun sendReply(key: String, replyText: String) {
         val action = cachedActions[key] ?: run {
             Log.w(TAG, "No cached reply action found for notification key: $key")
@@ -157,7 +294,17 @@ class AetherNotificationListener : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         super.onNotificationRemoved(sbn)
         val pkg = sbn?.packageName ?: return
-        sbn.key?.let { cachedActions.remove(it) }
+        val key = sbn.key
+        if (key != null) {
+            cachedActions.remove(key)
+            if (key == activeCallKey) {
+                clearActiveCallIntents()
+                Log.i(TAG, "Active call notification removed ($key), cleared action intents")
+            }
+        }
+        if (pkg in CALL_PACKAGES) {
+            clearActiveCallIntents()
+        }
         if (pkg == "com.spotify.music" || pkg == "com.spotify.lite" || pkg == "com.apple.android.music") {
             val mediaPayload = JsonObject().apply {
                 addProperty("packageName", pkg)
@@ -175,6 +322,7 @@ class AetherNotificationListener : NotificationListenerService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        clearActiveCallIntents()
         instance = null
     }
 }

@@ -17,6 +17,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.gson.Gson
@@ -110,10 +112,53 @@ class AetherCoreService : Service() {
         registerBatteryMonitoring()
         registerThermalStatusMonitoring()
         registerCallLogObserver()
+        registerPhoneStateMonitoring()
         ClipboardSyncManager.init(this)
         org.aetherlink.bluetooth.BluetoothAudioManager.init(this)
         connectToMacWebSocket()
         Log.i(TAG, "AetherCoreService started.")
+    }
+
+    private var phoneStateListener: PhoneStateListener? = null
+
+    @Suppress("DEPRECATION")
+    private fun registerPhoneStateMonitoring() {
+        try {
+            val tm = getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return
+            phoneStateListener = object : PhoneStateListener() {
+                @Deprecated("Deprecated in Java")
+                override fun onCallStateChanged(state: Int, incomingNumber: String?) {
+                    super.onCallStateChanged(state, incomingNumber)
+                    val stateStr = when (state) {
+                        TelephonyManager.CALL_STATE_RINGING -> TelephonyManager.EXTRA_STATE_RINGING
+                        TelephonyManager.CALL_STATE_OFFHOOK -> TelephonyManager.EXTRA_STATE_OFFHOOK
+                        TelephonyManager.CALL_STATE_IDLE -> TelephonyManager.EXTRA_STATE_IDLE
+                        else -> return
+                    }
+                    Log.i(TAG, "Dynamic PhoneStateListener onCallStateChanged: state=$stateStr, number=$incomingNumber")
+                    org.aetherlink.receiver.CallStateReceiver.handleStateChange(
+                        this@AetherCoreService,
+                        stateStr,
+                        incomingNumber
+                    )
+                }
+            }
+            tm.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
+            Log.i(TAG, "Dynamic PhoneStateListener registered successfully")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to register dynamic PhoneStateListener: ${e.message}")
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun unregisterPhoneStateMonitoring() {
+        phoneStateListener?.let {
+            try {
+                val tm = getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+                tm?.listen(it, PhoneStateListener.LISTEN_NONE)
+            } catch (_: Exception) {}
+            phoneStateListener = null
+        }
     }
 
     private fun registerThermalStatusMonitoring() {
@@ -558,20 +603,23 @@ class AetherCoreService : Service() {
                 "CALL_ACTION" -> {
                     val callId = payload.get("callId")?.asString ?: ""
                     val action = payload.get("action")?.asString ?: ""
-                    if (action == "answer" || action == "ACCEPT_CALL") {
+                    Log.i(TAG, "Executing CALL_ACTION from Mac: action=$action, callId=$callId")
+                    if (action == "answer" || action == "ACCEPT_CALL" || action == "accept") {
                         org.aetherlink.telecom.CallActionHelper.answerCall(this)
-                    } else if (action == "decline" || action == "hangup" || action == "REJECT_CALL") {
+                    } else if (action == "decline" || action == "hangup" || action == "REJECT_CALL" || action == "reject") {
                         org.aetherlink.telecom.CallActionHelper.endCall(this)
                     }
                     AetherInCallService.handleRemoteAction(callId, action)
                 }
                 "ACCEPT_CALL" -> {
                     val callId = payload.get("callId")?.asString ?: ""
+                    Log.i(TAG, "Executing ACCEPT_CALL from Mac: callId=$callId")
                     org.aetherlink.telecom.CallActionHelper.answerCall(this)
                     AetherInCallService.handleRemoteAction(callId, "answer")
                 }
                 "REJECT_CALL" -> {
                     val callId = payload.get("callId")?.asString ?: ""
+                    Log.i(TAG, "Executing REJECT_CALL from Mac: callId=$callId")
                     org.aetherlink.telecom.CallActionHelper.endCall(this)
                     AetherInCallService.handleRemoteAction(callId, "decline")
                 }
@@ -646,6 +694,7 @@ class AetherCoreService : Service() {
         super.onDestroy()
         unregisterReceiver(batteryReceiver)
         unregisterCallLogObserver()
+        unregisterPhoneStateMonitoring()
         webSocket?.close(1000, "Service stopping")
         serviceScope.cancel()
         instance = null

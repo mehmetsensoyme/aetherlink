@@ -58,9 +58,9 @@ object AndroidUpdateChecker {
     fun getAppVersion(context: Context): String {
         return try {
             val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            pInfo.versionName ?: "1.3.6"
+            pInfo.versionName ?: "1.3.7"
         } catch (e: Exception) {
-            "1.3.6"
+            "1.3.7"
         }
     }
 

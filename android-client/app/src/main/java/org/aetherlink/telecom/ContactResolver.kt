@@ -141,6 +141,61 @@ object ContactResolver {
         return null
     }
 
+    /**
+     * Resolves contact name and phone number from dialer notification title and text.
+     * Accurately extracts contact name when One UI / Pixel notification displays caller name in title.
+     */
+    fun resolveFromNotification(context: Context, title: String, text: String): ResolvedContact {
+        val trimmedTitle = title.trim()
+        val trimmedText = text.trim()
+
+        val isGenericTitle = trimmedTitle.equals("Gelen Arama", ignoreCase = true) ||
+                trimmedTitle.equals("Giden Arama", ignoreCase = true) ||
+                trimmedTitle.equals("Bilinmeyen Numara", ignoreCase = true) ||
+                trimmedTitle.equals("Unknown Caller", ignoreCase = true) ||
+                trimmedTitle.equals("Incoming Call", ignoreCase = true) ||
+                trimmedTitle.equals("Outgoing Call", ignoreCase = true)
+
+        val hasLettersInTitle = trimmedTitle.any { it.isLetter() }
+
+        // If title contains letters and is not a generic placeholder, it's the contact's name!
+        if (hasLettersInTitle && !isGenericTitle) {
+            val phoneCandidate = cleanNumber(trimmedText)
+            val formattedPhone = if (!phoneCandidate.isNullOrBlank()) formatNumber(phoneCandidate) else trimmedText
+            return ResolvedContact(
+                contactName = trimmedTitle,
+                phoneNumber = if (formattedPhone.isNotBlank()) formattedPhone else UNKNOWN_NUMBER,
+                isKnown = true
+            )
+        }
+
+        // If title is a phone number, resolve it via contacts provider
+        val cleanedTitle = cleanNumber(trimmedTitle)
+        if (!cleanedTitle.isNullOrBlank()) {
+            val resolved = resolve(context, cleanedTitle)
+            if (resolved.isKnown) {
+                return resolved
+            }
+            return ResolvedContact(
+                contactName = formatNumber(cleanedTitle),
+                phoneNumber = formatNumber(cleanedTitle),
+                isKnown = false
+            )
+        }
+
+        // Otherwise check text
+        val cleanedText = cleanNumber(trimmedText)
+        if (!cleanedText.isNullOrBlank()) {
+            return resolve(context, cleanedText)
+        }
+
+        return ResolvedContact(
+            contactName = if (!isGenericTitle && trimmedTitle.isNotBlank()) trimmedTitle else UNKNOWN_NUMBER,
+            phoneNumber = UNKNOWN_NUMBER,
+            isKnown = false
+        )
+    }
+
     private fun cleanNumber(raw: String?): String? {
         if (raw == null) return null
         val trimmed = raw.trim()

@@ -25,6 +25,14 @@ public final class CallManager: ObservableObject {
     }
     
     public func handleIncomingCall(_ payload: CallIncomingPayload) {
+        if self.activeCall?.callId == payload.callId && self.isCallActive {
+            self.activeCall = payload
+            if bannerPosition == .notch || bannerPosition == .floating {
+                NotchCallManager.shared.updateCallInfo(caller: payload.displayName, number: payload.phoneNumber ?? "")
+            }
+            return
+        }
+
         self.activeCall = payload
         self.isCallActive = false
         
@@ -50,6 +58,7 @@ public final class CallManager: ObservableObject {
             timestamp: Date().timeIntervalSince1970 * 1000
         )
         NetworkManager.shared.send(type: "CALL_ACTION", payload: action)
+        NetworkManager.shared.send(type: "ACCEPT_CALL", payload: ["callId": call.callId])
         print("[CallManager] Answered call: \(call.callId)")
     }
     
@@ -63,6 +72,7 @@ public final class CallManager: ObservableObject {
             timestamp: Date().timeIntervalSince1970 * 1000
         )
         NetworkManager.shared.send(type: "CALL_ACTION", payload: action)
+        NetworkManager.shared.send(type: "REJECT_CALL", payload: ["callId": call.callId])
         
         dismissCallBanner()
         print("[CallManager] Declined call: \(call.callId)")
@@ -76,6 +86,7 @@ public final class CallManager: ObservableObject {
             timestamp: Date().timeIntervalSince1970 * 1000
         )
         NetworkManager.shared.send(type: "CALL_ACTION", payload: action)
+        NetworkManager.shared.send(type: "REJECT_CALL", payload: ["callId": call.callId])
         dismissCallBanner()
     }
     

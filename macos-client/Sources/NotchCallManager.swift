@@ -41,6 +41,24 @@ public final class NotchCallManager: ObservableObject {
         appType: CallAppType = .cellular,
         avatarBase64: String? = nil
     ) {
+        // If already presenting this call, seamlessly update caller name/number without resetting ringtone
+        if isPresented && (self.callId == callId || self.callId.isEmpty) {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                if !caller.isEmpty && caller != "Bilinmeyen Numara" {
+                    self.callerName = caller
+                } else if self.callerName.isEmpty || self.callerName == "Bilinmeyen Numara" {
+                    self.callerName = caller
+                }
+                if !number.isEmpty {
+                    self.phoneNumber = number
+                }
+                if let avatar = avatarBase64 {
+                    self.avatarBase64 = avatar
+                }
+            }
+            return
+        }
+
         self.callerName = caller.isEmpty ? "Bilinmeyen Numara" : caller
         self.phoneNumber = number
         self.callId = callId
@@ -68,6 +86,17 @@ public final class NotchCallManager: ObservableObject {
         ringtoneSound?.play()
         
         setupAndDisplayPanel()
+    }
+
+    public func updateCallInfo(caller: String, number: String) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            if !caller.isEmpty && caller != "Bilinmeyen Numara" {
+                self.callerName = caller
+            }
+            if !number.isEmpty {
+                self.phoneNumber = number
+            }
+        }
     }
     
     public func show(payload: CallIncomingPayload) {
