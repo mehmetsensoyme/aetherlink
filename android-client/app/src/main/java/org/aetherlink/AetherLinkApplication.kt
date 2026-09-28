@@ -11,6 +11,7 @@ class AetherLinkApplication : Application() {
         const val CHANNEL_CORE_SERVICE = "aetherlink_core_channel"
         const val CHANNEL_CALL_RELAY = "aetherlink_call_channel"
         const val CHANNEL_ALERTS = "aetherlink_alerts_channel"
+        const val CHANNEL_FIND_MY_PHONE = "aetherlink_find_my_phone_channel"
     }
 
     override fun onCreate() {
@@ -50,9 +51,21 @@ class AetherLinkApplication : Application() {
                 description = "Bağlantı kopması ve durum bildirimleri."
             }
 
+            // Find my phone high-priority channel (bypasses DND)
+            val findMyPhoneChannel = NotificationChannel(
+                CHANNEL_FIND_MY_PHONE,
+                "AetherLink Cihazımı Bul",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Mac'inizden cihazınızı çaldırma uyarıları."
+                enableVibration(true)
+                setBypassDnd(true)
+            }
+
             notificationManager.createNotificationChannel(coreChannel)
             notificationManager.createNotificationChannel(callChannel)
             notificationManager.createNotificationChannel(alertChannel)
+            notificationManager.createNotificationChannel(findMyPhoneChannel)
         }
     }
 }

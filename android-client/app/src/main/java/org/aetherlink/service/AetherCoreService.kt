@@ -64,6 +64,7 @@ class AetherCoreService : Service() {
 
         var instance: AetherCoreService? = null
             private set
+        val currentInstance: AetherCoreService? get() = instance
 
         val macBatteryState = kotlinx.coroutines.flow.MutableStateFlow<MacBatteryData?>(null)
         val macTelemetryState = kotlinx.coroutines.flow.MutableStateFlow<MacTelemetryData?>(null)
@@ -429,6 +430,9 @@ class AetherCoreService : Service() {
                         sendMessage("DEVICE_INFO", infoPayload)
 
                         org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
+                        org.aetherlink.connectivity.ConnectivityReportManager.dispatchConnectivityReport(this@AetherCoreService)
+                        val curVol = org.aetherlink.volume.RemoteVolumeManager.getPhoneVolumePercent(this@AetherCoreService)
+                        org.aetherlink.volume.RemoteVolumeManager.sendPhoneVolumeUpdate(curVol)
                         requestMacBattery()
                         startPeriodicTelemetry()
                         isConnectedState.value = true
@@ -484,6 +488,9 @@ class AetherCoreService : Service() {
                     dispatchBatteryUpdate(sticky)
                 }
                 org.aetherlink.telemetry.DeviceTelemetryManager.dispatchTelemetry(this@AetherCoreService)
+                if (counter % 3 == 0) {
+                    org.aetherlink.connectivity.ConnectivityReportManager.dispatchConnectivityReport(this@AetherCoreService)
+                }
             }
         }
     }
@@ -635,6 +642,38 @@ class AetherCoreService : Service() {
                     if (source == "macos") {
                         ClipboardSyncManager.writeToClipboard(text, hash)
                     }
+                }
+                "FIND_MY_PHONE_REQUEST" -> {
+                    val action = payload.get("action")?.asString ?: "ring"
+                    if (action == "ring") {
+                        org.aetherlink.findmyphone.FindMyPhoneManager.startRinging(this)
+                    } else {
+                        org.aetherlink.findmyphone.FindMyPhoneManager.stopRinging(this, notifyMac = false)
+                    }
+                }
+                "FIND_MY_MAC_RESPONSE" -> {
+                    val action = payload.get("action")?.asString ?: "stop"
+                    org.aetherlink.findmyphone.FindMyPhoneManager.handleMacResponse(action)
+                }
+                "SET_PHONE_VOLUME" -> {
+                    val volume = payload.get("volume")?.asInt ?: 50
+                    org.aetherlink.volume.RemoteVolumeManager.setPhoneVolumeFromMac(this, volume)
+                }
+                "MAC_VOLUME_UPDATE" -> {
+                    val volume = payload.get("volume")?.asInt ?: 50
+                    org.aetherlink.volume.RemoteVolumeManager.handleMacVolumeUpdate(volume)
+                }
+                "LOCK_PHONE" -> {
+                    org.aetherlink.lock.RemoteLockManager.handleIncomingLockPhone(this)
+                }
+                "LOCK_MAC_RESULT" -> {
+                    org.aetherlink.lock.RemoteLockManager.handleLockMacResult(payload)
+                }
+                "PING" -> {
+                    org.aetherlink.ping.PingManager.handleIncomingPing(payload)
+                }
+                "PONG" -> {
+                    org.aetherlink.ping.PingManager.handlePong(payload)
                 }
             }
         } catch (e: Exception) {

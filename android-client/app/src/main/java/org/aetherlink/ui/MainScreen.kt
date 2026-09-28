@@ -38,6 +38,10 @@ import org.aetherlink.telemetry.DeviceTelemetryManager
 import org.aetherlink.updater.AndroidUpdateChecker
 import org.aetherlink.updater.UpdateCheckResult
 import org.aetherlink.updater.UpdateInfo
+import org.aetherlink.findmyphone.FindMyPhoneManager
+import org.aetherlink.volume.RemoteVolumeManager
+import org.aetherlink.lock.RemoteLockManager
+import org.aetherlink.ping.PingManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +67,15 @@ fun MainScreen(
     val macBattery by AetherCoreService.macBatteryState.collectAsState()
     val macTelemetry by AetherCoreService.macTelemetryState.collectAsState()
     val phoneBattery by AetherCoreService.phoneBatteryState.collectAsState()
+
+    // KDE Connect Ported Feature States
+    val isPhoneRinging by FindMyPhoneManager.isPhoneRinging.collectAsState()
+    val isMacRinging by FindMyPhoneManager.isMacRinging.collectAsState()
+    val pingLatency by PingManager.pingLatencyMs.collectAsState()
+    val isPinging by PingManager.isPinging.collectAsState()
+    val macVolume by RemoteVolumeManager.macVolume.collectAsState()
+    var showTrackpadSheet by remember { mutableStateOf(false) }
+    var showVolumeDialog by remember { mutableStateOf(false) }
 
     // Automatic update check on app launch (silent background check)
     LaunchedEffect(Unit) {
@@ -198,6 +211,35 @@ fun MainScreen(
                 status = permissionStatus,
                 onClick = { showPermissionDialog = true }
             )
+
+            // Find My Phone Active Ringing Alert Banner
+            if (isPhoneRinging) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEB3B)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(14.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color.Black)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Mac Telefonunuzu Çaldırıyor!", fontWeight = FontWeight.Bold, color = Color.Black, fontSize = 14.sp)
+                        }
+                        Button(
+                            onClick = { FindMyPhoneManager.stopRinging(context, notifyMac = true) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                        ) {
+                            Text("Sustur", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
 
             // Discovered Mac Banner (mDNS Bonjour)
             if (discoveredMacName != null && discoveredMacIp != null) {
@@ -588,6 +630,122 @@ fun MainScreen(
                                 modifier = Modifier.size(22.dp)
                             )
                         }
+                    }
+                }
+            }
+
+            // KDE Connect Ported Quick Synergy Tools Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Devices,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("KDE Connect Süreklilik Araçları", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        if (pingLatency != null) {
+                            Badge(containerColor = Color(0xFF00BCD4)) {
+                                Text("${pingLatency?.toInt()} ms", color = Color.White, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                            }
+                        }
+                    }
+
+                    Text(
+                        "Mac'inizi uzaktan yönetin, sesini kontrol edin veya sanal touchpad olarak kullanın.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+
+                    // 2x2 Grid of Actions
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Tile 1: Mac'i Çaldır / Sustur
+                        OutlinedButton(
+                            onClick = { FindMyPhoneManager.toggleRingMac() },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isMacRinging) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                if (isMacRinging) Icons.Default.NotificationsOff else Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isMacRinging) "Mac'i Sustur" else "Mac'i Çaldır", fontSize = 12.sp, maxLines = 1)
+                        }
+
+                        // Tile 2: Sanal Touchpad
+                        Button(
+                            onClick = { showTrackpadSheet = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.TouchApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Touchpad", fontSize = 12.sp, maxLines = 1)
+                        }
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Tile 3: Mac'i Kilitle
+                        OutlinedButton(
+                            onClick = {
+                                RemoteLockManager.lockMac()
+                                Toast.makeText(context, "Mac ekranı kilitlendi", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF44336))
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Mac'i Kilitle", fontSize = 12.sp, maxLines = 1)
+                        }
+
+                        // Tile 4: Uzaktan Ses Denetimi
+                        OutlinedButton(
+                            onClick = { showVolumeDialog = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Ses Denetimi", fontSize = 12.sp, maxLines = 1)
+                        }
+                    }
+
+                    // Tile 5: Ping Testi Bar
+                    OutlinedButton(
+                        onClick = { PingManager.sendPing() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val pingText = if (isPinging) {
+                            "Ağ Gecikmesi Ölçülüyor..."
+                        } else if (pingLatency != null) {
+                            String.format(java.util.Locale.US, "Anlık Wi-Fi Gecikmesi: %.1f ms (Testi Yenile)", pingLatency)
+                        } else {
+                            "Ping & Ağ Gecikme Testi Yap"
+                        }
+                        Text(pingText, fontSize = 12.sp)
                     }
                 }
             }
@@ -1168,6 +1326,68 @@ fun MainScreen(
             dismissButton = {
                 TextButton(onClick = { showTelemetryDialog = false }) {
                     Text("Kapat")
+                }
+            }
+        )
+    }
+
+    // Virtual Trackpad Bottom Sheet
+    if (showTrackpadSheet) {
+        RemoteTrackpadSheet(
+            onDismiss = { showTrackpadSheet = false }
+        )
+    }
+
+    // Remote Volume Dialog
+    if (showVolumeDialog) {
+        var localMacVol by remember { mutableStateOf(macVolume.toFloat()) }
+        var localPhoneVol by remember { mutableStateOf(RemoteVolumeManager.getPhoneVolumePercent(context).toFloat()) }
+
+        AlertDialog(
+            onDismissRequest = { showVolumeDialog = false },
+            title = { Text("Uzaktan Ses Denetimi", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("MacBook Ses Düzeyi", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("%${localMacVol.toInt()}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        Slider(
+                            value = localMacVol,
+                            onValueChange = {
+                                localMacVol = it
+                                RemoteVolumeManager.setMacVolume(it.toInt())
+                            },
+                            valueRange = 0f..100f
+                        )
+                    }
+
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Telefon Medya Düzeyi", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("%${localPhoneVol.toInt()}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        Slider(
+                            value = localPhoneVol,
+                            onValueChange = {
+                                localPhoneVol = it
+                                RemoteVolumeManager.setPhoneVolumeFromMac(context, it.toInt())
+                            },
+                            valueRange = 0f..100f
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showVolumeDialog = false }) {
+                    Text("Tamam")
                 }
             }
         )

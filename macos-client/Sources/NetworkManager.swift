@@ -365,6 +365,65 @@ public final class NetworkManager: ObservableObject {
         case "HEARTBEAT_PING":
             self.send(type: "HEARTBEAT_PONG", payload: ["timestamp": Date().timeIntervalSince1970 * 1000])
             
+        // MARK: - KDE Connect Ported Modules
+        case "FIND_MY_MAC_REQUEST":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let payload = try? JSONDecoder().decode(FindMyDevicePayload.self, from: payloadData) {
+                FindMyDeviceManager.shared.handleIncomingRingMacRequest(payload)
+            } else {
+                FindMyDeviceManager.shared.handleIncomingRingMacRequest(FindMyDevicePayload(action: "ring"))
+            }
+            
+        case "FIND_MY_PHONE_STATUS":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let payload = try? JSONDecoder().decode(FindMyDevicePayload.self, from: payloadData) {
+                FindMyDeviceManager.shared.handlePhoneStatusUpdate(payload)
+            }
+            
+        case "SET_MAC_VOLUME":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let payload = try? JSONDecoder().decode(SystemVolumePayload.self, from: payloadData) {
+                RemoteVolumeManager.shared.handleRemoteSetMacVolume(payload)
+            }
+            
+        case "PHONE_VOLUME_UPDATE":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let payload = try? JSONDecoder().decode(SystemVolumePayload.self, from: payloadData) {
+                RemoteVolumeManager.shared.handleIncomingPhoneVolumeUpdate(payload)
+            }
+            
+        case "LOCK_MAC":
+            RemoteLockManager.shared.handleIncomingLockMacRequest()
+            
+        case "LOCK_PHONE_RESULT":
+            if let payloadDict = json["payload"] as? [String: Any] {
+                RemoteLockManager.shared.handleIncomingLockPhoneResult(payloadDict)
+            }
+            
+        case "CONNECTIVITY_REPORT":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let payload = try? JSONDecoder().decode(ConnectivityReportPayload.self, from: payloadData) {
+                DeviceTelemetryManager.shared.handleConnectivityReport(payload)
+            }
+            
+        case "PING":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let payload = try? JSONDecoder().decode(PingPayload.self, from: payloadData) {
+                DeviceTelemetryManager.shared.handleIncomingPing(payload)
+            }
+            
+        case "PONG":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let payload = try? JSONDecoder().decode(PingPayload.self, from: payloadData) {
+                DeviceTelemetryManager.shared.handlePong(payload)
+            }
+            
+        case "REMOTE_INPUT":
+            if let payloadData = try? JSONSerialization.data(withJSONObject: json["payload"] ?? [:]),
+               let payload = try? JSONDecoder().decode(RemoteInputPayload.self, from: payloadData) {
+                RemoteInputManager.shared.handleRemoteInput(payload)
+            }
+            
         default:
             print("[NetworkManager] Unhandled message type: \(type)")
         }

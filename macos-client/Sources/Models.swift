@@ -222,3 +222,79 @@ public struct GenericEnvelope: Codable, Sendable {
     public let type: String
 }
 
+// MARK: - KDE Connect Feature Extension Models
+
+public struct FindMyDevicePayload: Codable, Sendable {
+    public let action: String // "ring" or "stop"
+    public let sourceDevice: String?
+    public let isRinging: Bool?
+    public let timestamp: Double
+    
+    public init(action: String, sourceDevice: String? = "macos", isRinging: Bool? = nil, timestamp: Double = Date().timeIntervalSince1970 * 1000) {
+        self.action = action
+        self.sourceDevice = sourceDevice
+        self.isRinging = isRinging
+        self.timestamp = timestamp
+    }
+}
+
+public struct SystemVolumePayload: Codable, Sendable {
+    public let volume: Int // 0 to 100 percentage
+    public let isMuted: Bool?
+    public let stream: String?
+    public let timestamp: Double
+    
+    public init(volume: Int, isMuted: Bool? = false, stream: String? = "media", timestamp: Double = Date().timeIntervalSince1970 * 1000) {
+        self.volume = volume
+        self.isMuted = isMuted
+        self.stream = stream
+        self.timestamp = timestamp
+    }
+}
+
+public struct ConnectivityReportPayload: Codable, Sendable {
+    public let operatorName: String
+    public let networkType: String // "5G", "LTE", "Wi-Fi"
+    public let signalStrength: Int // 0 to 4 bars
+    public let isRoaming: Bool
+    public let timestamp: Double
+    
+    public var signalBarsText: String {
+        return "\(signalStrength)/4 Diş"
+    }
+    
+    public var formattedSummary: String {
+        return "\(operatorName) • \(networkType) (\(signalBarsText))"
+    }
+}
+
+public struct PingPayload: Codable, Sendable {
+    public let message: String?
+    public let clientTimestamp: Double
+    public let serverTimestamp: Double?
+    public let rttMs: Double?
+    
+    public init(message: String? = "Ping", clientTimestamp: Double = Date().timeIntervalSince1970 * 1000, serverTimestamp: Double? = nil, rttMs: Double? = nil) {
+        self.message = message
+        self.clientTimestamp = clientTimestamp
+        self.serverTimestamp = serverTimestamp
+        self.rttMs = rttMs
+    }
+}
+
+public struct RemoteInputPayload: Codable, Sendable {
+    public let action: String // "move", "click", "rightClick", "doubleClick", "scroll", "key"
+    public let dx: Float?
+    public let dy: Float?
+    public let key: String?
+    public let timestamp: Double
+    
+    public init(action: String, dx: Float? = nil, dy: Float? = nil, key: String? = nil, timestamp: Double = Date().timeIntervalSince1970 * 1000) {
+        self.action = action
+        self.dx = dx
+        self.dy = dy
+        self.key = key
+        self.timestamp = timestamp
+    }
+}
+

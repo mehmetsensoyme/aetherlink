@@ -264,12 +264,30 @@ public struct DeviceTelemetryDetailView: View {
                         accentColor: .blue
                     )
                     
-                    TelemetrySpecRow(
-                        icon: "antenna.radiowaves.left.and.right",
-                        label: "Hücresel Ağ",
-                        value: (telemetry?.cellularOperator?.isEmpty == false) ? telemetry!.cellularOperator! : "Mobil Veri",
-                        accentColor: .indigo
-                    )
+                    if let conn = telemetryMgr.connectivity {
+                        TelemetrySpecRow(
+                            icon: "antenna.radiowaves.left.and.right",
+                            label: "Hücresel & Operatör",
+                            value: conn.formattedSummary,
+                            accentColor: .indigo
+                        )
+                    } else {
+                        TelemetrySpecRow(
+                            icon: "antenna.radiowaves.left.and.right",
+                            label: "Hücresel Ağ",
+                            value: (telemetry?.cellularOperator?.isEmpty == false) ? telemetry!.cellularOperator! : "Mobil Veri",
+                            accentColor: .indigo
+                        )
+                    }
+                    
+                    if let ping = telemetryMgr.lastPingMs {
+                        TelemetrySpecRow(
+                            icon: "bolt.horizontal.circle",
+                            label: "Ağ Gecikmesi (RTT)",
+                            value: String(format: "%.1f ms (Anlık Wi-Fi)", ping),
+                            accentColor: .cyan
+                        )
+                    }
                     
                     TelemetrySpecRow(
                         icon: "heart.text.square.fill",
@@ -1135,6 +1153,9 @@ public struct MenuBarContentView: View {
     @ObservedObject var clipboard = ClipboardManager.shared
     @ObservedObject var router = PopoverRouter.shared
     @ObservedObject var state = PopoverStateManager.shared
+    @ObservedObject var findMy = FindMyDeviceManager.shared
+    @ObservedObject var remoteLock = RemoteLockManager.shared
+    @ObservedObject var remoteVol = RemoteVolumeManager.shared
     
     public init() {}
     
@@ -1190,6 +1211,29 @@ public struct MenuBarContentView: View {
     // MARK: - Dashboard Content
     private var dashboardView: some View {
         VStack(spacing: 8) {
+            // Find My Mac Active Alert Banner
+            if findMy.isMacRinging {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.badge.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.yellow)
+                    Text("Telefonunuz Mac'inizi Çaldırıyor!")
+                        .font(.system(size: 12, weight: .semibold))
+                    Spacer()
+                    Button("Sustur") {
+                        findMy.silenceMac()
+                    }
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.yellow))
+                    .buttonStyle(.plain)
+                }
+                .padding(9)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.18)))
+            }
+            
             // 1. Unified Top Header Glass Card
             if network.isConnected {
                 // Connected State: Device market name, AES-256 status, real battery indicator, and red disconnect button
@@ -1440,6 +1484,77 @@ public struct MenuBarContentView: View {
                 }
                 .opacity(network.isConnected ? 1.0 : 0.45)
                 .disabled(!network.isConnected)
+                
+                // 2.5 KDE Connect Quick Tools Row (Find My Phone, Remote Lock, Ping RTT)
+                if network.isConnected {
+                    HStack(spacing: 6) {
+                        // Find My Phone
+                        Button(action: {
+                            findMy.toggleRingPhone()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: findMy.isPhoneRinging ? "bell.and.waveform.fill" : "bell.fill")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(findMy.isPhoneRinging ? .yellow : .primary)
+                                Text(findMy.isPhoneRinging ? "Sustur" : "Çaldır")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(
+                            id: "find_my_phone_tile",
+                            isActive: findMy.isPhoneRinging,
+                            activeTint: .yellow
+                        )
+                        .help("Telefonu en yüksek sesle çaldır (Sessiz modda dahi)")
+                        
+                        // Remote Lock Phone
+                        Button(action: {
+                            remoteLock.lockPhone()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.red)
+                                Text("Kilitle")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(
+                            id: "remote_lock_phone_tile",
+                            isActive: false,
+                            activeTint: .red
+                        )
+                        .help("Telefon ekranını uzaktan kilitle")
+                        
+                        // Ping RTT Test
+                        Button(action: {
+                            telemetryMgr.sendPing()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "bolt.horizontal.fill")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(telemetryMgr.isPinging ? .orange : .cyan)
+                                Text(telemetryMgr.isPinging ? "..." : (telemetryMgr.lastPingMs != nil ? "\(Int(telemetryMgr.lastPingMs!))ms" : "Ping"))
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(
+                            id: "ping_rtt_tile",
+                            isActive: telemetryMgr.isPinging,
+                            activeTint: .cyan
+                        )
+                        .help("Telefon ile Mac arasındaki anlık ağ gecikmesini (ping) ölç")
+                    }
+                }
                 
                 // 3. Dynamic Media Player Card (If Media is Playing)
                 if let media = network.mediaState, media.isPlaying && !media.trackTitle.isEmpty {

@@ -6,6 +6,9 @@ public final class DeviceTelemetryManager: ObservableObject {
     public static let shared = DeviceTelemetryManager()
     
     @Published public var telemetry: DeviceTelemetryPayload? = nil
+    @Published public var connectivity: ConnectivityReportPayload? = nil
+    @Published public var lastPingMs: Double? = nil
+    @Published public var isPinging: Bool = false
     @Published public var isShowingDetailSheet: Bool = false
     
     public init() {}
@@ -13,6 +16,37 @@ public final class DeviceTelemetryManager: ObservableObject {
     public func handleIncomingTelemetry(_ payload: DeviceTelemetryPayload) {
         self.telemetry = payload
         print("[DeviceTelemetryManager] Received device specs: \(payload.manufacturer) \(payload.model), RAM: \(payload.ramUsedMB)/\(payload.ramTotalMB)MB, Battery: \(payload.batteryLevel)%, Temp: \(payload.effectiveTemp)°C")
+    }
+    
+    public func handleConnectivityReport(_ payload: ConnectivityReportPayload) {
+        self.connectivity = payload
+        print("[DeviceTelemetryManager] Connectivity Report: \(payload.formattedSummary)")
+    }
+    
+    public func sendPing() {
+        guard !isPinging else { return }
+        self.isPinging = true
+        let ping = PingPayload(message: "Ping from Mac", clientTimestamp: Date().timeIntervalSince1970 * 1000)
+        NetworkManager.shared.send(type: "PING", payload: ping)
+        print("[DeviceTelemetryManager] Sent PING to Android")
+    }
+    
+    public func handlePong(_ payload: PingPayload) {
+        self.isPinging = false
+        let now = Date().timeIntervalSince1970 * 1000
+        let rtt = max(1.0, now - payload.clientTimestamp)
+        self.lastPingMs = rtt
+        print("[DeviceTelemetryManager] Received PONG! Round-trip latency: \(String(format: "%.1f", rtt)) ms")
+    }
+    
+    public func handleIncomingPing(_ payload: PingPayload) {
+        let pong = PingPayload(
+            message: "PONG from Mac",
+            clientTimestamp: payload.clientTimestamp,
+            serverTimestamp: Date().timeIntervalSince1970 * 1000,
+            rttMs: nil
+        )
+        NetworkManager.shared.send(type: "PONG", payload: pong)
     }
     
     public func requestTelemetryRefresh() {

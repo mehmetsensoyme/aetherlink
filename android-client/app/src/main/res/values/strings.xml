@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">AetherLink</string>
+    <string name="accessibility_service_description">Mac üzerinden gelen komutla telefon ekranını kilitlemeyi ve uzaktan sistem eylemlerini sağlar.</string>
 </resources>
