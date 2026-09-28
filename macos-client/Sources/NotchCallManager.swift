@@ -17,6 +17,8 @@ public final class NotchCallManager: ObservableObject {
     @Published public var appType: CallAppType = .cellular
     @Published public var avatarBase64: String? = nil
     @Published public var hasNotch: Bool = false
+    @Published public var isAttachedToNotch: Bool = true
+    @Published public var notchClearance: CGFloat = 34
     @Published public var waveAnimation: Bool = false
     
     private var window: NSPanel?
@@ -160,8 +162,13 @@ public final class NotchCallManager: ObservableObject {
         let hasNotch = (screen.safeAreaInsets.top > 0)
         self.hasNotch = hasNotch
         
-        let panelWidth: CGFloat = 380
-        let panelHeight: CGFloat = 84
+        let position = CallManager.shared.bannerPosition
+        let isAttached = (position == .notch && hasNotch)
+        self.isAttachedToNotch = isAttached
+        
+        let panelWidth: CGFloat = 430
+        let panelHeight: CGFloat = isAttached ? 104 : 74
+        self.notchClearance = isAttached ? max(screen.safeAreaInsets.top, 34) : 0
         
         if window == nil {
             let panel = NSPanel(
@@ -186,11 +193,14 @@ public final class NotchCallManager: ObservableObject {
         guard let panel = window else { return }
         
         let originX = screen.frame.midX - (panelWidth / 2)
-        // If device has a notch, align top directly with physical screen top (screen.frame.maxY)
-        // If standard screen without notch, align just below the menu bar with an 8pt gap
-        let originY = hasNotch
-            ? (screen.frame.maxY - panelHeight)
-            : (screen.visibleFrame.maxY - panelHeight - 8)
+        let originY: CGFloat
+        if isAttached {
+            // Attached to notch: Flush with physical top edge of screen
+            originY = screen.frame.maxY - panelHeight
+        } else {
+            // Floating pill: Positioned comfortably below menu bar / notch with an 8pt gap
+            originY = screen.visibleFrame.maxY - panelHeight - 8
+        }
         
         panel.setFrame(NSRect(x: originX, y: originY, width: panelWidth, height: panelHeight), display: true)
         

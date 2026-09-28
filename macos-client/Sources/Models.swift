@@ -11,27 +11,31 @@ public enum CallAppType: String, Codable, Sendable {
 
 public enum CallBannerPosition: String, CaseIterable, Identifiable, Codable, Sendable {
     case notch = "notch"
+    case floating = "floating"
     case topRight = "topRight"
     
     public var id: String { rawValue }
     
     public var title: String {
         switch self {
-        case .notch: return "Çentik Altı (Orta)"
-        case .topRight: return "Bildirim Köşesi (Sağ Üst)"
+        case .notch: return "Dinamik Çentik"
+        case .floating: return "Çentik Altı Yüzen"
+        case .topRight: return "Bildirim Köşesi"
         }
     }
     
     public var icon: String {
         switch self {
         case .notch: return "macbook"
+        case .floating: return "capsule"
         case .topRight: return "bell.badge"
         }
     }
     
     public var description: String {
         switch self {
-        case .notch: return "Ekran çentiğinin hemen altından açılır"
+        case .notch: return "Çentikten aşağıya doğru açılır, içeriği çentiğin altında gösterir"
+        case .floating: return "Çentiğin altında bağımsız yüzen sıvı cam ada"
         case .topRight: return "macOS bildirim alanından (sağ üst) açılır"
         }
     }

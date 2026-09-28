@@ -48,47 +48,57 @@ public struct NotchCallView: View {
             ZStack {
                 // Background Liquid Glass Capsule
                 let shape = NotchCapsuleShape(
-                    hasNotch: manager.hasNotch,
-                    bottomRadius: 18,
-                    topRadius: manager.hasNotch ? 0 : 18
+                    hasNotch: manager.isAttachedToNotch,
+                    bottomRadius: 20,
+                    topRadius: manager.isAttachedToNotch ? 0 : 20
                 )
                 
                 ZStack {
                     Rectangle().fill(.ultraThinMaterial)
-                    Color.black.opacity(0.88)
+                    Color.black.opacity(0.92)
                 }
                 .clipShape(shape)
                 .overlay(
                     shape.stroke(Color.white.opacity(0.14), lineWidth: 0.75)
                 )
-                .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 5)
+                .shadow(color: Color.black.opacity(0.45), radius: 12, x: 0, y: 6)
                 
-                // Content Layer
-                HStack(spacing: 12) {
-                    // Left Side: Avatar / Pulsing Wave
-                    leftAvatarSection
+                // Content Layer with Notch Clearance
+                VStack(spacing: 0) {
+                    if manager.isAttachedToNotch {
+                        Spacer()
+                            .frame(height: manager.notchClearance)
+                    }
                     
-                    // Center: Caller Info
-                    centerInfoSection
-                    
-                    Spacer(minLength: 4)
-                    
-                    // Right Side: Interactive Buttons
-                    rightActionSection
+                    HStack(spacing: 12) {
+                        // Left Side: Avatar / Pulsing Wave
+                        leftAvatarSection
+                        
+                        // Center: Caller Info
+                        centerInfoSection
+                        
+                        Spacer(minLength: 6)
+                        
+                        // Right Side: Interactive Buttons
+                        rightActionSection
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, manager.isAttachedToNotch ? 8 : 0)
+                    .frame(maxHeight: .infinity)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
                 .opacity(manager.isExpanded ? 1.0 : 0.0)
             }
             .frame(
-                width: manager.isExpanded ? 350 : 180,
-                height: manager.isExpanded ? 64 : 32
+                width: manager.isExpanded ? 420 : (manager.isAttachedToNotch ? 200 : 160),
+                height: manager.isExpanded
+                    ? (manager.isAttachedToNotch ? (manager.notchClearance + 58) : 64)
+                    : (manager.isAttachedToNotch ? manager.notchClearance : 28)
             )
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: manager.isExpanded)
             
             Spacer(minLength: 0)
         }
-        .frame(width: 380, height: 84, alignment: .top)
+        .frame(width: 440, height: 104, alignment: .top)
     }
     
     // MARK: - Left Section (Wave / Avatar)

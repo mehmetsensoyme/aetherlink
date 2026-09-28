@@ -29,7 +29,7 @@ public final class CallManager: ObservableObject {
         self.isCallActive = false
         
         let isOutgoing = (payload.direction == "outgoing")
-        if !isOutgoing && bannerPosition != .notch {
+        if !isOutgoing && bannerPosition != .notch && bannerPosition != .floating {
             // Play system ringtone for incoming calls only
             ringtoneSound = NSSound(named: "Glass")
             ringtoneSound?.loops = true
@@ -103,8 +103,8 @@ public final class CallManager: ObservableObject {
             callWindow?.contentView = NSHostingView(rootView: CallBannerView())
         }
         
-        // If user chose Notch position, present via modern Dynamic Notch manager
-        if bannerPosition == .notch {
+        // If user chose Notch or Floating Island position, present via modern Dynamic Notch manager
+        if bannerPosition == .notch || bannerPosition == .floating {
             NotchCallManager.shared.show(payload: payload)
             postCallNotification(payload)
             return
