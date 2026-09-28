@@ -61,7 +61,7 @@ object CallActionHelper {
             Log.w(TAG, "Strategy 3 TelecomManager answer failed: ${e.message}")
         }
 
-        routeAudioToBluetooth(context)
+        routeAudioForRemoteAnswer(context)
         org.aetherlink.audio.CallAudioRelayManager.start(context)
     }
 
@@ -96,6 +96,8 @@ object CallActionHelper {
                 audioManager.dispatchMediaKeyEvent(hookDown)
                 audioManager.dispatchMediaKeyEvent(hookUp)
 
+                audioManager.mode = AudioManager.MODE_NORMAL
+                audioManager.isSpeakerphoneOn = false
                 Log.i(TAG, "Strategy 2: Dispatched KEYCODE_ENDCALL & KEYCODE_HEADSETHOOK to AudioManager")
             }
         } catch (e: Exception) {
@@ -113,25 +115,29 @@ object CallActionHelper {
             Log.w(TAG, "Strategy 3 TelecomManager endCall failed: ${e.message}")
         }
 
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.mode = AudioManager.MODE_NORMAL
+            audioManager?.isSpeakerphoneOn = false
+        } catch (_: Exception) {}
+
         AetherNotificationListener.clearActiveCallIntents()
         org.aetherlink.audio.CallAudioRelayManager.stop(context)
     }
 
-    fun routeAudioToBluetooth(context: Context) {
+    fun routeAudioForRemoteAnswer(context: Context) {
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-            // Only route SCO if Bluetooth is bonded with Mac
-            if (org.aetherlink.bluetooth.BluetoothAudioManager.isPairedWithMac.value) {
+            val hasBtHeadset = audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn
+            if (!hasBtHeadset) {
                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                audioManager.isBluetoothScoOn = true
-                audioManager.startBluetoothSco()
-                audioManager.isSpeakerphoneOn = false
-                Log.i(TAG, "Audio routed to Bluetooth SCO for Mac voice continuity")
+                audioManager.isSpeakerphoneOn = true
+                Log.i(TAG, "Answered from Mac: speakerphone enabled for hands-free desk conversation.")
             } else {
-                Log.d(TAG, "Mac not bonded via Bluetooth, skipping SCO routing")
+                Log.i(TAG, "Answered from Mac: active Bluetooth headset detected, preserving headset audio route.")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed routing audio to Bluetooth SCO: ${e.message}")
+            Log.e(TAG, "Failed configuring hands-free audio route: ${e.message}")
         }
     }
 }
