@@ -261,7 +261,12 @@ class AetherCoreService : Service() {
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setAutoCancel(false)
             .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setLocalOnly(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
 
         if (isConnected) {
             val disconnectIntent = Intent(this, AetherDisconnectReceiver::class.java).apply {
@@ -280,7 +285,9 @@ class AetherCoreService : Service() {
             )
         }
 
-        return builder.build()
+        val notification = builder.build()
+        notification.flags = notification.flags or Notification.FLAG_ONGOING_EVENT or Notification.FLAG_NO_CLEAR or Notification.FLAG_FOREGROUND_SERVICE
+        return notification
     }
 
     fun startForegroundWithType(includeMediaProjection: Boolean = false) {

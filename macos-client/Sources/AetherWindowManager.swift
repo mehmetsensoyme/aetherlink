@@ -193,6 +193,47 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         PairingManager.shared.pendingPairingRequest = nil
     }
     
+    // MARK: - Onboarding & Permissions Window ("Karşılama ve İzinler")
+    private var onboardingWindow: NSWindow?
+    
+    public func showOnboardingWindow() {
+        if let win = onboardingWindow {
+            win.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: 480),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        win.title = "AetherLink • Karşılama ve İzinler"
+        win.titleVisibility = .hidden
+        win.titlebarAppearsTransparent = true
+        win.isMovableByWindowBackground = true
+        win.isReleasedWhenClosed = false
+        win.isOpaque = false
+        win.backgroundColor = .clear
+        win.delegate = self
+        win.center()
+        
+        let hostingView = NSHostingView(
+            rootView: OnboardingView(onComplete: { [weak self] in
+                self?.closeOnboardingWindow()
+            })
+        )
+        win.contentView = hostingView
+        self.onboardingWindow = win
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    public func closeOnboardingWindow() {
+        onboardingWindow?.orderOut(nil)
+    }
+    
     // MARK: - NSWindowDelegate Safe Isolation
     // When the user clicks the standard Mac close button (traffic light),
     // we orderOut the window rather than deallocating or letting it terminate the application.

@@ -57,6 +57,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await UpdateChecker.shared.checkForUpdates(manual: false)
         }
         
+        // Show Onboarding & Permissions window if first launch
+        if !UserDefaults.standard.bool(forKey: "aetherlink_has_completed_onboarding") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                AetherWindowManager.shared.showOnboardingWindow()
+            }
+        }
+        
         // Register exit and signal cleanup handlers for scrcpy process lifecycle
         atexit {
             ScreenMirrorManager.shared.terminateScrcpySync()

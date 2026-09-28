@@ -88,6 +88,28 @@ public struct CallIncomingPayload: Codable, Sendable {
     public let hasVideo: Bool
     public let direction: String? // "incoming" or "outgoing"
 
+    public init(
+        callId: String,
+        appType: CallAppType = .cellular,
+        callerName: String,
+        contact_name: String? = nil,
+        phoneNumber: String? = nil,
+        avatarBase64: String? = nil,
+        timestamp: Double = Date().timeIntervalSince1970 * 1000,
+        hasVideo: Bool = false,
+        direction: String? = "incoming"
+    ) {
+        self.callId = callId
+        self.appType = appType
+        self.callerName = callerName
+        self.contact_name = contact_name
+        self.phoneNumber = phoneNumber
+        self.avatarBase64 = avatarBase64
+        self.timestamp = timestamp
+        self.hasVideo = hasVideo
+        self.direction = direction
+    }
+
     public var displayName: String {
         if let contact = contact_name, !contact.isEmpty, contact != "Bilinmeyen Numara", contact != "Numara Çevriliyor" {
             return contact
@@ -100,6 +122,20 @@ public struct CallIncomingPayload: Codable, Sendable {
         }
         return (direction == "outgoing") ? "Giden Arama" : "Bilinmeyen Numara"
     }
+}
+
+public struct CallStatusPayload: Codable, Sendable {
+    public let callId: String
+    public let state: String // "RINGING_INCOMING", "DIALING_OUTGOING", "ACTIVE_TALKING", "TERMINATED"
+    public let direction: String? // "incoming" or "outgoing"
+    public let callerName: String?
+    public let contact_name: String?
+    public let phoneNumber: String?
+    public let appType: String?
+    public let timestamp: Double?
+    public let answeredTime: Double?
+    public let hasVideo: Bool?
+    public let avatarBase64: String?
 }
 
 public struct CallActionPayload: Codable, Sendable {

@@ -936,6 +936,38 @@ public struct SettingsView: View {
             }
             .glassCard(cornerRadius: 12, padding: 10)
             
+            // Onboarding & Permissions Entry Card
+            Button(action: {
+                AetherWindowManager.shared.showOnboardingWindow()
+            }) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(nsColor: .controlAccentColor).opacity(0.15))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "sparkles")
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Karşılama Ekranı & İzinler")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.primary)
+                        Text("Sistem izinlerini kontrol edin ve kurulum rehberini açın")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(10)
+            }
+            .buttonStyle(.plain)
+            .glassCard(cornerRadius: 12, padding: 0)
+            
             // Call Banner HUD Position Card
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -1647,6 +1679,23 @@ public struct MenuBarContentView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Uygulama Ayarları")
+                    
+                    // "Rehber & İzinler" Button
+                    Button(action: {
+                        AetherWindowManager.shared.showOnboardingWindow()
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "sparkles")
+                            Text("Rehber")
+                        }
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(Color(nsColor: .controlAccentColor))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlAccentColor).opacity(colorScheme == .dark ? 0.15 : 0.08)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Karşılama Ekranı ve İzin Yönetimi")
                     
                     Spacer()
                     

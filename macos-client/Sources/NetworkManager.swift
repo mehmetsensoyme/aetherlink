@@ -362,6 +362,68 @@ public final class NetworkManager: ObservableObject {
                 NotificationManager.shared.removeNotification(key: key, id: notifId)
             }
             
+        case "CALL_STATUS":
+            let payloadDict = json["payload"] as? [String: Any] ?? [:]
+            let state = (payloadDict["state"] as? String) ?? "IDLE"
+            let callId = (payloadDict["callId"] as? String) ?? UUID().uuidString
+            let callerName = (payloadDict["contact_name"] as? String)
+                ?? (payloadDict["callerName"] as? String)
+                ?? "Bilinmeyen Numara"
+            let phoneNumber = (payloadDict["phoneNumber"] as? String) ?? ""
+            let direction = (payloadDict["direction"] as? String) ?? "incoming"
+            let appTypeStr = (payloadDict["appType"] as? String) ?? "cellular"
+            let appType = CallAppType(rawValue: appTypeStr) ?? .cellular
+            let avatar = payloadDict["avatarBase64"] as? String
+            
+            print("[NetworkManager] Received CALL_STATUS: state=\(state), caller=\(callerName) (\(phoneNumber)), direction=\(direction)")
+            
+            DispatchQueue.main.async {
+                switch state {
+                case "RINGING_INCOMING":
+                    let payload = CallIncomingPayload(
+                        callId: callId,
+                        appType: appType,
+                        callerName: callerName,
+                        contact_name: callerName,
+                        phoneNumber: phoneNumber,
+                        avatarBase64: avatar,
+                        timestamp: (payloadDict["timestamp"] as? Double) ?? (Date().timeIntervalSince1970 * 1000),
+                        hasVideo: false,
+                        direction: "incoming"
+                    )
+                    CallManager.shared.handleIncomingCall(payload)
+                    
+                case "DIALING_OUTGOING":
+                    let payload = CallIncomingPayload(
+                        callId: callId,
+                        appType: appType,
+                        callerName: callerName,
+                        contact_name: callerName,
+                        phoneNumber: phoneNumber,
+                        avatarBase64: avatar,
+                        timestamp: (payloadDict["timestamp"] as? Double) ?? (Date().timeIntervalSince1970 * 1000),
+                        hasVideo: false,
+                        direction: "outgoing"
+                    )
+                    CallManager.shared.handleIncomingCall(payload)
+                    
+                case "ACTIVE_TALKING":
+                    CallManager.shared.handleCallAnswered()
+                    NotchCallManager.shared.handleCallAnswered()
+                    if !callerName.isEmpty && callerName != "Bilinmeyen Numara" {
+                        NotchCallManager.shared.updateCallInfo(caller: callerName, number: phoneNumber)
+                    }
+                    
+                case "TERMINATED", "IDLE":
+                    CallManager.shared.dismissCallBanner()
+                    NotchCallManager.shared.dismiss()
+                    CallAudioStreamEngine.shared.stop()
+                    
+                default:
+                    break
+                }
+            }
+            
         case "CALL_INCOMING", "INCOMING_CALL":
             let payloadDict = json["payload"] as? [String: Any] ?? [:]
             let callerName = (payloadDict["contact_name"] as? String)

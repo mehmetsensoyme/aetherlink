@@ -1,6 +1,6 @@
+import Foundation
 import WidgetKit
 import SwiftUI
-import AppKit
 import AetherShared
 
 struct BatteryEntry: TimelineEntry {
@@ -293,18 +293,12 @@ struct AetherLinkBatteryWidgetEntryView: View {
             }
         }
         .containerBackground(for: .widget) {
-            Color(NSColor.windowBackgroundColor)
+            Color.clear
         }
     }
 }
 
 @main
-struct AetherLinkWidgetBundle: WidgetBundle {
-    var body: some Widget {
-        AetherLinkBatteryWidget()
-    }
-}
-
 struct AetherLinkBatteryWidget: Widget {
     let kind: String = "org.aetherlink.mac.batteryWidget"
 

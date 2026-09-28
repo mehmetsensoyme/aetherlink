@@ -290,11 +290,11 @@ class AetherNotificationListener : NotificationListenerService() {
             if (title.isNotBlank()) {
                 val resolved = org.aetherlink.telecom.ContactResolver.resolveFromNotification(this, title, text)
                 Log.i(TAG, "Call notification resolved: name='${resolved.contactName}', number='${resolved.phoneNumber}'")
-                org.aetherlink.receiver.CallStateReceiver.updateCallInfoFromNotification(
-                    this,
-                    resolved.contactName,
-                    resolved.phoneNumber
-                )
+                if (org.aetherlink.telecom.CallStateMachine.getState() == org.aetherlink.telecom.CallStateMachine.State.IDLE) {
+                    val appType = if (pkg == "com.samsung.android.incallui" || pkg == "com.google.android.dialer") "cellular" else pkg
+                    org.aetherlink.telecom.CallStateMachine.onIncomingRinging(this, resolved.phoneNumber, appType = appType)
+                }
+                org.aetherlink.telecom.CallStateMachine.updateContactInfo(resolved.contactName, resolved.phoneNumber)
             }
         } else if (isOutgoingDialing && !hasChronometer && !hasDurationText) {
             // Outgoing call is still dialing / ringing remote party. DO NOT trigger answered yet!
@@ -302,11 +302,11 @@ class AetherNotificationListener : NotificationListenerService() {
             if (title.isNotBlank()) {
                 val resolved = org.aetherlink.telecom.ContactResolver.resolveFromNotification(this, title, text)
                 Log.i(TAG, "Call notification resolved outgoing: name='${resolved.contactName}', number='${resolved.phoneNumber}'")
-                org.aetherlink.receiver.CallStateReceiver.updateCallInfoFromNotification(
-                    this,
-                    resolved.contactName,
-                    resolved.phoneNumber
-                )
+                if (org.aetherlink.telecom.CallStateMachine.getState() == org.aetherlink.telecom.CallStateMachine.State.IDLE) {
+                    val appType = if (pkg == "com.samsung.android.incallui" || pkg == "com.google.android.dialer") "cellular" else pkg
+                    org.aetherlink.telecom.CallStateMachine.onOutgoingDialing(this, resolved.phoneNumber, appType = appType)
+                }
+                org.aetherlink.telecom.CallStateMachine.updateContactInfo(resolved.contactName, resolved.phoneNumber)
             }
         } else {
             // Active / answered call:
@@ -317,7 +317,7 @@ class AetherNotificationListener : NotificationListenerService() {
 
             if (hasChronometer || hasDurationText || isVoipOngoing) {
                 Log.i(TAG, "Call notification indicates ACTIVE/ANSWERED call (pkg=$pkg, chronometer=$hasChronometer, text='$text')")
-                org.aetherlink.receiver.CallStateReceiver.notifyCallAnswered(this)
+                org.aetherlink.telecom.CallStateMachine.onCallAnswered(this)
             }
         }
     }
@@ -351,6 +351,9 @@ class AetherNotificationListener : NotificationListenerService() {
             if (key == activeCallKey) {
                 clearActiveCallIntents()
                 Log.i(TAG, "Active call notification removed ($key), cleared action intents")
+                if (pkg != "com.samsung.android.incallui" && pkg != "com.google.android.dialer") {
+                    org.aetherlink.telecom.CallStateMachine.onCallTerminated(this)
+                }
             }
             // Send NOTIFICATION_REMOVED to Mac so macOS automatically dismisses it
             val payload = JsonObject().apply {

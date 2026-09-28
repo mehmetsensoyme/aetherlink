@@ -26,7 +26,10 @@ let package = Package(
             name: "AetherLinkWidget",
             dependencies: ["AetherShared"],
             path: "WidgetExtension",
-            exclude: ["Info.plist", "WidgetExtension.entitlements"]
+            exclude: ["Info.plist", "WidgetExtension.entitlements"],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain"])
+            ]
         )
     ]
 )

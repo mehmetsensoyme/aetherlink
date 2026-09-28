@@ -5,16 +5,13 @@ import android.content.Context
 import android.content.Intent
 import android.telephony.TelephonyManager
 import android.util.Log
-import com.google.gson.JsonObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.aetherlink.service.AetherCoreService
-import org.aetherlink.service.AetherNotificationListener
 import org.aetherlink.telecom.CallActionHelper
+import org.aetherlink.telecom.CallStateMachine
 import org.aetherlink.telecom.ContactResolver
-import org.aetherlink.telecom.ResolvedContact
 
 class CallStateReceiver : BroadcastReceiver() {
 
@@ -22,111 +19,30 @@ class CallStateReceiver : BroadcastReceiver() {
         private const val TAG = "CallStateReceiver"
         private var lastState = TelephonyManager.EXTRA_STATE_IDLE
         private var lastOutgoingNumber: String? = null
-        private var activeCallId: String? = null
-        private var isCurrentCallOutgoing = false
-        private var isCallAnswered = false
-        private var resolvedContactName: String? = null
-        private var currentPhoneNumber: String? = null
-
         private var wasAnsweredFromMac = false
 
         fun markAnsweredFromMac() {
             wasAnsweredFromMac = true
         }
 
-        fun isRinging(): Boolean = (lastState == TelephonyManager.EXTRA_STATE_RINGING)
-        fun isOutgoing(): Boolean = isCurrentCallOutgoing
-        fun isCallActive(): Boolean = isCallAnswered
+        fun isRinging(): Boolean = CallStateMachine.isRinging()
+        fun isOutgoing(): Boolean = CallStateMachine.isDialing()
+        fun isCallActive(): Boolean = CallStateMachine.isActive()
 
         fun notifyCallAnswered(context: Context) {
-            if (isCallAnswered) return
-            isCallAnswered = true
-            val callId = activeCallId ?: System.currentTimeMillis().toString()
-            activeCallId = callId
-
-            val answeredPayload = JsonObject().apply {
-                addProperty("callId", callId)
-                addProperty("action", "answered")
-                addProperty("timestamp", System.currentTimeMillis().toDouble())
-            }
-            AetherCoreService.instance?.sendMessage("CALL_ACTION", answeredPayload)
-            Log.i(TAG, "Notified Mac that call is ANSWERED: $callId")
+            CallStateMachine.onCallAnswered(context, wasAnsweredFromMac)
         }
 
-        /**
-         * Called when AetherNotificationListener intercepts a dialer notification (e.g. from Samsung One UI).
-         * Supplies the true contact name and clean phone number directly from the native Phone app.
-         */
         fun updateCallInfoFromNotification(context: Context, contactName: String, phoneNumber: String) {
-            if (isCallAnswered) {
-                // If call is already answered, do not re-send CALL_INCOMING because that triggers ringtone!
-                if (!contactName.isBlank() && contactName != ContactResolver.UNKNOWN_NUMBER) {
-                    resolvedContactName = contactName
-                }
-                if (!phoneNumber.isBlank() && phoneNumber != ContactResolver.UNKNOWN_NUMBER) {
-                    currentPhoneNumber = phoneNumber
-                }
-                return
-            }
-            val callId = activeCallId ?: run {
-                val newId = System.currentTimeMillis().toString()
-                activeCallId = newId
-                newId
-            }
-
-            val isBetterName = !contactName.isBlank() &&
-                    contactName != ContactResolver.UNKNOWN_NUMBER &&
-                    contactName != "Gelen Arama" &&
-                    contactName != "Giden Arama"
-
-            val isNameChanged = contactName != resolvedContactName
-            val isPhoneChanged = phoneNumber != currentPhoneNumber && !phoneNumber.isBlank() && phoneNumber != ContactResolver.UNKNOWN_NUMBER
-
-            if (isBetterName || isNameChanged || isPhoneChanged) {
-                if (isBetterName) {
-                    resolvedContactName = contactName
-                }
-                if (!phoneNumber.isBlank() && phoneNumber != ContactResolver.UNKNOWN_NUMBER) {
-                    currentPhoneNumber = phoneNumber
-                }
-
-                val finalName = resolvedContactName ?: contactName
-                val finalNumber = currentPhoneNumber ?: phoneNumber
-
-                Log.i(TAG, "Updating call info on Mac from notification: '$finalName' ($finalNumber)")
-                val payload = JsonObject().apply {
-                    addProperty("callId", callId)
-                    addProperty("appType", "cellular")
-                    addProperty("callerName", finalName)
-                    addProperty("contact_name", finalName)
-                    addProperty("phoneNumber", finalNumber)
-                    addProperty("timestamp", System.currentTimeMillis().toDouble())
-                    addProperty("hasVideo", false)
-                    addProperty("direction", if (isCurrentCallOutgoing) "outgoing" else "incoming")
-                }
-                AetherCoreService.instance?.sendMessage("CALL_INCOMING", payload)
-            }
+            CallStateMachine.updateContactInfo(contactName, phoneNumber)
         }
 
         fun onCallLogChanged(context: Context) {
-            val currentCallId = activeCallId ?: return
-            if (isCurrentCallOutgoing && (resolvedContactName == null || resolvedContactName == "Giden Arama" || resolvedContactName == ContactResolver.UNKNOWN_NUMBER)) {
+            if (CallStateMachine.isDialing()) {
                 val latest = ContactResolver.getLatestOutgoingCall(context)
                 if (latest != null && latest.contactName != ContactResolver.UNKNOWN_NUMBER) {
-                    resolvedContactName = latest.contactName
-                    currentPhoneNumber = latest.phoneNumber
                     Log.i(TAG, "CallLog observer resolved outgoing call: ${latest.contactName} (${latest.phoneNumber})")
-                    val payload = JsonObject().apply {
-                        addProperty("callId", currentCallId)
-                        addProperty("appType", "cellular")
-                        addProperty("callerName", latest.contactName)
-                        addProperty("contact_name", if (latest.isKnown) latest.contactName else null)
-                        addProperty("phoneNumber", latest.phoneNumber)
-                        addProperty("timestamp", System.currentTimeMillis().toDouble())
-                        addProperty("hasVideo", false)
-                        addProperty("direction", "outgoing")
-                    }
-                    AetherCoreService.instance?.sendMessage("CALL_INCOMING", payload)
+                    CallStateMachine.updateContactInfo(latest.contactName, latest.phoneNumber)
                 }
             }
         }
@@ -140,125 +56,41 @@ class CallStateReceiver : BroadcastReceiver() {
             when (stateStr) {
                 TelephonyManager.EXTRA_STATE_RINGING -> {
                     // Incoming Call Ringing
-                    isCurrentCallOutgoing = false
-                    isCallAnswered = false
-                    val callId = activeCallId ?: System.currentTimeMillis().toString()
-                    activeCallId = callId
-
-                    val resolved = ContactResolver.resolve(context, rawIncomingNumber)
-                    resolvedContactName = resolved.contactName
-                    currentPhoneNumber = resolved.phoneNumber
-
-                    val payload = JsonObject().apply {
-                        addProperty("callId", callId)
-                        addProperty("appType", "cellular")
-                        addProperty("callerName", resolved.contactName)
-                        addProperty("contact_name", if (resolved.isKnown) resolved.contactName else null)
-                        addProperty("phoneNumber", resolved.phoneNumber)
-                        addProperty("timestamp", System.currentTimeMillis().toDouble())
-                        addProperty("hasVideo", false)
-                        addProperty("direction", "incoming")
-                    }
-                    AetherCoreService.instance?.sendMessage("CALL_INCOMING", payload)
-                    Log.i(TAG, "Relayed RINGING incoming call to Mac: ${resolved.contactName} (${resolved.phoneNumber})")
+                    CallStateMachine.onIncomingRinging(context, rawIncomingNumber)
                 }
 
                 TelephonyManager.EXTRA_STATE_OFFHOOK -> {
                     if (previousState == TelephonyManager.EXTRA_STATE_RINGING) {
                         // Incoming call was answered
-                        notifyCallAnswered(context)
-                        if (wasAnsweredFromMac) {
-                            CallActionHelper.routeAudioForRemoteAnswer(context)
-                        }
+                        CallStateMachine.onCallAnswered(context, wasAnsweredFromMac)
                     } else if (previousState == TelephonyManager.EXTRA_STATE_IDLE) {
                         // Outgoing call was initiated
-                        isCurrentCallOutgoing = true
-                        isCallAnswered = false
-                        val callId = System.currentTimeMillis().toString()
-                        activeCallId = callId
-
                         val rawTarget = rawIncomingNumber ?: lastOutgoingNumber
-                        var resolved = if (!rawTarget.isNullOrBlank()) {
-                            ContactResolver.resolve(context, rawTarget)
-                        } else {
-                            ContactResolver.getLatestOutgoingCall(context)
-                        }
-
-                        if (resolved == null) {
-                            resolved = ResolvedContact(
-                                contactName = "Giden Arama",
-                                phoneNumber = ContactResolver.UNKNOWN_NUMBER,
-                                isKnown = false
-                            )
-                            scheduleOutgoingCallLookup(context, callId)
-                        }
-
-                        resolvedContactName = resolved.contactName
-                        currentPhoneNumber = resolved.phoneNumber
-
-                        val payload = JsonObject().apply {
-                            addProperty("callId", callId)
-                            addProperty("appType", "cellular")
-                            addProperty("callerName", resolved.contactName)
-                            addProperty("contact_name", if (resolved.isKnown) resolved.contactName else null)
-                            addProperty("phoneNumber", resolved.phoneNumber)
-                            addProperty("timestamp", System.currentTimeMillis().toDouble())
-                            addProperty("hasVideo", false)
-                            addProperty("direction", "outgoing")
-                        }
-                        AetherCoreService.instance?.sendMessage("CALL_INCOMING", payload)
-                        Log.i(TAG, "Relayed OFFHOOK outgoing call to Mac: ${resolved.contactName} (${resolved.phoneNumber})")
+                        CallStateMachine.onOutgoingDialing(context, rawTarget)
+                        scheduleOutgoingCallLookup(context)
                     }
                 }
 
                 TelephonyManager.EXTRA_STATE_IDLE -> {
-                    // Call terminated / idle
-                    val callId = activeCallId ?: ""
-                    val dropPayload = JsonObject().apply {
-                        addProperty("callId", callId)
-                        addProperty("action", "hangup")
-                        addProperty("timestamp", System.currentTimeMillis().toDouble())
-                    }
-                    AetherCoreService.instance?.sendMessage("CALL_ACTION", dropPayload)
-                    Log.i(TAG, "Relayed IDLE / call ended to Mac: $callId")
-
-                    org.aetherlink.audio.CallAudioRelayManager.stop(context)
-                    activeCallId = null
-                    lastOutgoingNumber = null
-                    isCurrentCallOutgoing = false
-                    isCallAnswered = false
+                    // Call terminated
+                    CallStateMachine.onCallTerminated(context)
                     wasAnsweredFromMac = false
-                    resolvedContactName = null
-                    currentPhoneNumber = null
-                    CallActionHelper.setSpeakerphone(context, false)
-                    AetherNotificationListener.clearActiveCallIntents()
+                    lastOutgoingNumber = null
                 }
             }
         }
 
-        private fun scheduleOutgoingCallLookup(context: Context, callId: String) {
+        private fun scheduleOutgoingCallLookup(context: Context) {
             val appContext = context.applicationContext
             CoroutineScope(Dispatchers.IO).launch {
                 val delays = listOf(350L, 800L, 1600L)
                 for (delayMs in delays) {
                     delay(delayMs)
-                    if (activeCallId != callId) break
+                    if (!CallStateMachine.isDialing() && !CallStateMachine.isActive()) break
                     val latest = ContactResolver.getLatestOutgoingCall(appContext)
                     if (latest != null && latest.contactName != ContactResolver.UNKNOWN_NUMBER) {
-                        resolvedContactName = latest.contactName
-                        currentPhoneNumber = latest.phoneNumber
                         Log.i(TAG, "Async outgoing lookup succeeded: ${latest.contactName} (${latest.phoneNumber})")
-                        val payload = JsonObject().apply {
-                            addProperty("callId", callId)
-                            addProperty("appType", "cellular")
-                            addProperty("callerName", latest.contactName)
-                            addProperty("contact_name", if (latest.isKnown) latest.contactName else null)
-                            addProperty("phoneNumber", latest.phoneNumber)
-                            addProperty("timestamp", System.currentTimeMillis().toDouble())
-                            addProperty("hasVideo", false)
-                            addProperty("direction", "outgoing")
-                        }
-                        AetherCoreService.instance?.sendMessage("CALL_INCOMING", payload)
+                        CallStateMachine.updateContactInfo(latest.contactName, latest.phoneNumber)
                         break
                     }
                 }

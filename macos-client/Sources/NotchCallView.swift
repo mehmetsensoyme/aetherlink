@@ -4,19 +4,23 @@ import SwiftUI
 
 public struct NotchCapsuleShape: Shape {
     public var hasNotch: Bool
-    public var bottomRadius: CGFloat = 18
+    public var bottomRadius: CGFloat = 20
     public var topRadius: CGFloat = 0
     
-    public init(hasNotch: Bool, bottomRadius: CGFloat = 18, topRadius: CGFloat = 0) {
+    public init(hasNotch: Bool, bottomRadius: CGFloat = 20, topRadius: CGFloat = 0) {
         self.hasNotch = hasNotch
         self.bottomRadius = bottomRadius
         self.topRadius = topRadius
     }
     
     public func path(in rect: CGRect) -> Path {
+        if !hasNotch {
+            // Mathematical Apple continuous capsule for floating pill mode
+            return Path(roundedRect: rect, cornerRadius: rect.height / 2, style: .continuous)
+        }
         var path = Path()
-        let tr = hasNotch ? topRadius : bottomRadius
-        let tl = hasNotch ? topRadius : bottomRadius
+        let tr = topRadius
+        let tl = topRadius
         let bl = bottomRadius
         let br = bottomRadius
         
@@ -50,18 +54,25 @@ public struct NotchCallView: View {
                 let shape = NotchCapsuleShape(
                     hasNotch: manager.isAttachedToNotch,
                     bottomRadius: 20,
-                    topRadius: manager.isAttachedToNotch ? 0 : 20
+                    topRadius: 0
                 )
                 
                 ZStack {
                     Rectangle().fill(.ultraThinMaterial)
-                    Color.black.opacity(0.92)
+                    Color.black.opacity(manager.isAttachedToNotch ? 0.94 : 0.88)
                 }
                 .clipShape(shape)
                 .overlay(
-                    shape.stroke(Color.white.opacity(0.14), lineWidth: 0.75)
+                    shape.stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.32), Color.white.opacity(0.08)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.8
+                    )
                 )
-                .shadow(color: Color.black.opacity(0.45), radius: 12, x: 0, y: 6)
+                .shadow(color: Color.black.opacity(0.42), radius: 14, x: 0, y: 7)
                 
                 // Content Layer with Notch Clearance
                 VStack(spacing: 0) {
@@ -91,14 +102,14 @@ public struct NotchCallView: View {
             .frame(
                 width: manager.isExpanded ? 420 : (manager.isAttachedToNotch ? 200 : 160),
                 height: manager.isExpanded
-                    ? (manager.isAttachedToNotch ? (manager.notchClearance + 58) : 64)
+                    ? (manager.isAttachedToNotch ? (manager.notchClearance + 58) : 62)
                     : (manager.isAttachedToNotch ? manager.notchClearance : 28)
             )
-            .animation(.spring(response: 0.45, dampingFraction: 0.75), value: manager.isExpanded)
+            .animation(.spring(response: 0.42, dampingFraction: 0.76), value: manager.isExpanded)
             
             Spacer(minLength: 0)
         }
-        .frame(width: 440, height: 104, alignment: .top)
+        .frame(width: 440, height: manager.isAttachedToNotch ? 104 : 74, alignment: .top)
     }
     
     // MARK: - Left Section (Wave / Avatar)

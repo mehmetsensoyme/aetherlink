@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -70,6 +71,8 @@ fun MainScreen(
     val macBattery by AetherCoreService.macBatteryState.collectAsState()
     val macTelemetry by AetherCoreService.macTelemetryState.collectAsState()
     val phoneBattery by AetherCoreService.phoneBatteryState.collectAsState()
+    val isServiceConnected by AetherCoreService.isConnectedState.collectAsState()
+    var showAllPermissions by remember { mutableStateOf(false) }
 
     // KDE Connect Ported Feature States
     val isPhoneRinging by FindMyPhoneManager.isPhoneRinging.collectAsState()
@@ -385,9 +388,6 @@ fun MainScreen(
                         Text("Kamera ile Mac QR Kodunu Tara")
                     }
 
-                    // Live Connection State
-                    val isServiceConnected by AetherCoreService.isConnectedState.collectAsState()
-
                     // Disconnect / Reconnect Actions
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (isServiceConnected) {
@@ -435,8 +435,42 @@ fun MainScreen(
                 }
             }
 
-            // Dual Battery & Power Status Card
-            Card(
+            if (!isServiceConnected) {
+                // Sleek Idle Card (Keeps screen clean and uncluttered when disconnected)
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.CloudQueue,
+                            contentDescription = null,
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+                        )
+                        Text(
+                            "Mac Bağlantısı Bekleniyor",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            "Mac'inize bağlanıldığında çift yönlü pil durumu, 60 FPS ekran yansıtma ve uzaktan kumanda araçları burada otomatik olarak aktifleşecektir.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                // Dual Battery & Power Status Card
+                Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -1022,55 +1056,103 @@ fun MainScreen(
                     }
                 }
             }
+            } // end of else (isServiceConnected)
 
-            // Permissions Checklist
-            Text("İzin & Güvenlik Durumu", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-
-            PermissionCard(
-                title = "Bildirim Okuma & Cevaplama",
-                desc = "WhatsApp, Telegram ve SMS mesajlarını Mac'e iletir ve cevaplar.",
-                icon = Icons.Default.Notifications,
-                actionLabel = "İzin Ver",
-                onClick = {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                }
-            )
-
-            PermissionCard(
-                title = "Arama Yönetimi & Telefon",
-                desc = "Gelen aramaları Mac ekranına yansıtmak ve cevaplamak için gereklidir.",
-                icon = Icons.Default.Call,
-                actionLabel = "İzin Ayarları",
-                onClick = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
+            // Permissions Checklist (Collapsible & Clean)
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAllPermissions = !showAllPermissions },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = if (permissionStatus.allCoreGranted) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text("Sistem Yetkileri ve İzinler", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        if (permissionStatus.allCoreGranted) Color(0xFF4CAF50).copy(alpha = 0.15f) else Color(0xFFFF9800).copy(alpha = 0.15f),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    if (permissionStatus.allCoreGranted) "Tam Yetkili ✅" else "İzin Gerekli ⚠️",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (permissionStatus.allCoreGranted) Color(0xFF388E3C) else Color(0xFFF57C00)
+                                )
+                            }
+                        }
+                        Icon(
+                            if (showAllPermissions || !permissionStatus.allCoreGranted) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = Color.Gray
+                        )
                     }
-                    context.startActivity(intent)
-                }
-            )
 
-            PermissionCard(
-                title = "Pil Tasarrufu Muafiyeti",
-                desc = "Samsung ve OEM arka plan kısıtlamalarını aşarak kesintisiz bağlantı sağlar.",
-                icon = Icons.Default.BatteryChargingFull,
-                actionLabel = "Muaf Tut",
-                onClick = {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:${context.packageName}")
+                    if (showAllPermissions || !permissionStatus.allCoreGranted) {
+                        PermissionCard(
+                            title = "Bildirim Okuma & Cevaplama",
+                            desc = "WhatsApp, Telegram ve SMS mesajlarını Mac'e iletir ve cevaplar.",
+                            icon = Icons.Default.Notifications,
+                            actionLabel = "İzin Ver",
+                            onClick = {
+                                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                            }
+                        )
+
+                        PermissionCard(
+                            title = "Arama Yönetimi & Telefon",
+                            desc = "Gelen aramaları Mac ekranına yansıtmak ve cevaplamak için gereklidir.",
+                            icon = Icons.Default.Call,
+                            actionLabel = "İzin Ayarları",
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.fromParts("package", context.packageName, null)
+                                }
+                                context.startActivity(intent)
+                            }
+                        )
+
+                        PermissionCard(
+                            title = "Pil Tasarrufu Muafiyeti",
+                            desc = "Samsung ve OEM arka plan kısıtlamalarını aşarak kesintisiz bağlantı sağlar.",
+                            icon = Icons.Default.BatteryChargingFull,
+                            actionLabel = "Muaf Tut",
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            }
+                        )
+
+                        PermissionCard(
+                            title = "Evrensel Pano & Ekran Kilidi",
+                            desc = "Android 10-16 arka plan pano kopyalamasını ve Mac'ten ekran kilitlemeyi sağlar.",
+                            icon = Icons.Default.ContentPaste,
+                            actionLabel = "Etkinleştir",
+                            onClick = {
+                                AetherPermissionManager.openAccessibilitySettings(context)
+                            }
+                        )
                     }
-                    context.startActivity(intent)
                 }
-            )
-
-            PermissionCard(
-                title = "Evrensel Pano & Ekran Kilidi",
-                desc = "Android 10-16 arka plan pano kopyalamasını ve Mac'ten ekran kilitlemeyi sağlar.",
-                icon = Icons.Default.ContentPaste,
-                actionLabel = "Etkinleştir",
-                onClick = {
-                    AetherPermissionManager.openAccessibilitySettings(context)
-                }
-            )
+            }
 
             // Features Overview
             Text("Aktif Süreklilik Özellikleri", fontWeight = FontWeight.Bold, fontSize = 18.sp)
