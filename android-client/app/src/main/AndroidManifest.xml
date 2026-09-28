@@ -163,6 +163,17 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Silent Background Watchdog Receiver -->
+        <receiver
+            android:name=".receiver.AetherWatchdogReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.aetherlink.action.WATCHDOG_PING" />
             </intent-filter>
         </receiver>
 

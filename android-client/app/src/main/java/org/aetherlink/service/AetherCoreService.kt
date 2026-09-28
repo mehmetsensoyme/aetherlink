@@ -122,6 +122,7 @@ class AetherCoreService : Service() {
         registerPhoneStateMonitoring()
         ClipboardSyncManager.init(this)
         org.aetherlink.bluetooth.BluetoothAudioManager.init(this)
+        org.aetherlink.receiver.AetherWatchdogReceiver.scheduleWatchdog(this)
         val prefs = getSharedPreferences("aetherlink_prefs", Context.MODE_PRIVATE)
         val savedIp = prefs.getString("last_mac_ip", null)
         if (savedIp.isNullOrBlank() || savedIp == "127.0.0.1") {
@@ -742,6 +743,13 @@ class AetherCoreService : Service() {
                     val key = payload.get("notificationKey")?.asString ?: ""
                     val replyText = payload.get("replyText")?.asString ?: ""
                     AetherNotificationListener.instance?.sendReply(key, replyText)
+                }
+                "NOTIFICATION_DISMISS" -> {
+                    val key = payload.get("notificationKey")?.asString ?: ""
+                    if (key.isNotEmpty()) {
+                        AetherNotificationListener.instance?.cancelNotification(key)
+                        Log.d(TAG, "Dismissed notification on phone from Mac: $key")
+                    }
                 }
                 "CLIPBOARD_SYNC" -> {
                     val text = payload.get("data")?.asString ?: ""

@@ -1051,7 +1051,7 @@ fun MainScreen(
 
             PermissionCard(
                 title = "Pil Tasarrufu Muafiyeti",
-                desc = "Samsung arka plan kısıtlamalarını aşarak kesintisiz bağlantı sağlar.",
+                desc = "Samsung ve OEM arka plan kısıtlamalarını aşarak kesintisiz bağlantı sağlar.",
                 icon = Icons.Default.BatteryChargingFull,
                 actionLabel = "Muaf Tut",
                 onClick = {
@@ -1059,6 +1059,16 @@ fun MainScreen(
                         data = Uri.parse("package:${context.packageName}")
                     }
                     context.startActivity(intent)
+                }
+            )
+
+            PermissionCard(
+                title = "Evrensel Pano & Ekran Kilidi",
+                desc = "Android 10-16 arka plan pano kopyalamasını ve Mac'ten ekran kilitlemeyi sağlar.",
+                icon = Icons.Default.ContentPaste,
+                actionLabel = "Etkinleştir",
+                onClick = {
+                    AetherPermissionManager.openAccessibilitySettings(context)
                 }
             )
 

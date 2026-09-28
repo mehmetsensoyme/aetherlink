@@ -8,10 +8,13 @@ import org.aetherlink.service.AetherCoreService
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action == Intent.ACTION_BOOT_COMPLETED ||
-            intent?.action == "android.intent.action.QUICKBOOT_POWERON") {
-            Log.i("BootReceiver", "Device boot detected. Auto-starting AetherCoreService...")
+        val action = intent?.action
+        if (action == Intent.ACTION_BOOT_COMPLETED ||
+            action == "android.intent.action.QUICKBOOT_POWERON" ||
+            action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            Log.i("BootReceiver", "Boot or package update detected ($action). Auto-starting AetherCoreService and Watchdog...")
             AetherCoreService.start(context)
+            AetherWatchdogReceiver.scheduleWatchdog(context)
         }
     }
 }

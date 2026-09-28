@@ -17,7 +17,9 @@ data class PermissionStatusReport(
     val phoneCallsGranted: Boolean,
     val nearbyDevicesGranted: Boolean,
     val notificationListenerGranted: Boolean,
-    val networkAvailable: Boolean
+    val networkAvailable: Boolean,
+    val batteryOptimizationIgnored: Boolean = true,
+    val accessibilityServiceEnabled: Boolean = false
 ) {
     val allCoreGranted: Boolean
         get() = notificationsGranted && phoneCallsGranted && nearbyDevicesGranted
@@ -126,7 +128,9 @@ object AetherPermissionManager {
             phoneCallsGranted = isPhoneCallPermissionGranted(context),
             nearbyDevicesGranted = isNearbyDevicesPermissionGranted(context),
             notificationListenerGranted = isNotificationListenerGranted(context),
-            networkAvailable = isNetworkAvailable(context)
+            networkAvailable = isNetworkAvailable(context),
+            batteryOptimizationIgnored = isBatteryOptimizationIgnored(context),
+            accessibilityServiceEnabled = isAccessibilityServiceEnabled(context)
         )
     }
 
@@ -214,6 +218,37 @@ object AetherPermissionManager {
         return Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
             data = Uri.parse("package:${context.packageName}")
         }
+    }
+
+    /**
+     * Checks if AetherAccessibilityService is enabled in system accessibility settings.
+     */
+    fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        val expectedServiceName = "${context.packageName}/org.aetherlink.service.AetherAccessibilityService"
+        val enabledServices = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
+        colonSplitter.setString(enabledServices)
+        while (colonSplitter.hasNext()) {
+            val componentName = colonSplitter.next()
+            if (componentName.equals(expectedServiceName, ignoreCase = true) ||
+                (componentName.contains(context.packageName) && componentName.contains("AetherAccessibilityService"))) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * Opens system Accessibility Settings screen so user can activate AetherAccessibilityService.
+     */
+    fun openAccessibilitySettings(context: Context) {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
     }
 
     /**

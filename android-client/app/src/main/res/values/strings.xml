@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">AetherLink</string>
-    <string name="accessibility_service_description">Mac üzerinden gelen komutla telefon ekranını kilitlemeyi ve uzaktan sistem eylemlerini sağlar.</string>
+    <string name="accessibility_service_description">Android 10-16 üzerinde çift yönlü evrensel pano senkronizasyonu ve Mac üzerinden uzaktan telefon ekranını kilitleme eylemlerini sağlar.</string>
 </resources>

@@ -282,7 +282,33 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
                 NetworkManager.shared.send(type: "NOTIFICATION_REPLY", payload: replyPayload)
                 print("[NotificationManager] Sent inline reply for \(key): \(replyText)")
             }
+        } else if response.actionIdentifier == UNNotificationDismissActionIdentifier {
+            let key = response.notification.request.content.userInfo["key"] as? String ?? ""
+            if !key.isEmpty {
+                Task { @MainActor in
+                    let dismissPayload = NotificationDismissPayload(
+                        notificationKey: key,
+                        timestamp: Date().timeIntervalSince1970 * 1000
+                    )
+                    NetworkManager.shared.send(type: "NOTIFICATION_DISMISS", payload: dismissPayload)
+                    print("[NotificationManager] Sent NOTIFICATION_DISMISS to phone for key: \(key)")
+                }
+            }
         }
         completionHandler()
+    }
+    
+    public func removeNotification(key: String, id: String? = nil) {
+        UNUserNotificationCenter.current().getDeliveredNotifications { notifications in
+            let matchingIds = notifications.filter {
+                ($0.request.content.userInfo["key"] as? String) == key ||
+                (id != nil && !id!.isEmpty && $0.request.identifier == id)
+            }.map { $0.request.identifier }
+            
+            if !matchingIds.isEmpty {
+                UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: matchingIds)
+                print("[NotificationManager] Removed synced notification from macOS: \(key)")
+            }
+        }
     }
 }

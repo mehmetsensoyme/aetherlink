@@ -128,6 +128,11 @@ public struct NotificationReplyPayload: Codable, Sendable {
     public let timestamp: Double
 }
 
+public struct NotificationDismissPayload: Codable, Sendable {
+    public let notificationKey: String
+    public let timestamp: Double
+}
+
 public struct ClipboardPayload: Codable, Sendable {
     public let contentType: String
     public let data: String

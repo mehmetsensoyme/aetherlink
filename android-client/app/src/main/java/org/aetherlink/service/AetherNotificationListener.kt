@@ -352,6 +352,14 @@ class AetherNotificationListener : NotificationListenerService() {
                 clearActiveCallIntents()
                 Log.i(TAG, "Active call notification removed ($key), cleared action intents")
             }
+            // Send NOTIFICATION_REMOVED to Mac so macOS automatically dismisses it
+            val payload = JsonObject().apply {
+                addProperty("notificationKey", key)
+                addProperty("packageName", pkg)
+                addProperty("id", sbn.id.toString())
+                addProperty("timestamp", System.currentTimeMillis().toDouble())
+            }
+            AetherCoreService.instance?.sendMessage("NOTIFICATION_REMOVED", payload)
         }
         if (pkg in CALL_PACKAGES) {
             clearActiveCallIntents()

@@ -355,6 +355,13 @@ public final class NetworkManager: ObservableObject {
                 NotificationManager.shared.displayNotification(notif)
             }
             
+        case "NOTIFICATION_REMOVED":
+            if let payload = json["payload"] as? [String: Any],
+               let key = payload["notificationKey"] as? String {
+                let notifId = payload["id"] as? String
+                NotificationManager.shared.removeNotification(key: key, id: notifId)
+            }
+            
         case "CALL_INCOMING", "INCOMING_CALL":
             let payloadDict = json["payload"] as? [String: Any] ?? [:]
             let callerName = (payloadDict["contact_name"] as? String)
