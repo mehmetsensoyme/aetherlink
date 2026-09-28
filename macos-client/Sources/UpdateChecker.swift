@@ -30,7 +30,7 @@ public final class UpdateChecker: ObservableObject {
     public static let shared = UpdateChecker()
     
     public var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.5.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.6.0"
     }
     public let repoOwner = "mehmetsensoyme"
     public let repoName = "aetherlink"

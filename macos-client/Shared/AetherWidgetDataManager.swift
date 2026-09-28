@@ -46,10 +46,15 @@ public final class AetherWidgetDataManager: @unchecked Sendable {
     private let userDefaults: UserDefaults?
 
     private var sharedFileURL: URL {
-        // In sandboxed widget: ~/Library/Containers/org.aetherlink.mac.widget/Data/Documents/battery.json
-        // In host app: direct path to the widget's container documents folder
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let widgetDocs = home.appendingPathComponent("Library/Containers/org.aetherlink.mac.widget/Data/Documents")
+        let widgetDocs: URL
+        if home.path.contains("Containers/org.aetherlink.mac.widget/Data") {
+            // Running inside the sandboxed widget process
+            widgetDocs = home.appendingPathComponent("Documents")
+        } else {
+            // Running in host app
+            widgetDocs = home.appendingPathComponent("Library/Containers/org.aetherlink.mac.widget/Data/Documents")
+        }
         try? FileManager.default.createDirectory(at: widgetDocs, withIntermediateDirectories: true)
         return widgetDocs.appendingPathComponent("battery.json")
     }
