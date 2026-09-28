@@ -19,11 +19,9 @@
     <key>CFBundleVersion</key>
     <string>18</string>
     <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-    <key>CFBundleIconName</key>
-    <string>AppIcon</string>
+    <string>AppIcon.icns</string>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>12.0</string>
     <key>LSUIElement</key>
     <true/> <!-- Menu Bar only application (Daemon mode) -->
 
