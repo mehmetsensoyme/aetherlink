@@ -70,9 +70,7 @@ public final class CallManager: ObservableObject {
         NetworkManager.shared.send(type: "CALL_ACTION", payload: action)
         NetworkManager.shared.send(type: "ACCEPT_CALL", payload: ["callId": call.callId])
         
-        let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
-        CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
-        print("[CallManager] Answered call and started audio relay: \(call.callId)")
+        print("[CallManager] Answered call: \(call.callId)")
     }
     
     public func declineCall() {

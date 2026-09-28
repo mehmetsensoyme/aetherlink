@@ -309,8 +309,6 @@ public final class NetworkManager: ObservableObject {
                     } else if action.action == "answered" || action.action == "accept" || action.action == "active" {
                         CallManager.shared.handleCallAnswered()
                         NotchCallManager.shared.handleCallAnswered()
-                        let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
-                        CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
                     }
                 }
             }
@@ -326,8 +324,6 @@ public final class NetworkManager: ObservableObject {
             DispatchQueue.main.async {
                 CallManager.shared.handleCallAnswered()
                 NotchCallManager.shared.handleCallAnswered()
-                let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
-                CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
             }
             
         case "DEVICE_TELEMETRY":
@@ -469,16 +465,8 @@ public final class NetworkManager: ObservableObject {
             }
             
         case "CALL_AUDIO_START":
-            let phoneIp: String = {
-                if let payload = json["payload"] as? [String: Any],
-                   let ip = payload["phoneIp"] as? String, !ip.isEmpty {
-                    return ip
-                }
-                return NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
-            }()
-            let rxPort = (json["payload"] as? [String: Any])?["udpPort"] as? UInt16 ?? 8444
-            let txPort = (json["payload"] as? [String: Any])?["macMicPort"] as? UInt16 ?? 8445
-            CallAudioStreamEngine.shared.start(phoneIp: phoneIp, incomingPort: rxPort, outgoingMicPort: txPort)
+            // Ignored to avoid acoustic feedback and audio mixing
+            break
             
         case "CALL_AUDIO_STOP":
             CallAudioStreamEngine.shared.stop()

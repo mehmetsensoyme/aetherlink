@@ -154,9 +154,7 @@ public final class NotchCallManager: ObservableObject {
         NetworkManager.shared.send(type: "CALL_ACTION", payload: action)
         NetworkManager.shared.send(type: "ACCEPT_CALL", payload: ["callId": self.callId])
         
-        let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
-        CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
-        print("[NotchCallManager] Accepted call and started audio relay: \(callId)")
+        print("[NotchCallManager] Accepted call: \(callId)")
     }
     
     public func rejectCall() {

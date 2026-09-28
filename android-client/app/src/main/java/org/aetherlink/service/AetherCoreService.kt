@@ -711,7 +711,7 @@ class AetherCoreService : Service() {
                     org.aetherlink.share.AetherShareManager.handleIncomingFile(this, fileName, base64)
                 }
                 "CALL_AUDIO_START" -> {
-                    org.aetherlink.audio.CallAudioRelayManager.start(this, macIpAddress)
+                    // Ignored to avoid acoustic feedback and audio mixing
                 }
                 "CALL_AUDIO_STOP" -> {
                     org.aetherlink.audio.CallAudioRelayManager.stop(this)

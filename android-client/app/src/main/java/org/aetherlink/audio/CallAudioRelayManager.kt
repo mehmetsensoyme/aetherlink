@@ -51,53 +51,9 @@ object CallAudioRelayManager {
 
     @Synchronized
     fun start(context: Context, macIp: String? = null) {
-        if (isRunning.get()) {
-            Log.d(TAG, "Audio relay already active.")
-            return
-        }
-
-        val targetIp = macIp ?: run {
-            val prefs = context.getSharedPreferences("aetherlink_prefs", Context.MODE_PRIVATE)
-            prefs.getString("last_mac_ip", "192.168.1.15") ?: "192.168.1.15"
-        }
-
-        if (targetIp.isBlank() || targetIp == "127.0.0.1") {
-            Log.w(TAG, "Target Mac IP is invalid ($targetIp), skipping audio relay.")
-            return
-        }
-
-        Log.i(TAG, "Starting ultra-low latency call audio relay to Mac ($targetIp:$DEFAULT_MAC_PORT)...")
-        isRunning.set(true)
-
-        // 1. Configure Android AudioManager for optimal hands-free communication
-        try {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            if (audioManager != null) {
-                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                audioManager.isSpeakerphoneOn = true
-                audioManager.isBluetoothScoOn = false
-                Log.i(TAG, "AudioManager configured: MODE_IN_COMMUNICATION, speakerphone=ON")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed setting audio manager mode: ${e.message}")
-        }
-
-        // 2. Notify Mac to initialize its playback and microphone receiver
-        val startPayload = JsonObject().apply {
-            addProperty("action", "start")
-            addProperty("sampleRate", SAMPLE_RATE)
-            addProperty("udpPort", DEFAULT_MAC_PORT)
-            addProperty("macMicPort", DEFAULT_LOCAL_MIC_PORT)
-            addProperty("phoneIp", "")
-            addProperty("timestamp", System.currentTimeMillis().toDouble())
-        }
-        AetherCoreService.instance?.sendMessage("CALL_AUDIO_START", startPayload)
-
-        // 3. Start Audio Transmitter (Phone Mic/Call -> Mac Speakers)
-        startXmitThread(targetIp, DEFAULT_MAC_PORT)
-
-        // 4. Start Audio Receiver (Mac Mic -> Phone Call AudioTrack)
-        startRecvThread(DEFAULT_LOCAL_MIC_PORT)
+        // Disabled to prevent double audio playback, distortion, and acoustic feedback loops.
+        // Cellular call audio is managed natively by hardware hands-free speakerphone or Bluetooth headset.
+        Log.i(TAG, "CallAudioRelay is disabled to preserve native hardware call audio quality.")
     }
 
     @Synchronized

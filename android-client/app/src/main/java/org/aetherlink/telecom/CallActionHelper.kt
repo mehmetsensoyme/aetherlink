@@ -2,10 +2,17 @@ package org.aetherlink.telecom
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.os.Build
 import android.telecom.TelecomManager
 import android.util.Log
 import android.view.KeyEvent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.aetherlink.receiver.CallStateReceiver
 import org.aetherlink.service.AetherNotificationListener
 
 object CallActionHelper {
@@ -14,6 +21,7 @@ object CallActionHelper {
     @SuppressLint("MissingPermission")
     fun answerCall(context: Context) {
         Log.i(TAG, "Executing multi-tier answerCall strategy...")
+        CallStateReceiver.markAnsweredFromMac()
         var answered = false
 
         // Strategy 1: Dialer Notification PendingIntent (High reliability on Samsung One UI & Android 14/15)
@@ -62,7 +70,6 @@ object CallActionHelper {
         }
 
         routeAudioForRemoteAnswer(context)
-        org.aetherlink.audio.CallAudioRelayManager.start(context)
     }
 
     @SuppressLint("MissingPermission")
@@ -115,10 +122,10 @@ object CallActionHelper {
             Log.w(TAG, "Strategy 3 TelecomManager endCall failed: ${e.message}")
         }
 
+        setSpeakerphone(context, false)
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
             audioManager?.mode = AudioManager.MODE_NORMAL
-            audioManager?.isSpeakerphoneOn = false
         } catch (_: Exception) {}
 
         AetherNotificationListener.clearActiveCallIntents()
@@ -126,18 +133,76 @@ object CallActionHelper {
     }
 
     fun routeAudioForRemoteAnswer(context: Context) {
+        Log.i(TAG, "Enforcing hands-free speakerphone routing on modern Android / Samsung One UI...")
+        setSpeakerphone(context, true)
+
+        // Multiple delayed passes to prevent Samsung One UI InCallUI / Telecom resetting to earpiece
+        CoroutineScope(Dispatchers.Main).launch {
+            delay(350)
+            setSpeakerphone(context, true)
+            delay(750)
+            setSpeakerphone(context, true)
+            delay(1200)
+            setSpeakerphone(context, true)
+        }
+    }
+
+    fun setSpeakerphone(context: Context, enabled: Boolean) {
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-            val hasBtHeadset = audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn
-            if (!hasBtHeadset) {
-                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                audioManager.isSpeakerphoneOn = true
-                Log.i(TAG, "Answered from Mac: speakerphone enabled for hands-free desk conversation.")
+
+            // If enabling, verify if a Bluetooth headset is actively connected
+            if (enabled) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val hasBtHeadset = audioManager.availableCommunicationDevices.any {
+                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                        it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                    }
+                    if (hasBtHeadset) {
+                        Log.i(TAG, "Bluetooth headset detected, preserving headset route instead of speakerphone.")
+                        return
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    if (audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn) {
+                        Log.i(TAG, "Bluetooth headset detected (legacy), preserving headset route.")
+                        return
+                    }
+                }
+            }
+
+            // InCallService route
+            AetherInCallService.setSpeaker(enabled)
+
+            audioManager.mode = AudioManager.MODE_IN_CALL
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (enabled) {
+                    val speakerDevice = audioManager.availableCommunicationDevices.firstOrNull {
+                        it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                    }
+                    if (speakerDevice != null) {
+                        val ok = audioManager.setCommunicationDevice(speakerDevice)
+                        Log.i(TAG, "setCommunicationDevice(TYPE_BUILTIN_SPEAKER) result: $ok")
+                    } else {
+                        @Suppress("DEPRECATION")
+                        audioManager.isSpeakerphoneOn = true
+                        Log.i(TAG, "Speaker device not found in availableCommunicationDevices, used isSpeakerphoneOn=true")
+                    }
+                } else {
+                    audioManager.clearCommunicationDevice()
+                    @Suppress("DEPRECATION")
+                    audioManager.isSpeakerphoneOn = false
+                    Log.i(TAG, "Cleared communication device, speaker disabled.")
+                }
             } else {
-                Log.i(TAG, "Answered from Mac: active Bluetooth headset detected, preserving headset audio route.")
+                @Suppress("DEPRECATION")
+                audioManager.isSpeakerphoneOn = enabled
+                Log.i(TAG, "Legacy isSpeakerphoneOn set to $enabled")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed configuring hands-free audio route: ${e.message}")
+            Log.e(TAG, "Error configuring speakerphone route: ${e.message}")
         }
     }
 }

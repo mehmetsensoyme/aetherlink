@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.aetherlink.service.AetherCoreService
 import org.aetherlink.service.AetherNotificationListener
+import org.aetherlink.telecom.CallActionHelper
 import org.aetherlink.telecom.ContactResolver
 import org.aetherlink.telecom.ResolvedContact
 
@@ -27,8 +28,15 @@ class CallStateReceiver : BroadcastReceiver() {
         private var resolvedContactName: String? = null
         private var currentPhoneNumber: String? = null
 
+        private var wasAnsweredFromMac = false
+
+        fun markAnsweredFromMac() {
+            wasAnsweredFromMac = true
+        }
+
         fun isRinging(): Boolean = (lastState == TelephonyManager.EXTRA_STATE_RINGING)
-        fun isCallActive(): Boolean = (lastState == TelephonyManager.EXTRA_STATE_OFFHOOK || isCallAnswered)
+        fun isOutgoing(): Boolean = isCurrentCallOutgoing
+        fun isCallActive(): Boolean = isCallAnswered
 
         fun notifyCallAnswered(context: Context) {
             if (isCallAnswered) return
@@ -43,7 +51,6 @@ class CallStateReceiver : BroadcastReceiver() {
             }
             AetherCoreService.instance?.sendMessage("CALL_ACTION", answeredPayload)
             Log.i(TAG, "Notified Mac that call is ANSWERED: $callId")
-            org.aetherlink.audio.CallAudioRelayManager.start(context)
         }
 
         /**
@@ -160,9 +167,11 @@ class CallStateReceiver : BroadcastReceiver() {
                     if (previousState == TelephonyManager.EXTRA_STATE_RINGING) {
                         // Incoming call was answered
                         notifyCallAnswered(context)
+                        if (wasAnsweredFromMac) {
+                            CallActionHelper.routeAudioForRemoteAnswer(context)
+                        }
                     } else if (previousState == TelephonyManager.EXTRA_STATE_IDLE) {
                         // Outgoing call was initiated
-                        org.aetherlink.audio.CallAudioRelayManager.start(context)
                         isCurrentCallOutgoing = true
                         isCallAnswered = false
                         val callId = System.currentTimeMillis().toString()
@@ -218,8 +227,10 @@ class CallStateReceiver : BroadcastReceiver() {
                     lastOutgoingNumber = null
                     isCurrentCallOutgoing = false
                     isCallAnswered = false
+                    wasAnsweredFromMac = false
                     resolvedContactName = null
                     currentPhoneNumber = null
+                    CallActionHelper.setSpeakerphone(context, false)
                     AetherNotificationListener.clearActiveCallIntents()
                 }
             }

@@ -12,6 +12,7 @@ class AetherInCallService : InCallService() {
     companion object {
         private const val TAG = "AetherInCallService"
         private val activeCalls = ConcurrentHashMap<String, Call>()
+        var instance: AetherInCallService? = null
 
         fun handleRemoteAction(callId: String, action: String) {
             val call = activeCalls[callId] ?: activeCalls.values.firstOrNull() ?: run {
@@ -22,7 +23,10 @@ class AetherInCallService : InCallService() {
             when (action) {
                 "answer", "ACCEPT_CALL", "accept" -> {
                     call.answer(0)
-                    Log.i(TAG, "Answered call via InCallService: $callId")
+                    try {
+                        instance?.setAudioRoute(android.telecom.CallAudioState.ROUTE_SPEAKER)
+                    } catch (_: Exception) {}
+                    Log.i(TAG, "Answered call via InCallService: $callId (routed to speaker)")
                 }
                 "decline", "hangup", "REJECT_CALL", "reject" -> {
                     call.disconnect()
@@ -30,6 +34,30 @@ class AetherInCallService : InCallService() {
                 }
             }
         }
+
+        fun setSpeaker(enabled: Boolean) {
+            try {
+                val target = if (enabled) {
+                    android.telecom.CallAudioState.ROUTE_SPEAKER
+                } else {
+                    android.telecom.CallAudioState.ROUTE_EARPIECE
+                }
+                instance?.setAudioRoute(target)
+                Log.i(TAG, "Applied InCallService.setAudioRoute: $target")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed setting CallAudioRoute: ${e.message}")
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (instance == this) instance = null
     }
 
     override fun onCallAdded(call: Call) {

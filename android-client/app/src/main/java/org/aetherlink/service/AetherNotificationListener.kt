@@ -266,7 +266,7 @@ class AetherNotificationListener : NotificationListenerService() {
         if (foundReject != null) activeCallRejectIntent = foundReject
         activeCallKey = sbn.key
 
-        // Detect if call is incoming/ringing vs already ongoing/answered
+        // Detect if call is incoming/ringing vs outgoing dialing vs already ongoing/answered
         val callType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             extras.getInt("android.callType", -1)
         } else -1
@@ -275,6 +275,15 @@ class AetherNotificationListener : NotificationListenerService() {
                 text.contains("gelen", ignoreCase = true) ||
                 text.contains("incoming", ignoreCase = true) ||
                 foundAnswer != null
+
+        val isOutgoingDialing = org.aetherlink.receiver.CallStateReceiver.isOutgoing() ||
+                text.contains("aranıyor", ignoreCase = true) ||
+                text.contains("giden", ignoreCase = true) ||
+                text.contains("calling", ignoreCase = true) ||
+                text.contains("dialing", ignoreCase = true)
+
+        val hasChronometer = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false)
+        val hasDurationText = text.matches(Regex(".*\\d{1,2}:\\d{2}.*"))
 
         if (isRingingCall) {
             Log.i(TAG, "Call notification indicates RINGING incoming call (text='$text', hasAnswer=${foundAnswer != null})")
@@ -287,14 +296,27 @@ class AetherNotificationListener : NotificationListenerService() {
                     resolved.phoneNumber
                 )
             }
+        } else if (isOutgoingDialing && !hasChronometer && !hasDurationText) {
+            // Outgoing call is still dialing / ringing remote party. DO NOT trigger answered yet!
+            Log.i(TAG, "Call notification indicates OUTGOING call still dialing (text='$text'). Waiting for remote answer.")
+            if (title.isNotBlank()) {
+                val resolved = org.aetherlink.telecom.ContactResolver.resolveFromNotification(this, title, text)
+                Log.i(TAG, "Call notification resolved outgoing: name='${resolved.contactName}', number='${resolved.phoneNumber}'")
+                org.aetherlink.receiver.CallStateReceiver.updateCallInfoFromNotification(
+                    this,
+                    resolved.contactName,
+                    resolved.phoneNumber
+                )
+            }
         } else {
-            val hasChronometer = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false)
+            // Active / answered call:
+            // For outgoing calls: remote party answered (chronometer started or duration text visible)
+            // For VoIP calls: active call chronometer or ongoing call
             val isVoipOngoing = (pkg != "com.samsung.android.incallui" && pkg != "com.google.android.dialer") &&
                     (hasChronometer || callType == 2)
-            val isCellularActive = org.aetherlink.receiver.CallStateReceiver.isCallActive()
 
-            if (hasChronometer || isVoipOngoing || (isCellularActive && callType == 2)) {
-                Log.i(TAG, "Call notification indicates ACTIVE/ANSWERED call (pkg=$pkg, callType=$callType, chronometer=$hasChronometer)")
+            if (hasChronometer || hasDurationText || isVoipOngoing) {
+                Log.i(TAG, "Call notification indicates ACTIVE/ANSWERED call (pkg=$pkg, chronometer=$hasChronometer, text='$text')")
                 org.aetherlink.receiver.CallStateReceiver.notifyCallAnswered(this)
             }
         }

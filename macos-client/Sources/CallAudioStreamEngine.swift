@@ -48,37 +48,9 @@ public final class CallAudioStreamEngine: ObservableObject {
     
     // MARK: - Start Streaming
     public func start(phoneIp: String, incomingPort: UInt16 = 8444, outgoingMicPort: UInt16 = 8445) {
-        guard !isStreaming else {
-            print("[CallAudioStreamEngine] Already streaming.")
-            return
-        }
-        
-        self.targetPhoneIp = phoneIp
-        self.targetPhonePort = outgoingMicPort
-        
-        print("[CallAudioStreamEngine] Starting call audio relay with phone \(phoneIp): RX=\(incomingPort), TX=\(outgoingMicPort)...")
-        
-        // 1. Start AVAudioEngine for playback
-        do {
-            if !engine.isRunning {
-                try engine.start()
-            }
-            playerNode.play()
-            print("[CallAudioStreamEngine] AVAudioEngine and PlayerNode started")
-        } catch {
-            print("[CallAudioStreamEngine] Failed to start AVAudioEngine: \(error.localizedDescription)")
-            return
-        }
-        
-        // 2. Start UDP Receiver on incomingPort
-        startUdpReceiver(port: incomingPort)
-        
-        // 3. Start Mac Microphone capture to stream back to phone
-        startMicrophoneCapture()
-        
-        DispatchQueue.main.async {
-            self.isStreaming = true
-        }
+        // Disabled to prevent double audio playback, distortion, and acoustic feedback loops.
+        // Cellular call audio is handled natively by the phone's hardware hands-free speakerphone or Bluetooth headset.
+        print("[CallAudioStreamEngine] Audio relay disabled to preserve native hardware call audio quality.")
     }
     
     // MARK: - Stop Streaming
