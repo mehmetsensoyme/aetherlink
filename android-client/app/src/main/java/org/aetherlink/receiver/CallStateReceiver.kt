@@ -27,6 +27,9 @@ class CallStateReceiver : BroadcastReceiver() {
         private var resolvedContactName: String? = null
         private var currentPhoneNumber: String? = null
 
+        fun isRinging(): Boolean = (lastState == TelephonyManager.EXTRA_STATE_RINGING)
+        fun isCallActive(): Boolean = (lastState == TelephonyManager.EXTRA_STATE_OFFHOOK || isCallAnswered)
+
         fun notifyCallAnswered(context: Context) {
             if (isCallAnswered) return
             isCallAnswered = true
