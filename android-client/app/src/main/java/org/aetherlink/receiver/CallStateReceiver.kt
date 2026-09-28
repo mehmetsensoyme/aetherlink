@@ -23,14 +23,41 @@ class CallStateReceiver : BroadcastReceiver() {
         private var lastOutgoingNumber: String? = null
         private var activeCallId: String? = null
         private var isCurrentCallOutgoing = false
+        private var isCallAnswered = false
         private var resolvedContactName: String? = null
         private var currentPhoneNumber: String? = null
+
+        fun notifyCallAnswered(context: Context) {
+            if (isCallAnswered) return
+            isCallAnswered = true
+            val callId = activeCallId ?: System.currentTimeMillis().toString()
+            activeCallId = callId
+
+            val answeredPayload = JsonObject().apply {
+                addProperty("callId", callId)
+                addProperty("action", "answered")
+                addProperty("timestamp", System.currentTimeMillis().toDouble())
+            }
+            AetherCoreService.instance?.sendMessage("CALL_ACTION", answeredPayload)
+            Log.i(TAG, "Notified Mac that call is ANSWERED: $callId")
+            org.aetherlink.audio.CallAudioRelayManager.start(context)
+        }
 
         /**
          * Called when AetherNotificationListener intercepts a dialer notification (e.g. from Samsung One UI).
          * Supplies the true contact name and clean phone number directly from the native Phone app.
          */
         fun updateCallInfoFromNotification(context: Context, contactName: String, phoneNumber: String) {
+            if (isCallAnswered) {
+                // If call is already answered, do not re-send CALL_INCOMING because that triggers ringtone!
+                if (!contactName.isBlank() && contactName != ContactResolver.UNKNOWN_NUMBER) {
+                    resolvedContactName = contactName
+                }
+                if (!phoneNumber.isBlank() && phoneNumber != ContactResolver.UNKNOWN_NUMBER) {
+                    currentPhoneNumber = phoneNumber
+                }
+                return
+            }
             val callId = activeCallId ?: run {
                 val newId = System.currentTimeMillis().toString()
                 activeCallId = newId
@@ -104,6 +131,7 @@ class CallStateReceiver : BroadcastReceiver() {
                 TelephonyManager.EXTRA_STATE_RINGING -> {
                     // Incoming Call Ringing
                     isCurrentCallOutgoing = false
+                    isCallAnswered = false
                     val callId = activeCallId ?: System.currentTimeMillis().toString()
                     activeCallId = callId
 
@@ -128,19 +156,12 @@ class CallStateReceiver : BroadcastReceiver() {
                 TelephonyManager.EXTRA_STATE_OFFHOOK -> {
                     if (previousState == TelephonyManager.EXTRA_STATE_RINGING) {
                         // Incoming call was answered
-                        val callId = activeCallId ?: System.currentTimeMillis().toString()
-                        val answeredPayload = JsonObject().apply {
-                            addProperty("callId", callId)
-                            addProperty("action", "answered")
-                            addProperty("timestamp", System.currentTimeMillis().toDouble())
-                        }
-                        AetherCoreService.instance?.sendMessage("CALL_ACTION", answeredPayload)
-                        Log.i(TAG, "Relayed answered call state to Mac: $callId")
-                        org.aetherlink.audio.CallAudioRelayManager.start(context)
+                        notifyCallAnswered(context)
                     } else if (previousState == TelephonyManager.EXTRA_STATE_IDLE) {
                         // Outgoing call was initiated
                         org.aetherlink.audio.CallAudioRelayManager.start(context)
                         isCurrentCallOutgoing = true
+                        isCallAnswered = false
                         val callId = System.currentTimeMillis().toString()
                         activeCallId = callId
 
@@ -193,6 +214,7 @@ class CallStateReceiver : BroadcastReceiver() {
                     activeCallId = null
                     lastOutgoingNumber = null
                     isCurrentCallOutgoing = false
+                    isCallAnswered = false
                     resolvedContactName = null
                     currentPhoneNumber = null
                     AetherNotificationListener.clearActiveCallIntents()

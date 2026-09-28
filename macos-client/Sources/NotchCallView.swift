@@ -166,13 +166,15 @@ public struct NotchCallView: View {
                 }
             } else {
                 HStack(spacing: 4) {
-                    Text(manager.phoneNumber.isEmpty ? "Gelen Arama..." : manager.phoneNumber)
+                    let statusText = manager.isOutgoing ? "Aranıyor..." : (manager.phoneNumber.isEmpty ? "Gelen Arama..." : manager.phoneNumber)
+                    Text(statusText)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.white.opacity(0.75))
                         .lineLimit(1)
                         .truncationMode(.tail)
                     
-                    Text("• \(manager.appType == .cellular ? "Hücresel" : manager.appType.rawValue.capitalized)")
+                    let subText = manager.isOutgoing ? "• Giden Arama" : "• \(manager.appType == .cellular ? "Hücresel" : manager.appType.rawValue.capitalized)"
+                    Text(subText)
                         .font(.system(size: 10, weight: .regular))
                         .foregroundColor(.white.opacity(0.5))
                 }
@@ -185,7 +187,7 @@ public struct NotchCallView: View {
     private var rightActionSection: some View {
         HStack(spacing: 9) {
             if !manager.isCallActive {
-                // Red Reject Button
+                // Red Reject / Cancel Button
                 Button(action: {
                     manager.rejectCall()
                 }) {
@@ -200,24 +202,26 @@ public struct NotchCallView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .help("Aramayı Reddet")
+                .help(manager.isOutgoing ? "Aramayı İptal Et" : "Aramayı Reddet")
                 
-                // Green Accept Button
-                Button(action: {
-                    manager.acceptCall()
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(nsColor: .systemGreen).opacity(0.9))
-                            .frame(width: 32, height: 32)
-                            .shadow(color: Color.green.opacity(0.4), radius: 4)
-                        Image(systemName: "phone.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
+                // Green Accept Button (Show ONLY for incoming calls!)
+                if !manager.isOutgoing {
+                    Button(action: {
+                        manager.acceptCall()
+                    }) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(nsColor: .systemGreen).opacity(0.9))
+                                .frame(width: 32, height: 32)
+                                .shadow(color: Color.green.opacity(0.4), radius: 4)
+                            Image(systemName: "phone.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
                     }
+                    .buttonStyle(.plain)
+                    .help("Aramayı Yanıtla")
                 }
-                .buttonStyle(.plain)
-                .help("Aramayı Yanıtla")
             } else {
                 // Red End Call Button
                 Button(action: {

@@ -16,6 +16,7 @@ public final class NotchCallManager: ObservableObject {
     @Published public var callId: String = ""
     @Published public var appType: CallAppType = .cellular
     @Published public var avatarBase64: String? = nil
+    @Published public var isOutgoing: Bool = false
     @Published public var hasNotch: Bool = false
     @Published public var isAttachedToNotch: Bool = true
     @Published public var notchClearance: CGFloat = 34
@@ -39,8 +40,11 @@ public final class NotchCallManager: ObservableObject {
         number: String,
         callId: String = UUID().uuidString,
         appType: CallAppType = .cellular,
-        avatarBase64: String? = nil
+        avatarBase64: String? = nil,
+        isOutgoing: Bool = false
     ) {
+        self.isOutgoing = isOutgoing
+        
         // If already presenting this call, seamlessly update caller name/number without resetting ringtone
         if isPresented && (self.callId == callId || self.callId.isEmpty) {
             withAnimation(.easeInOut(duration: 0.25)) {
@@ -59,7 +63,7 @@ public final class NotchCallManager: ObservableObject {
             return
         }
 
-        self.callerName = caller.isEmpty ? "Bilinmeyen Numara" : caller
+        self.callerName = caller.isEmpty ? (isOutgoing ? "Giden Arama" : "Bilinmeyen Numara") : caller
         self.phoneNumber = number
         self.callId = callId
         self.appType = appType
@@ -73,19 +77,26 @@ public final class NotchCallManager: ObservableObject {
         durationTimer = nil
         
         waveTimer?.invalidate()
-        waveTimer = Timer.scheduledTimer(withTimeInterval: 1.1, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                withAnimation(.easeInOut(duration: 1.0)) {
-                    self?.waveAnimation.toggle()
+        waveTimer = nil
+        
+        // Ringtone only for INCOMING calls! Outgoing calls must never play the incoming ringtone.
+        ringtoneSound?.stop()
+        ringtoneSound = nil
+        
+        if !isOutgoing {
+            waveTimer = Timer.scheduledTimer(withTimeInterval: 1.1, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        self?.waveAnimation.toggle()
+                    }
                 }
             }
+            ringtoneSound = NSSound(named: "Glass")
+            ringtoneSound?.loops = true
+            ringtoneSound?.play()
+        } else {
+            self.waveAnimation = false
         }
-        
-        // Ringtone for incoming call
-        ringtoneSound?.stop()
-        ringtoneSound = NSSound(named: "Glass")
-        ringtoneSound?.loops = true
-        ringtoneSound?.play()
         
         setupAndDisplayPanel()
     }
@@ -107,21 +118,32 @@ public final class NotchCallManager: ObservableObject {
             number: payload.phoneNumber ?? "",
             callId: payload.callId,
             appType: payload.appType,
-            avatarBase64: payload.avatarBase64
+            avatarBase64: payload.avatarBase64,
+            isOutgoing: (payload.direction == "outgoing")
         )
     }
     
-    public func acceptCall() {
+    public func handleCallAnswered() {
         ringtoneSound?.stop()
+        ringtoneSound = nil
+        waveTimer?.invalidate()
+        waveTimer = nil
+        waveAnimation = false
         isCallActive = true
-        callDurationSeconds = 0
         
-        durationTimer?.invalidate()
-        durationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.callDurationSeconds += 1
+        if durationTimer == nil {
+            callDurationSeconds = 0
+            durationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.callDurationSeconds += 1
+                }
             }
         }
+        print("[NotchCallManager] Call answered -> ringtone silenced, duration timer running for call: \(callId)")
+    }
+    
+    public func acceptCall() {
+        handleCallAnswered()
         
         // Notify Android via socket
         let action = CallActionPayload(
@@ -173,10 +195,14 @@ public final class NotchCallManager: ObservableObject {
     
     public func dismiss() {
         ringtoneSound?.stop()
+        ringtoneSound = nil
         durationTimer?.invalidate()
         durationTimer = nil
         waveTimer?.invalidate()
         waveTimer = nil
+        waveAnimation = false
+        isCallActive = false
+        isOutgoing = false
         
         MediaContinuityManager.shared.resumeMediaAfterCall()
         CallAudioStreamEngine.shared.stop()

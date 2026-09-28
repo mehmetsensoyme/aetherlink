@@ -29,7 +29,9 @@ public struct UpdateInfo: Identifiable {
 public final class UpdateChecker: ObservableObject {
     public static let shared = UpdateChecker()
     
-    public let currentVersion = "1.3.6"
+    public var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.4.1"
+    }
     public let repoOwner = "mehmetsensoyme"
     public let repoName = "aetherlink"
     

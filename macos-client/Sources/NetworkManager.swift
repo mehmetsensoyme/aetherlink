@@ -306,9 +306,9 @@ public final class NetworkManager: ObservableObject {
                         CallManager.shared.dismissCallBanner()
                         NotchCallManager.shared.dismiss()
                         CallAudioStreamEngine.shared.stop()
-                    } else if action.action == "answered" || action.action == "accept" {
-                        CallManager.shared.isCallActive = true
-                        NotchCallManager.shared.isCallActive = true
+                    } else if action.action == "answered" || action.action == "accept" || action.action == "active" {
+                        CallManager.shared.handleCallAnswered()
+                        NotchCallManager.shared.handleCallAnswered()
                         let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
                         CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
                     }
@@ -324,8 +324,8 @@ public final class NetworkManager: ObservableObject {
             
         case "ACCEPT_CALL":
             DispatchQueue.main.async {
-                CallManager.shared.isCallActive = true
-                NotchCallManager.shared.isCallActive = true
+                CallManager.shared.handleCallAnswered()
+                NotchCallManager.shared.handleCallAnswered()
                 let phoneIp = NetworkManager.shared.connectedDeviceIP ?? "192.168.1.4"
                 CallAudioStreamEngine.shared.start(phoneIp: phoneIp)
             }

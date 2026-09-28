@@ -25,7 +25,7 @@ public final class CallManager: ObservableObject {
     }
     
     public func handleIncomingCall(_ payload: CallIncomingPayload) {
-        if self.activeCall?.callId == payload.callId && self.isCallActive {
+        if self.isCallActive {
             self.activeCall = payload
             if bannerPosition == .notch || bannerPosition == .floating {
                 NotchCallManager.shared.updateCallInfo(caller: payload.displayName, number: payload.phoneNumber ?? "")
@@ -41,6 +41,7 @@ public final class CallManager: ObservableObject {
         let isOutgoing = (payload.direction == "outgoing")
         if !isOutgoing && bannerPosition != .notch && bannerPosition != .floating {
             // Play system ringtone for incoming calls only
+            ringtoneSound?.stop()
             ringtoneSound = NSSound(named: "Glass")
             ringtoneSound?.loops = true
             ringtoneSound?.play()
@@ -49,10 +50,17 @@ public final class CallManager: ObservableObject {
         showCallBanner(payload)
     }
     
+    public func handleCallAnswered() {
+        ringtoneSound?.stop()
+        ringtoneSound = nil
+        isCallActive = true
+        NotchCallManager.shared.handleCallAnswered()
+        print("[CallManager] Call answered -> ringtone silenced, call state synced.")
+    }
+    
     public func answerCall() {
         guard let call = activeCall else { return }
-        ringtoneSound?.stop()
-        isCallActive = true
+        handleCallAnswered()
         
         let action = CallActionPayload(
             callId: call.callId,

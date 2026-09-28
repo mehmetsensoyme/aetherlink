@@ -265,8 +265,20 @@ class AetherNotificationListener : NotificationListenerService() {
         if (foundReject != null) activeCallRejectIntent = foundReject
         activeCallKey = sbn.key
 
-        // 2. Resolve Caller Name & Number and update Mac immediately
-        if (title.isNotBlank()) {
+        // Detect if call is already ONGOING / ANSWERED (e.g. CallStyle ongoing, chronometer, or only reject/hangup button exists)
+        val callType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            extras.getInt("android.callType", -1)
+        } else -1
+
+        val isOngoingCall = callType == 2 ||
+                extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false) ||
+                (foundAnswer == null && foundReject != null)
+
+        if (isOngoingCall) {
+            Log.i(TAG, "Call notification indicates ACTIVE/ANSWERED call (isOngoingCall=true, callType=$callType)")
+            org.aetherlink.receiver.CallStateReceiver.notifyCallAnswered(this)
+        } else if (title.isNotBlank()) {
+            // 2. Ringing incoming call: Resolve Caller Name & Number and update Mac immediately
             val resolved = org.aetherlink.telecom.ContactResolver.resolveFromNotification(this, title, text)
             Log.i(TAG, "Call notification resolved: name='${resolved.contactName}', number='${resolved.phoneNumber}'")
             org.aetherlink.receiver.CallStateReceiver.updateCallInfoFromNotification(
