@@ -79,8 +79,6 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
     
     public override init() {
         super.init()
-        let center = UNUserNotificationCenter.current()
-        center.delegate = self
         
         self.smartDuplicateFilterEnabled = UserDefaults.standard.object(forKey: "aetherlink_smart_notif_filter") as? Bool ?? true
         if let savedBlacklist = UserDefaults.standard.stringArray(forKey: "aetherlink_notif_blacklist") {
@@ -99,6 +97,14 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
                 self?.broadcastSuppressedPackagesToAndroid()
             }
         }
+        
+        guard Bundle.main.bundleIdentifier != nil else {
+            print("[NotificationManager] Running outside app bundle, skipping UNUserNotificationCenter setup")
+            return
+        }
+        
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
         
         // Register Inline Reply Action
         let replyAction = UNTextInputNotificationAction(
@@ -121,6 +127,7 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
     }
     
     public func refreshStatus() {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let status = settings.authorizationStatus
             Task { @MainActor in
@@ -131,6 +138,10 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
     }
     
     public func requestAuthorization(completion: (@Sendable (Bool) -> Void)? = nil) {
+        guard Bundle.main.bundleIdentifier != nil else {
+            completion?(false)
+            return
+        }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             Task { @MainActor in
                 self.isAuthorized = granted
@@ -243,6 +254,7 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
             trigger: nil // deliver immediately
         )
         
+        guard Bundle.main.bundleIdentifier != nil else { return }
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 print("[NotificationManager] Error posting notification: \(error)")
@@ -300,6 +312,7 @@ public final class NotificationManager: NSObject, ObservableObject, UNUserNotifi
     }
     
     public func removeNotification(key: String, id: String? = nil) {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         UNUserNotificationCenter.current().getDeliveredNotifications { notifications in
             let matchingIds = notifications.filter {
                 ($0.request.content.userInfo["key"] as? String) == key ||

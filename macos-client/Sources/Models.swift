@@ -244,6 +244,56 @@ public struct DeviceTelemetryPayload: Codable, Sendable {
     public let uptimeHours: Double
     public let timestamp: Double
     
+    public init(
+        model: String = "Galaxy S25 Ultra",
+        manufacturer: String = "Samsung",
+        androidVersion: String = "15",
+        sdkLevel: Int = 35,
+        batteryLevel: Int = 88,
+        isCharging: Bool = true,
+        batteryTempCelsius: Double? = 29.5,
+        battery_temp: Double? = nil,
+        thermalStatus: String? = "NORMAL",
+        thermal_status: String? = nil,
+        batteryHealth: String = "Mükemmel",
+        ramTotalMB: Int = 12288,
+        ramUsedMB: Int = 5420,
+        ramFreeMB: Int = 6868,
+        storageTotalGB: Double = 512.0,
+        storageUsedGB: Double = 128.4,
+        storageFreeGB: Double = 383.6,
+        wifiSSID: String? = "SuperFast_5G",
+        wifiIp: String? = "192.168.1.150",
+        wifiLinkSpeedMbps: Int = 866,
+        cellularOperator: String? = "Turkcell 5.5G",
+        uptimeHours: Double = 23.5,
+        timestamp: Double = Date().timeIntervalSince1970 * 1000
+    ) {
+        self.model = model
+        self.manufacturer = manufacturer
+        self.androidVersion = androidVersion
+        self.sdkLevel = sdkLevel
+        self.batteryLevel = batteryLevel
+        self.isCharging = isCharging
+        self.batteryTempCelsius = batteryTempCelsius
+        self.battery_temp = battery_temp
+        self.thermalStatus = thermalStatus
+        self.thermal_status = thermal_status
+        self.batteryHealth = batteryHealth
+        self.ramTotalMB = ramTotalMB
+        self.ramUsedMB = ramUsedMB
+        self.ramFreeMB = ramFreeMB
+        self.storageTotalGB = storageTotalGB
+        self.storageUsedGB = storageUsedGB
+        self.storageFreeGB = storageFreeGB
+        self.wifiSSID = wifiSSID
+        self.wifiIp = wifiIp
+        self.wifiLinkSpeedMbps = wifiLinkSpeedMbps
+        self.cellularOperator = cellularOperator
+        self.uptimeHours = uptimeHours
+        self.timestamp = timestamp
+    }
+    
     public var effectiveTemp: Double {
         return batteryTempCelsius ?? battery_temp ?? 28.0
     }

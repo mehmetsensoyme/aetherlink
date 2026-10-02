@@ -13,10 +13,12 @@ public final class OnboardingViewModel: ObservableObject {
     }
     
     public func checkPermissions() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            let isAuth = (settings.authorizationStatus == .authorized)
-            DispatchQueue.main.async {
-                self.hasNotificationPermission = isAuth
+        if Bundle.main.bundleIdentifier != nil {
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                let isAuth = (settings.authorizationStatus == .authorized)
+                DispatchQueue.main.async {
+                    self.hasNotificationPermission = isAuth
+                }
             }
         }
         let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -24,6 +26,7 @@ public final class OnboardingViewModel: ObservableObject {
     }
     
     public func requestNotificationAccess() {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
             DispatchQueue.main.async {
                 self.hasNotificationPermission = granted

@@ -101,6 +101,14 @@ public final class CallManager: ObservableObject {
         dismissCallBanner()
     }
     
+    // MARK: - Outgoing Call Initiation (Mac -> Android)
+    public func startOutgoingCall(phoneNumber: String) {
+        let trimmed = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        NetworkManager.shared.send(type: "START_CALL", payload: ["phoneNumber": trimmed])
+        print("[CallManager] Outgoing call triggered from Mac for: \(trimmed)")
+    }
+    
     private func showCallBanner(_ payload: CallIncomingPayload) {
         let panelWidth: CGFloat = 420
         let panelHeight: CGFloat = 80

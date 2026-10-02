@@ -780,11 +780,22 @@ class AetherCoreService : Service() {
                     }
                 }
                 "CLIPBOARD_SYNC" -> {
-                    val text = payload.get("data")?.asString ?: ""
+                    val contentType = payload.get("contentType")?.asString ?: "text/plain"
+                    val data = payload.get("data")?.asString ?: ""
                     val hash = payload.get("sha256Hash")?.asString ?: ""
                     val source = payload.get("sourceDevice")?.asString ?: ""
                     if (source == "macos") {
-                        ClipboardSyncManager.writeToClipboard(text, hash)
+                        if (contentType == "image/png" || contentType == "image/jpeg") {
+                            ClipboardSyncManager.writeImageToClipboard(this, data, hash)
+                        } else {
+                            ClipboardSyncManager.writeToClipboard(data, hash)
+                        }
+                    }
+                }
+                "START_CALL" -> {
+                    val phoneNumber = payload.get("phoneNumber")?.asString ?: ""
+                    if (phoneNumber.isNotEmpty()) {
+                        handleOutgoingCall(phoneNumber)
                     }
                 }
                 "FIND_MY_PHONE_REQUEST" -> {
@@ -891,6 +902,31 @@ class AetherCoreService : Service() {
                 contentResolver.unregisterContentObserver(it)
             } catch (_: Exception) {}
             callLogObserver = null
+        }
+    }
+
+    private fun handleOutgoingCall(phoneNumber: String) {
+        try {
+            val hasCallPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.CALL_PHONE
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            val intent = if (hasCallPermission) {
+                Intent(Intent.ACTION_CALL).apply {
+                    data = Uri.parse("tel:${Uri.encode(phoneNumber)}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            } else {
+                Intent(Intent.ACTION_DIAL).apply {
+                    data = Uri.parse("tel:${Uri.encode(phoneNumber)}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            }
+            startActivity(intent)
+            Log.i(TAG, "Initiated outgoing call for: $phoneNumber (hasCallPermission=$hasCallPermission)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initiate outgoing call: ${e.message}", e)
         }
     }
 

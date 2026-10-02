@@ -24,6 +24,12 @@ struct AetherLinkApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if CommandLine.arguments.contains("--snapshot") {
+            let outDir = URL(fileURLWithPath: "/tmp/mac_snapshots")
+            SnapshotInspector.shared.captureAll(outputDirectory: outDir)
+            exit(0)
+        }
+        
         freopen("/tmp/aetherlink_debug.log", "a", stdout)
         freopen("/tmp/aetherlink_debug.log", "a", stderr)
         print("[AetherLink] applicationDidFinishLaunching triggered")

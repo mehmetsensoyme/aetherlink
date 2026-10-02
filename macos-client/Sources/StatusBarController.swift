@@ -36,15 +36,10 @@ public final class StatusBarController: NSObject {
                 
                 let fittingHeight = window.contentView?.fittingSize.height ?? 0
                 let targetHeight: CGFloat
-                switch PopoverRouter.shared.currentScreen {
-                case .deviceInfo:
-                    targetHeight = fittingHeight > 100 ? max(ceil(fittingHeight), preferred) : preferred
-                case .dashboard, .pairing, .settings:
-                    if fittingHeight > 100 && abs(fittingHeight - preferred) < 60 {
-                        targetHeight = ceil(fittingHeight)
-                    } else {
-                        targetHeight = preferred
-                    }
+                if fittingHeight > 100 {
+                    targetHeight = max(ceil(fittingHeight), preferred)
+                } else {
+                    targetHeight = preferred
                 }
                 calculatedTargetHeight = targetHeight
                 let targetSize = NSSize(width: 365, height: targetHeight)

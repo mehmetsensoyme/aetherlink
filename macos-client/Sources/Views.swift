@@ -361,6 +361,8 @@ public struct DeviceTelemetryDetailView: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal, 8)
                     }
                     
@@ -900,8 +902,10 @@ public struct SettingsView: View {
                 }
             )
             
-            // Environment & OS Status Card
-            VStack(spacing: 6) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    // Environment & OS Status Card
+                    VStack(spacing: 6) {
                 HStack {
                     Image(systemName: "macwindow.and.cursorarrow")
                         .foregroundColor(Color(nsColor: .controlAccentColor))
@@ -1078,6 +1082,9 @@ public struct SettingsView: View {
             }
             .glassCard(cornerRadius: 12, padding: 10)
         }
+        .padding(.vertical, 2)
+    }
+}
         .padding(.horizontal, 14)
         .padding(.top, 14)
         .padding(.bottom, 12)

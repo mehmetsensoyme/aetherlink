@@ -32,6 +32,32 @@ public final class ClipboardManager: ObservableObject {
         guard currentCount != lastChangeCount else { return }
         lastChangeCount = currentCount
         
+        // 1. Check for image content (Screenshot, copied photo, graphics)
+        if let image = NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage,
+           let tiff = image.tiffRepresentation,
+           let bitmap = NSBitmapImageRep(data: tiff),
+           let pngData = bitmap.representation(using: .png, properties: [:]) {
+            // Limit to 10MB to guarantee zero-lag and prevent WebSocket buffer spikes
+            if (1...10_000_000).contains(pngData.count) {
+                let base64 = pngData.base64EncodedString()
+                let hash = CryptoHelper.sha256(base64)
+                guard hash != lastSyncedHash else { return }
+                lastSyncedHash = hash
+                
+                let payload = ClipboardPayload(
+                    contentType: "image/png",
+                    data: base64,
+                    sha256Hash: hash,
+                    timestamp: Date().timeIntervalSince1970 * 1000,
+                    sourceDevice: "macos"
+                )
+                NetworkManager.shared.send(type: "CLIPBOARD_SYNC", payload: payload)
+                print("[ClipboardManager] Outgoing image clipboard synced (\(pngData.count) bytes)")
+                return
+            }
+        }
+        
+        // 2. Check for plain text
         guard let string = NSPasteboard.general.string(forType: .string), !string.isEmpty else { return }
         let hash = CryptoHelper.sha256(string)
         
@@ -48,7 +74,7 @@ public final class ClipboardManager: ObservableObject {
         )
         
         NetworkManager.shared.send(type: "CLIPBOARD_SYNC", payload: payload)
-        print("[ClipboardManager] Outgoing clipboard synced: \(string.prefix(20))...")
+        print("[ClipboardManager] Outgoing text clipboard synced: \(string.prefix(20))...")
     }
     
     public func handleRemoteClipboard(_ payload: ClipboardPayload) {
@@ -57,9 +83,18 @@ public final class ClipboardManager: ObservableObject {
         guard payload.sha256Hash != lastSyncedHash else { return }
         
         lastSyncedHash = payload.sha256Hash
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(payload.data, forType: .string)
-        lastChangeCount = NSPasteboard.general.changeCount
-        print("[ClipboardManager] Incoming clipboard written: \(payload.data.prefix(20))...")
+        
+        if payload.contentType == "image/png" || payload.contentType == "image/jpeg" {
+            guard let data = Data(base64Encoded: payload.data), let image = NSImage(data: data) else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.writeObjects([image])
+            lastChangeCount = NSPasteboard.general.changeCount
+            print("[ClipboardManager] Incoming image clipboard written (\(data.count) bytes)")
+        } else {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(payload.data, forType: .string)
+            lastChangeCount = NSPasteboard.general.changeCount
+            print("[ClipboardManager] Incoming text clipboard written: \(payload.data.prefix(20))...")
+        }
     }
 }
