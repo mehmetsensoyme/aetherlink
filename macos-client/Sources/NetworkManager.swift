@@ -719,4 +719,23 @@ public final class NetworkManager: ObservableObject {
             }
         }))
     }
+    
+    public func send(type: String, payload: [String: Any] = [:]) {
+        guard let target = primaryConnection ?? activeConnections.first else { return }
+        let envelope: [String: Any] = [
+            "type": type,
+            "payload": payload
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: envelope) else { return }
+        
+        let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
+        let context = NWConnection.ContentContext(identifier: "wsText", metadata: [metadata])
+        
+        print("[NetworkManager] Sending type: \(type) (dict) to primary connection")
+        target.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed({ error in
+            if let error = error {
+                print("[NetworkManager] Send error to connection: \(error)")
+            }
+        }))
+    }
 }

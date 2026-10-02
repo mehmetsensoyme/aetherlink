@@ -609,6 +609,7 @@ class AetherCoreService : Service() {
         macTelemetryState.value = null
         telemetryJob?.cancel()
         org.aetherlink.screen.ScreenStreamManager.stopCapture()
+        AetherCameraService.stop(this)
         isMediaProjectionRunning = false
         try {
             webSocket?.close(1000, if (userInitiated) "User disconnected" else "Disconnected")
@@ -628,6 +629,7 @@ class AetherCoreService : Service() {
         macTelemetryState.value = null
         telemetryJob?.cancel()
         org.aetherlink.screen.ScreenStreamManager.stopCapture()
+        AetherCameraService.stop(this)
         isMediaProjectionRunning = false
         try {
             webSocket?.close(1000, "Remote Mac disconnected")
@@ -690,6 +692,25 @@ class AetherCoreService : Service() {
                     } else if (action == "stop") {
                         stopScreenCapture()
                     }
+                }
+                "CONTINUITY_CAMERA_START" -> {
+                    val lens = payload.get("lens")?.asString ?: "back"
+                    val res = payload.get("resolution")?.asString ?: "1080p"
+                    val torch = payload.get("torch")?.asBoolean ?: false
+                    val mic = payload.get("mic")?.asBoolean ?: true
+                    AetherCameraService.start(this, lens, res, torch, mic)
+                }
+                "CONTINUITY_CAMERA_STOP" -> {
+                    AetherCameraService.stop(this)
+                }
+                "CONTINUITY_CAMERA_SWITCH" -> {
+                    AetherCameraService.switchLens(this)
+                }
+                "CONTINUITY_CAMERA_TORCH" -> {
+                    AetherCameraService.toggleTorch(this)
+                }
+                "CONTINUITY_CAMERA_MIC" -> {
+                    AetherCameraService.toggleMic(this)
                 }
                 "MAC_SLEEP" -> {
                     isMacSleeping = true

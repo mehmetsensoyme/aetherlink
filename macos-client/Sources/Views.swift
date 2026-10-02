@@ -1180,6 +1180,7 @@ public struct MenuBarContentView: View {
     @ObservedObject var updater = UpdateChecker.shared
     @ObservedObject var pairing = PairingManager.shared
     @ObservedObject var mirror = ScreenMirrorManager.shared
+    @ObservedObject var camera = ContinuityCameraManager.shared
     @ObservedObject var telemetryMgr = DeviceTelemetryManager.shared
     @ObservedObject var notifManager = NotificationManager.shared
     @ObservedObject var clipboard = ClipboardManager.shared
@@ -1410,7 +1411,46 @@ public struct MenuBarContentView: View {
                         activeTint: Color(nsColor: .controlAccentColor)
                     )
                     
-                    // Tile 2: Bluetooth / Sistem Ses Senkronizasyonu
+                    // Tile 2: Süreklilik Kamerası (1080p Continuity Camera & Studio Mic)
+                    Button(action: {
+                        guard network.isConnected else { return }
+                        if camera.isStreaming {
+                            camera.stopStream()
+                        } else {
+                            camera.startStream()
+                        }
+                    }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: camera.isStreaming ? "video.fill" : "video")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? (camera.isStreaming ? .green : Color(nsColor: .controlAccentColor)) : .secondary)
+                                Spacer()
+                                Circle()
+                                    .fill(network.isConnected && camera.isStreaming ? Color.green : Color.secondary.opacity(0.25))
+                                    .frame(width: 6, height: 6)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Süreklilik Kamerası")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? .primary : .secondary)
+                                Text(network.isConnected ? (camera.isStreaming ? "\(camera.currentFps) FPS • \(camera.currentResolution.uppercased())" : "Durduruldu") : "Bağlantı Yok")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(
+                        id: "continuity_camera",
+                        isActive: network.isConnected && camera.isStreaming,
+                        activeTint: .green
+                    )
+                    
+                    // Tile 3: Bluetooth / Sistem Ses Senkronizasyonu
                     Button(action: {
                         guard network.isConnected else { return }
                         state.isAudioRoutingActive.toggle()
@@ -1445,7 +1485,7 @@ public struct MenuBarContentView: View {
                         activeTint: .purple
                     )
                     
-                    // Tile 3: Evrensel Pano (Universal Clipboard Sync)
+                    // Tile 4: Evrensel Pano (Universal Clipboard Sync)
                     Button(action: {
                         guard network.isConnected else { return }
                         clipboard.toggleMonitoring()
@@ -1480,7 +1520,7 @@ public struct MenuBarContentView: View {
                         activeTint: .blue
                     )
                     
-                    // Tile 4: Bildirimler ve Aramalar
+                    // Tile 5: Bildirimler ve Aramalar
                     Button(action: {
                         guard network.isConnected else { return }
                         notifManager.toggleNotificationsPaused()
@@ -1512,6 +1552,51 @@ public struct MenuBarContentView: View {
                     .glassTile(
                         id: "notifications_sync",
                         isActive: network.isConnected && !notifManager.isNotificationsPaused,
+                        activeTint: Color(nsColor: .controlAccentColor)
+                    )
+                    
+                    // Tile 6: AetherDrop (Hızlı Dosya / Fotoğraf Gönderimi)
+                    Button(action: {
+                        guard network.isConnected else { return }
+                        let panel = NSOpenPanel()
+                        panel.allowsMultipleSelection = false
+                        panel.canChooseDirectories = false
+                        panel.canCreateDirectories = false
+                        panel.prompt = "Gönder"
+                        panel.message = "Telefona gönderilecek dosyayı seçin"
+                        panel.begin { response in
+                            if response == .OK, let url = panel.url {
+                                AetherShareManager.shared.sendFileToPhone(fileURL: url)
+                            }
+                        }
+                    }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "paperplane.fill")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? Color(nsColor: .controlAccentColor) : .secondary)
+                                Spacer()
+                                Circle()
+                                    .fill(network.isConnected ? Color(nsColor: .controlAccentColor) : Color.secondary.opacity(0.25))
+                                    .frame(width: 6, height: 6)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("AetherDrop")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(network.isConnected ? .primary : .secondary)
+                                Text(network.isConnected ? "Dosya Gönder" : "Bağlantı Yok")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(
+                        id: "aether_drop_quick",
+                        isActive: false,
                         activeTint: Color(nsColor: .controlAccentColor)
                     )
                 }

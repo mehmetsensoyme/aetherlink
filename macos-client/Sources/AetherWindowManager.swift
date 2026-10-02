@@ -234,6 +234,43 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         onboardingWindow?.orderOut(nil)
     }
     
+    // MARK: - Continuity Camera Window ("Süreklilik Kamerası")
+    private var continuityCameraWindow: NSWindow?
+    
+    public func showContinuityCameraWindow() {
+        if let win = continuityCameraWindow {
+            win.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 480),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        win.title = "AetherLink • Süreklilik Kamerası"
+        win.titleVisibility = .hidden
+        win.titlebarAppearsTransparent = true
+        win.isMovableByWindowBackground = true
+        win.isReleasedWhenClosed = false
+        win.isOpaque = false
+        win.backgroundColor = .black
+        win.delegate = self
+        win.center()
+        
+        let hostingView = NSHostingView(rootView: ContinuityCameraView())
+        win.contentView = hostingView
+        self.continuityCameraWindow = win
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    public func closeContinuityCameraWindow() {
+        continuityCameraWindow?.orderOut(nil)
+    }
+    
     // MARK: - NSWindowDelegate Safe Isolation
     // When the user clicks the standard Mac close button (traffic light),
     // we orderOut the window rather than deallocating or letting it terminate the application.
@@ -247,6 +284,8 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
             UpdateChecker.shared.isShowingSheet = false
         } else if sender === pairingPromptWindow {
             PairingManager.shared.pendingPairingRequest = nil
+        } else if sender === continuityCameraWindow {
+            ContinuityCameraManager.shared.stopStream()
         }
         return false // Handled safely via orderOut
     }

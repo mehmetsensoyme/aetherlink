@@ -35,6 +35,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" tools:targetApi="upside_down_cake" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" tools:targetApi="upside_down_cake" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" tools:targetApi="upside_down_cake" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" tools:targetApi="upside_down_cake" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" tools:targetApi="upside_down_cake" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Telephony & InCall Bridging -->
@@ -120,6 +122,12 @@
             android:name=".service.AetherCallRelayService"
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
+
+        <!-- Continuity Camera & Studio Microphone Streaming Service -->
+        <service
+            android:name=".service.AetherCameraService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone" />
 
         <!-- Notification Listener Service (Intercepts WhatsApp, SMS, Telegram & provides RemoteInput) -->
         <service
