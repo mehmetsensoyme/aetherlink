@@ -128,6 +128,37 @@ public final class ContinuityCameraManager: NSObject, ObservableObject {
         AetherWindowManager.shared.closeContinuityCameraWindow()
     }
     
+    // MARK: - Incoming Status from Android (Phone -> Mac)
+    public func handleRemoteStatus(isStreaming: Bool, lens: String, resolution: String, torch: Bool, mic: Bool, port: Int) {
+        if isStreaming {
+            guard !self.isStreaming && !self.isConnecting else { return }
+            guard let ip = NetworkManager.shared.connectedDeviceIP, !ip.isEmpty else { return }
+            self.isConnecting = true
+            self.lastErrorMessage = nil
+            self.currentLens = lens
+            self.currentResolution = resolution
+            self.isTorchOn = torch
+            self.isMicActive = mic
+            connectTcpStream(targetIP: ip, port: port > 0 ? UInt16(port) : 8445)
+            if mic {
+                startAudioPlayback()
+            }
+            AetherWindowManager.shared.showContinuityCameraWindow()
+        } else {
+            if self.isStreaming || self.isConnecting {
+                disconnectTcpStream()
+                stopAudioPlayback()
+                self.isStreaming = false
+                self.isConnecting = false
+                self.currentFrame = nil
+                self.currentFps = 0
+                self.latencyMs = 0.0
+                self.bitrateMbps = 0.0
+                AetherWindowManager.shared.closeContinuityCameraWindow()
+            }
+        }
+    }
+    
     // MARK: - Remote Control Operations
     public func switchCamera() {
         NetworkManager.shared.send(type: "CONTINUITY_CAMERA_SWITCH", payload: [:])

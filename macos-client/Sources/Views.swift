@@ -1607,7 +1607,7 @@ public struct MenuBarContentView: View {
                         activeTint: Color(nsColor: .controlAccentColor)
                     )
                 }
-                .opacity(network.isConnected ? 1.0 : 0.45)
+                .opacity(network.isConnected ? 1.0 : (colorScheme == .dark ? 0.60 : 0.75))
                 .disabled(!network.isConnected)
                 
                 // 2.5 KDE Connect Quick Tools Row (Find My Phone, Remote Lock, Ping RTT)
@@ -1751,7 +1751,7 @@ public struct MenuBarContentView: View {
                             Text("Bilgiler")
                         }
                         .font(.caption2.weight(.medium))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.primary.opacity(0.75))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
                         .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)))
@@ -1765,7 +1765,7 @@ public struct MenuBarContentView: View {
                     }) {
                         Image(systemName: "gearshape")
                             .font(.caption2.weight(.medium))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.primary.opacity(0.75))
                             .padding(5)
                             .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)))
                     }
@@ -1793,7 +1793,7 @@ public struct MenuBarContentView: View {
                     
                     Text("v\(updater.currentVersion)")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary.opacity(0.8))
+                        .foregroundColor(.primary.opacity(0.55))
                     
                     Button("Çıkış") {
                         NSApplication.shared.terminate(nil)

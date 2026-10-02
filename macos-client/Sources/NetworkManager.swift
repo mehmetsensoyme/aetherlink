@@ -629,6 +629,24 @@ public final class NetworkManager: ObservableObject {
         case "CALL_AUDIO_STOP":
             CallAudioStreamEngine.shared.stop()
             
+        case "CONTINUITY_CAMERA_STATUS":
+            if let payload = json["payload"] as? [String: Any] {
+                let isStreaming = payload["isStreaming"] as? Bool ?? false
+                let lens = payload["lens"] as? String ?? "back"
+                let res = payload["resolution"] as? String ?? "1080p"
+                let torch = payload["isTorchOn"] as? Bool ?? false
+                let mic = payload["isMicActive"] as? Bool ?? true
+                let port = payload["port"] as? Int ?? 8445
+                ContinuityCameraManager.shared.handleRemoteStatus(
+                    isStreaming: isStreaming,
+                    lens: lens,
+                    resolution: res,
+                    torch: torch,
+                    mic: mic,
+                    port: port
+                )
+            }
+            
         default:
             print("[NetworkManager] Unhandled message type: \(type)")
         }

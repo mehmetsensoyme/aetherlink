@@ -433,7 +433,10 @@ class AetherCoreService : Service() {
         checkAndDispatchTelemetryIfChanged(force = false)
     }
 
-    fun connectToMacWebSocket(ip: String = macIpAddress) {
+    fun connectToMacWebSocket(ip: String = macIpAddress, isExplicitUserAction: Boolean = true) {
+        if (isExplicitUserAction) {
+            userRequestedDisconnect = false
+        }
         if (userRequestedDisconnect) {
             Log.d(TAG, "Not connecting because user manually requested disconnect.")
             return
@@ -560,11 +563,11 @@ class AetherCoreService : Service() {
                     macIpAddress = discoveredIp
                     connectedMacName = macName
                     reconnectAttempts = 0
-                    connectToMacWebSocket(discoveredIp)
+                    connectToMacWebSocket(discoveredIp, isExplicitUserAction = false)
                 }
             }
 
-            connectToMacWebSocket(macIpAddress)
+            connectToMacWebSocket(macIpAddress, isExplicitUserAction = false)
         }
     }
 
