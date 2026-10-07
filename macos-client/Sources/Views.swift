@@ -1274,31 +1274,6 @@ public class AutoSizingHostingController<Content: View>: NSHostingController<Con
     }
 }
 
-// MARK: - Window Key Focus Configurator
-struct WindowBackgroundConfigurator: NSViewRepresentable {
-    var currentPage: PopoverPage = .dashboard
-    var isConnected: Bool = false
-    var isMediaPlaying: Bool = false
-    
-    func makeNSView(context: Context) -> AutoSizingNSView {
-        let view = AutoSizingNSView()
-        return view
-    }
-    
-    func updateNSView(_ nsView: AutoSizingNSView, context: Context) {}
-}
-
-final class AutoSizingNSView: NSView {
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, let window = self.window else { return }
-            if window.isVisible && !window.isKeyWindow {
-                window.makeKey()
-            }
-        }
-    }
-}
 
 // MARK: - Popover Segmented Tab Bar
 public struct PopoverTabBar: View {
@@ -1415,13 +1390,6 @@ public struct MenuBarContentView: View {
         .frame(width: PopoverRouter.defaultWidth, height: PopoverRouter.defaultHeight)
         .animation(.spring(response: 0.32, dampingFraction: 0.8), value: router.currentScreen)
         .background(.ultraThinMaterial)
-        .background(
-            WindowBackgroundConfigurator(
-                currentPage: router.currentScreen,
-                isConnected: network.isConnected,
-                isMediaPlaying: network.mediaState?.isPlaying == true
-            )
-        )
         .preferredColorScheme(themeMgr.preferredColorScheme)
     }
     

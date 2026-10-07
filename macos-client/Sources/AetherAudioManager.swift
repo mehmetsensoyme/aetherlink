@@ -138,26 +138,30 @@ public final class AetherAudioManager: ObservableObject {
     public static let shared = AetherAudioManager()
     public static let audioPort: UInt16 = 8446
     
-    private static let magicBytes: [UInt8] = [0x41, 0x45, 0x41, 0x55] // "AEAU"
-    private static let pktTypeMedia: UInt8 = 0x01
-    private static let pktTypeCallDownlink: UInt8 = 0x02
-    private static let pktTypeCallUplink: UInt8 = 0x03
+    nonisolated private static let magicBytes: [UInt8] = [0x41, 0x45, 0x41, 0x55] // "AEAU"
+    nonisolated private static let pktTypeMedia: UInt8 = 0x01
+    nonisolated private static let pktTypeCallDownlink: UInt8 = 0x02
+    nonisolated private static let pktTypeCallUplink: UInt8 = 0x03
+    
+    nonisolated private static let mediaFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 48000, channels: 2, interleaved: true)
+    nonisolated private static let callFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)
     
     @Published public var isStreaming: Bool = false
     @Published public var currentMode: AudioStreamMode = .hybrid
     @Published public var isMicUplinkActive: Bool = false
     @Published public var volume: Double = 1.0 {
         didSet {
-            playerNode.volume = Float(volume)
+            mediaPlayerNode.volume = Float(volume)
+            callPlayerNode.volume = Float(volume)
         }
     }
     @Published public var packetsReceived: Int = 0
+    private var packetCounter: Int = 0
     
-    // CoreAudio Engine & Nodes
+    // CoreAudio Engine & Dual Output Nodes (Media 48kHz Stereo & Call 16kHz Mono)
     private let audioEngine = AVAudioEngine()
-    private let playerNode = AVAudioPlayerNode()
-    private var mediaFormat: AVAudioFormat?
-    private var callFormat: AVAudioFormat?
+    nonisolated private let mediaPlayerNode = AVAudioPlayerNode()
+    nonisolated private let callPlayerNode = AVAudioPlayerNode()
     
     // Background UDP Network Worker
     private let networkWorker = AetherAudioNetworkWorker()
@@ -167,13 +171,14 @@ public final class AetherAudioManager: ObservableObject {
     }
     
     private func setupAudioFormats() {
-        mediaFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 48000, channels: 2, interleaved: true)
-        callFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)
+        audioEngine.attach(mediaPlayerNode)
+        audioEngine.attach(callPlayerNode)
         
-        audioEngine.attach(playerNode)
-        
-        if let outputFormat = mediaFormat {
-            audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: outputFormat)
+        if let outputFormat = Self.mediaFormat {
+            audioEngine.connect(mediaPlayerNode, to: audioEngine.mainMixerNode, format: outputFormat)
+        }
+        if let callOutFormat = Self.callFormat {
+            audioEngine.connect(callPlayerNode, to: audioEngine.mainMixerNode, format: callOutFormat)
         }
     }
     
@@ -186,17 +191,17 @@ public final class AetherAudioManager: ObservableObject {
         
         self.currentMode = mode
         self.isStreaming = true
+        self.packetCounter = 0
+        self.packetsReceived = 0
         
         startAudioEngine()
         networkWorker.startListening(port: Self.audioPort) { [weak self] type, pcmData in
-            Task { @MainActor [weak self] in
-                self?.renderIncomingAudio(type: type, pcmData: pcmData)
-            }
+            self?.renderIncomingAudio(type: type, pcmData: pcmData)
         }
         
         // Notify Android via WebSocket
         NetworkManager.shared.send(type: "AUDIO_STREAM_START", payload: ["mode": mode.rawValue])
-        print("[AetherAudioManager] AetherAudio stream started in mode: \(mode.title)")
+        print("[AetherAudio] AetherAudio stream started in mode: \(mode.title)")
     }
     
     public func stopAudioStream() {
@@ -209,13 +214,13 @@ public final class AetherAudioManager: ObservableObject {
         stopAudioEngine()
         
         NetworkManager.shared.send(type: "AUDIO_STREAM_STOP", payload: [:])
-        print("[AetherAudioManager] AetherAudio stream stopped.")
+        print("[AetherAudio] AetherAudio stream stopped.")
     }
     
     public func setAudioMode(_ mode: AudioStreamMode) {
         self.currentMode = mode
         NetworkManager.shared.send(type: "AUDIO_STREAM_MODE", payload: ["mode": mode.rawValue])
-        print("[AetherAudioManager] AetherAudio mode switched to: \(mode.title)")
+        print("[AetherAudio] AetherAudio mode switched to: \(mode.title)")
     }
     
     // MARK: - Audio Engine Management
@@ -224,14 +229,20 @@ public final class AetherAudioManager: ObservableObject {
             if !audioEngine.isRunning {
                 try audioEngine.start()
             }
-            playerNode.play()
+            if !mediaPlayerNode.isPlaying {
+                mediaPlayerNode.play()
+            }
+            if !callPlayerNode.isPlaying {
+                callPlayerNode.play()
+            }
         } catch {
-            print("[AetherAudioManager] Failed to start AVAudioEngine: \(error)")
+            print("[AetherAudio] Failed to start AVAudioEngine: \(error)")
         }
     }
     
     private func stopAudioEngine() {
-        playerNode.stop()
+        mediaPlayerNode.stop()
+        callPlayerNode.stop()
         if isMicUplinkActive {
             audioEngine.inputNode.removeTap(onBus: 0)
             isMicUplinkActive = false
@@ -252,18 +263,17 @@ public final class AetherAudioManager: ObservableObject {
         }
         
         self.isMicUplinkActive = true
-        print("[AetherAudioManager] Microphone tap installed for full-duplex call uplink.")
+        print("[AetherAudio] Microphone tap installed for full-duplex call uplink.")
     }
     
     public func deactivateMicrophoneUplink() {
         guard isMicUplinkActive else { return }
         audioEngine.inputNode.removeTap(onBus: 0)
         self.isMicUplinkActive = false
-        print("[AetherAudioManager] Microphone tap removed.")
+        print("[AetherAudio] Microphone tap removed.")
     }
     
     private func sendMicrophonePacket(buffer: AVAudioPCMBuffer) {
-        guard let channelData = buffer.int16ChannelData else { return }
         let frameCount = Int(buffer.frameLength)
         guard frameCount > 0 else { return }
         
@@ -279,45 +289,68 @@ public final class AetherAudioManager: ObservableObject {
         packetData[6] = UInt8((byteCount >> 8) & 0xFF)
         packetData[7] = UInt8(byteCount & 0xFF)
         
-        packetData.replaceSubrange(8..<(8 + byteCount), with: Data(bytes: channelData[0], count: byteCount))
+        if let floatChannel = buffer.floatChannelData {
+            var int16Bytes = [Int16](repeating: 0, count: frameCount)
+            for i in 0..<frameCount {
+                let sample = floatChannel[0][i]
+                int16Bytes[i] = Int16(max(-1.0, min(1.0, sample)) * 32767.0)
+            }
+            int16Bytes.withUnsafeBytes { raw in
+                packetData.replaceSubrange(8..<(8 + byteCount), with: raw)
+            }
+        } else if let int16Channel = buffer.int16ChannelData {
+            packetData.replaceSubrange(8..<(8 + byteCount), with: Data(bytes: int16Channel[0], count: byteCount))
+        } else {
+            return
+        }
         
         // Transmit UDP to connected Android device IP
         guard let androidIP = NetworkManager.shared.connectedDeviceIP, !androidIP.isEmpty, androidIP != "127.0.0.1" else { return }
         networkWorker.sendPacket(packetData: packetData, toHost: androidIP, port: Self.audioPort)
     }
     
-    private func renderIncomingAudio(type: UInt8, pcmData: Data) {
-        self.packetsReceived += 1
-        
-        let format: AVAudioFormat?
-        let channelCount: AVAudioChannelCount
-        
-        if type == Self.pktTypeCallDownlink {
-            format = self.callFormat
-            channelCount = 1
-        } else {
-            format = self.mediaFormat
-            channelCount = 2
-        }
-        
-        guard let activeFormat = format else { return }
-        let bytesPerFrame = Int(channelCount) * 2
-        let frameCount = AVAudioFrameCount(pcmData.count / bytesPerFrame)
-        guard frameCount > 0 else { return }
-        
-        guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: activeFormat, frameCapacity: frameCount) else { return }
-        pcmBuffer.frameLength = frameCount
-        
-        pcmData.withUnsafeBytes { raw in
-            if let ptr = raw.baseAddress, let channelPtr = pcmBuffer.int16ChannelData {
-                channelPtr[0].update(from: ptr.assumingMemoryBound(to: Int16.self), count: Int(frameCount * channelCount))
+    nonisolated private func renderIncomingAudio(type: UInt8, pcmData: Data) {
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            self.packetCounter &+= 1
+            if self.packetCounter % 25 == 0 {
+                self.packetsReceived = self.packetCounter
             }
         }
         
-        if !self.playerNode.isPlaying {
-            self.playerNode.play()
+        if type == Self.pktTypeCallDownlink {
+            guard let callFmt = Self.callFormat else { return }
+            let frameCount = AVAudioFrameCount(pcmData.count / 2)
+            guard frameCount > 0, let pcmBuffer = AVAudioPCMBuffer(pcmFormat: callFmt, frameCapacity: frameCount) else { return }
+            pcmBuffer.frameLength = frameCount
+            
+            pcmData.withUnsafeBytes { raw in
+                if let ptr = raw.baseAddress, let channelPtr = pcmBuffer.int16ChannelData {
+                    channelPtr[0].update(from: ptr.assumingMemoryBound(to: Int16.self), count: Int(frameCount))
+                }
+            }
+            
+            if !self.callPlayerNode.isPlaying {
+                self.callPlayerNode.play()
+            }
+            self.callPlayerNode.scheduleBuffer(pcmBuffer, completionHandler: nil)
+        } else {
+            guard let mediaFmt = Self.mediaFormat else { return }
+            let frameCount = AVAudioFrameCount(pcmData.count / 4)
+            guard frameCount > 0, let pcmBuffer = AVAudioPCMBuffer(pcmFormat: mediaFmt, frameCapacity: frameCount) else { return }
+            pcmBuffer.frameLength = frameCount
+            
+            pcmData.withUnsafeBytes { raw in
+                if let ptr = raw.baseAddress, let channelPtr = pcmBuffer.int16ChannelData {
+                    channelPtr[0].update(from: ptr.assumingMemoryBound(to: Int16.self), count: Int(frameCount * 2))
+                }
+            }
+            
+            if !self.mediaPlayerNode.isPlaying {
+                self.mediaPlayerNode.play()
+            }
+            self.mediaPlayerNode.scheduleBuffer(pcmBuffer, completionHandler: nil)
         }
-        self.playerNode.scheduleBuffer(pcmBuffer, completionHandler: nil)
     }
     
     // Auto-switch mode on call start/end
