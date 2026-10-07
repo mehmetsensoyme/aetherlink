@@ -5,6 +5,8 @@ import SwiftUI
 struct AetherLinkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @ObservedObject var network = NetworkManager.shared
+    @ObservedObject var telemetry = DeviceTelemetryManager.shared
+    @ObservedObject var themeMgr = AppThemeManager.shared
     
     var body: some Scene {
         MenuBarExtra {
@@ -12,9 +14,15 @@ struct AetherLinkApp: App {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "bolt.horizontal.circle.fill")
-                if network.isConnected, let battery = network.batteryState {
-                    Text("\(battery.batteryLevel)%")
-                    Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.75")
+                if network.isConnected {
+                    if let battery = network.batteryState {
+                        Text("\(battery.batteryLevel)%")
+                        Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.75")
+                    }
+                    if themeMgr.showPingInMenuBar, let ping = telemetry.lastPingMs {
+                        Text("• \(Int(ping))ms")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    }
                 }
             }
         }
@@ -39,6 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Initialize Status Bar Popover controller & PopoverRouter size sync
         _ = StatusBarController.shared
+        
+        // Start periodic telemetry & latency ping
+        DeviceTelemetryManager.shared.startPeriodicPing()
         
         // Request Notification authorization
         NotificationManager.shared.requestAuthorization()

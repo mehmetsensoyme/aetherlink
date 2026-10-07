@@ -121,14 +121,20 @@ class MainActivity : ComponentActivity() {
         // Automatically start the background foreground service on launch
         AetherCoreService.start(this)
         requestMissingPermissionsOnLaunch()
+        org.aetherlink.util.ThemePreferences.init(this)
 
         if (intent?.getBooleanExtra(EXTRA_REQUEST_SCREEN_CAPTURE, false) == true) {
             launchScreenCapturePrompt()
         }
 
         setContent {
-            val darkTheme = isSystemInDarkTheme()
-            val colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()
+            val currentThemeMode by org.aetherlink.util.ThemePreferences.themeModeState
+            val isDark = when (currentThemeMode) {
+                org.aetherlink.util.AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+                org.aetherlink.util.AppThemeMode.LIGHT -> false
+                org.aetherlink.util.AppThemeMode.DARK -> true
+            }
+            val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
 
             MaterialTheme(colorScheme = colorScheme) {
                 var isOnboardingCompleted by remember {

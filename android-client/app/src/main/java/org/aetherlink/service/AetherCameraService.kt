@@ -1,5 +1,6 @@
 package org.aetherlink.service
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,6 +9,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.ImageFormat
 import android.hardware.camera2.*
@@ -23,6 +25,7 @@ import android.os.IBinder
 import android.util.Log
 import android.util.Size
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.gson.JsonObject
 import kotlinx.coroutines.*
 import org.aetherlink.R
@@ -149,62 +152,85 @@ class AetherCameraService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action ?: ACTION_START
-        when (action) {
-            ACTION_START -> {
-                val reqLens = intent?.getStringExtra("lens") ?: currentLens
-                val reqRes = intent?.getStringExtra("resolution") ?: currentResolution
-                val reqTorch = intent?.getBooleanExtra("torch", false) ?: false
-                val reqMic = intent?.getBooleanExtra("mic", true) ?: true
+        try {
+            when (action) {
+                ACTION_START -> {
+                    val reqLens = intent?.getStringExtra("lens") ?: currentLens
+                    val reqRes = intent?.getStringExtra("resolution") ?: currentResolution
+                    val reqTorch = intent?.getBooleanExtra("torch", false) ?: false
+                    val reqMic = intent?.getBooleanExtra("mic", true) ?: true
 
-                currentLens = reqLens
-                currentResolution = reqRes
-                isTorchOn = reqTorch
-                isMicActive = reqMic
+                    currentLens = reqLens
+                    currentResolution = reqRes
+                    isTorchOn = reqTorch
+                    isMicActive = reqMic
 
-                startForegroundServiceWithNotification()
-                startStreamingPipeline()
-            }
-            ACTION_STOP -> {
-                stopStreamingPipeline()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
-            ACTION_SWITCH -> {
-                currentLens = if (currentLens == "back") "front" else "back"
-                isTorchOn = false // Torch only on back camera
-                restartCameraCapture()
-                broadcastStatus()
-            }
-            ACTION_TORCH -> {
-                if (currentLens == "back") {
-                    isTorchOn = !isTorchOn
-                    updateTorchState()
+                    if (startForegroundServiceWithNotification()) {
+                        startStreamingPipeline()
+                    }
+                }
+                ACTION_STOP -> {
+                    stopStreamingPipeline()
+                    try {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                    } catch (_: Exception) {}
+                    stopSelf()
+                }
+                ACTION_SWITCH -> {
+                    currentLens = if (currentLens == "back") "front" else "back"
+                    isTorchOn = false // Torch only on back camera
+                    restartCameraCapture()
+                    broadcastStatus()
+                }
+                ACTION_TORCH -> {
+                    if (currentLens == "back") {
+                        isTorchOn = !isTorchOn
+                        updateTorchState()
+                        broadcastStatus()
+                    }
+                }
+                ACTION_MIC_TOGGLE -> {
+                    isMicActive = !isMicActive
+                    if (isMicActive) {
+                        startAudioCapture()
+                    } else {
+                        stopAudioCapture()
+                    }
                     broadcastStatus()
                 }
             }
-            ACTION_MIC_TOGGLE -> {
-                isMicActive = !isMicActive
-                if (isMicActive) {
-                    startAudioCapture()
-                } else {
-                    stopAudioCapture()
-                }
-                broadcastStatus()
-            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Unhandled exception in onStartCommand: ${e.message}", e)
         }
         return START_NOT_STICKY
     }
 
-    private fun startForegroundServiceWithNotification() {
-        val notification = buildServiceNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            var fgsType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                fgsType = fgsType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+    private fun startForegroundServiceWithNotification(): Boolean {
+        return try {
+            val notification = buildServiceNotification()
+            val hasCamera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+            val hasMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+            if (!hasCamera) {
+                Log.w(TAG, "Cannot start camera foreground service: CAMERA permission not granted!")
+                stopSelf()
+                return false
             }
-            startForeground(NOTIFICATION_ID, notification, fgsType)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                var fgsType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && hasMic && isMicActive) {
+                    fgsType = fgsType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                }
+                startForeground(NOTIFICATION_ID, notification, fgsType)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to startForeground: ${e.message}", e)
+            stopSelf()
+            false
         }
     }
 
@@ -403,6 +429,12 @@ class AetherCameraService : Service() {
         val manager = cameraManager ?: return
         val handler = cameraHandler ?: return
 
+        // Verify camera permission
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Cannot open camera: CAMERA permission not granted")
+            return
+        }
+
         try {
             val targetFacing = if (currentLens == "front") {
                 CameraCharacteristics.LENS_FACING_FRONT
@@ -425,13 +457,23 @@ class AetherCameraService : Service() {
                 return
             }
 
-            val targetSize = if (currentResolution == "720p") {
-                Size(1280, 720)
-            } else {
-                Size(1920, 1080)
-            }
+            val chars = manager.getCameraCharacteristics(cameraId)
+            val map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            val availableSizes = map?.getOutputSizes(ImageFormat.JPEG) ?: emptyArray()
 
-            // ImageReader with JPEG format uses the Qualcomm / Exynos hardware ISP encoder directly!
+            val desiredWidth = if (currentResolution == "720p") 1280 else 1920
+            val desiredHeight = if (currentResolution == "720p") 720 else 1080
+
+            // Pick exact match, or closest 16:9, or highest resolution within bounds
+            val targetSize = availableSizes.firstOrNull { it.width == desiredWidth && it.height == desiredHeight }
+                ?: availableSizes.filter { it.width <= desiredWidth && it.height <= desiredHeight }
+                    .maxByOrNull { it.width * it.height }
+                ?: availableSizes.firstOrNull()
+                ?: Size(1280, 720)
+
+            Log.i(TAG, "Selected camera output size: ${targetSize.width}x${targetSize.height} for camera $cameraId")
+
+            // ImageReader with JPEG format uses hardware ISP encoder directly
             // Maximum buffer size = 2 to ensure zero latency and instant frame dropping when delayed
             val reader = ImageReader.newInstance(targetSize.width, targetSize.height, ImageFormat.JPEG, 2)
             reader.setOnImageAvailableListener({ ir ->
@@ -472,14 +514,16 @@ class AetherCameraService : Service() {
                 }
 
                 override fun onDisconnected(camera: CameraDevice) {
-                    camera.close()
+                    try { camera.close() } catch (_: Exception) {}
                     cameraDevice = null
                 }
 
                 override fun onError(camera: CameraDevice, error: Int) {
                     Log.e(TAG, "Camera open error: $error")
-                    camera.close()
+                    try { camera.close() } catch (_: Exception) {}
                     cameraDevice = null
+                    isStreaming = false
+                    broadcastStatus()
                 }
             }, handler)
 
@@ -582,6 +626,13 @@ class AetherCameraService : Service() {
     @SuppressLint("MissingPermission")
     private fun startAudioCapture() {
         if (isAudioRecording) return
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Audio capture skipped: RECORD_AUDIO permission not granted")
+            isAudioRecording = false
+            return
+        }
+
         isAudioRecording = true
 
         val sampleRate = 48000

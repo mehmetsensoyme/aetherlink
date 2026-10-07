@@ -385,15 +385,14 @@ public struct DeviceTelemetryDetailView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.top, 14)
+        .padding(.top, 12)
         .padding(.bottom, 12)
-        .frame(width: 365)
+        .frame(width: PopoverRouter.defaultWidth, height: PopoverRouter.defaultHeight)
         .background(.ultraThinMaterial)
         .onAppear {
             telemetryMgr.requestTelemetryRefresh()
             thermalService.readHardwareTemperature(forceFresh: true)
             thermalService.broadcastTelemetry()
-            StatusBarController.shared.syncPopoverToFittingSize()
         }
         .background(
             Button("") {
@@ -533,9 +532,9 @@ public struct PairingQRView: View {
             .padding(.top, 2)
         }
         .padding(.horizontal, 14)
-        .padding(.top, 14)
+        .padding(.top, 12)
         .padding(.bottom, 12)
-        .frame(width: 365)
+        .frame(width: PopoverRouter.defaultWidth, height: PopoverRouter.defaultHeight)
         .background(.ultraThinMaterial)
         .background(
             Button("") {
@@ -888,57 +887,96 @@ public struct SettingsView: View {
     @ObservedObject var updater = UpdateChecker.shared
     @ObservedObject var notifManager = NotificationManager.shared
     @ObservedObject var callManager = CallManager.shared
-    var onBack: () -> Void
+    @ObservedObject var themeMgr = AppThemeManager.shared
+    var showHeader: Bool = true
+    var onBack: () -> Void = {}
+    
+    public init(showHeader: Bool = true, onBack: @escaping () -> Void = {}) {
+        self.showHeader = showHeader
+        self.onBack = onBack
+    }
     
     public var body: some View {
         VStack(spacing: 8) {
-            // Symmetrical Unified Header
-            PopoverScreenHeader(
-                title: "Ayarlar & Durum",
-                subtitle: "AetherLink Tercihleri",
-                onBack: {
-                    onBack()
-                    PopoverRouter.shared.popToDashboard()
-                }
-            )
+            if showHeader {
+                // Symmetrical Unified Header
+                PopoverScreenHeader(
+                    title: "Ayarlar & Durum",
+                    subtitle: "AetherLink Tercihleri",
+                    onBack: {
+                        onBack()
+                        PopoverRouter.shared.popToDashboard()
+                    }
+                )
+            }
             
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 8) {
+                    // Theme Preference Card
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Image(systemName: "paintpalette.fill")
+                                .foregroundColor(.purple)
+                            Text("Tema Tercihi")
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Text(themeMgr.currentTheme.displayName)
+                                .font(.caption2.bold())
+                                .foregroundColor(Color(nsColor: .controlAccentColor))
+                        }
+                        
+                        Picker("", selection: $themeMgr.currentTheme) {
+                            ForEach(AppThemeMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .glassCard(cornerRadius: 12, padding: 10)
+                    
+                    // Menu Bar Live Ping Display Preference Card
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle(isOn: $themeMgr.showPingInMenuBar) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "bolt.horizontal.fill")
+                                    .foregroundColor(.cyan)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("Menü Çubuğunda Canlı Ping")
+                                        .font(.caption.weight(.semibold))
+                                    Text("Simgenin yanında anlık RTT gecikmesini (ms) göster")
+                                        .font(.system(size: 9.5))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .toggleStyle(.switch)
+                    }
+                    .glassCard(cornerRadius: 12, padding: 10)
+                    
                     // Environment & OS Status Card
                     VStack(spacing: 6) {
-                HStack {
-                    Image(systemName: "macwindow.and.cursorarrow")
-                        .foregroundColor(Color(nsColor: .controlAccentColor))
-                    Text("macOS Uyumluluğu")
-                        .font(.caption)
-                    Spacer()
-                    Text("macOS \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.minorVersion)")
-                        .font(.caption.bold())
-                }
-                
-                HStack {
-                    Image(systemName: "drop.fill")
-                        .foregroundColor(.cyan)
-                    Text("Liquid Glass Efekti")
-                        .font(.caption)
-                    Spacer()
-                    Text("Ultra-Thin Material")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                }
-                
-                HStack {
-                    Image(systemName: "paintpalette.fill")
-                        .foregroundColor(.purple)
-                    Text("Tema Görünümü")
-                        .font(.caption)
-                    Spacer()
-                    Text(colorScheme == .dark ? "Koyu (Dark)" : "Açık (Light)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .glassCard(cornerRadius: 12, padding: 10)
+                        HStack {
+                            Image(systemName: "macwindow.and.cursorarrow")
+                                .foregroundColor(Color(nsColor: .controlAccentColor))
+                            Text("macOS Uyumluluğu")
+                                .font(.caption)
+                            Spacer()
+                            Text("macOS \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.minorVersion)")
+                                .font(.caption.bold())
+                        }
+                        
+                        HStack {
+                            Image(systemName: "drop.fill")
+                                .foregroundColor(.cyan)
+                            Text("Liquid Glass Efekti")
+                                .font(.caption)
+                            Spacer()
+                            Text("Ultra-Thin Material")
+                                .font(.caption2)
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .glassCard(cornerRadius: 12, padding: 10)
             
             // Onboarding & Permissions Entry Card
             Button(action: {
@@ -1081,15 +1119,18 @@ public struct SettingsView: View {
                 .glassTile(id: "check_updates_settings", isActive: false)
             }
             .glassCard(cornerRadius: 12, padding: 10)
+            
+            // Bottom padding cushion for scroll comfort
+            Spacer().frame(height: 10)
         }
         .padding(.vertical, 2)
     }
 }
+        .frame(maxHeight: 460)
         .padding(.horizontal, 14)
-        .padding(.top, 14)
+        .padding(.top, 10)
         .padding(.bottom, 12)
-        .frame(width: 365)
-        .background(.ultraThinMaterial)
+        .frame(width: PopoverRouter.defaultWidth)
         .background(
             Button("") {
                 onBack()
@@ -1102,81 +1143,195 @@ public struct SettingsView: View {
     }
 }
 
+// MARK: - Quick Dial Out Card ("Mac'ten Hızlı Arama")
+public struct QuickDialCard: View {
+    @ObservedObject var state = PopoverStateManager.shared
+    @ObservedObject var network = NetworkManager.shared
+    @ObservedObject var callManager = CallManager.shared
+    @Environment(\.colorScheme) private var colorScheme
+    
+    public init() {}
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "phone.arrow.up.right.fill")
+                    .foregroundColor(.green)
+                Text("Mac'ten Hızlı Arama")
+                    .font(.system(size: 12.5, weight: .semibold))
+                Spacer()
+                if !network.isConnected {
+                    Text("Bağlantı Yok")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else if callManager.isCallActive || callManager.activeCall?.direction == "outgoing" {
+                    Text("Arama Aktif")
+                        .font(.caption2.bold())
+                        .foregroundColor(.green)
+                }
+            }
+            
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "number")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    
+                    TextField("Numara veya isim...", text: $state.quickDialNumber)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .onSubmit {
+                            dial()
+                        }
+                    
+                    if !state.quickDialNumber.isEmpty {
+                        Button(action: { state.quickDialNumber = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.8)
+                )
+                
+                Button(action: {
+                    dial()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "phone.fill")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Ara")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule().fill(network.isConnected && !state.quickDialNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.green : Color.gray.opacity(0.4))
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!network.isConnected || state.quickDialNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("Android hücresel hattı üzerinden Mac'ten arama başlat")
+            }
+        }
+        .glassCard(cornerRadius: 14, padding: 10)
+    }
+    
+    private func dial() {
+        guard network.isConnected else { return }
+        let trimmed = state.quickDialNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        callManager.startOutgoingCall(phoneNumber: trimmed)
+    }
+}
+
 // MARK: - Auto-Sizing NSHostingController & NSView
 public class AutoSizingHostingController<Content: View>: NSHostingController<Content> {
     public override func viewDidLayout() {
         super.viewDidLayout()
         let fittingHeight = view.fittingSize.height
         if fittingHeight > 0 {
-            preferredContentSize = NSSize(width: 365, height: max(ceil(fittingHeight), 220))
+            preferredContentSize = NSSize(width: PopoverRouter.defaultWidth, height: max(ceil(fittingHeight), 220))
         }
     }
 }
 
-// MARK: - Window Background & Auto-Sizing Configurator
+// MARK: - Window Key Focus Configurator
 struct WindowBackgroundConfigurator: NSViewRepresentable {
-    let currentPage: PopoverPage
-    let isConnected: Bool
-    let isMediaPlaying: Bool
+    var currentPage: PopoverPage = .dashboard
+    var isConnected: Bool = false
+    var isMediaPlaying: Bool = false
     
     func makeNSView(context: Context) -> AutoSizingNSView {
         let view = AutoSizingNSView()
         return view
     }
     
-    func updateNSView(_ nsView: AutoSizingNSView, context: Context) {
-        nsView.scheduleResize()
-    }
+    func updateNSView(_ nsView: AutoSizingNSView, context: Context) {}
 }
 
 final class AutoSizingNSView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        scheduleResize()
-    }
-    
-    func scheduleResize() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, let window = self.window else { return }
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            
-            if let contentView = window.contentView {
-                contentView.wantsLayer = true
-                contentView.layer?.backgroundColor = .clear
-                
-                let fittingHeight = contentView.fittingSize.height
-                let preferred = PopoverRouter.shared.currentScreen.preferredHeight
-                let targetHeight: CGFloat
-                switch PopoverRouter.shared.currentScreen {
-                case .deviceInfo:
-                    targetHeight = fittingHeight > 100 ? max(ceil(fittingHeight), preferred) : preferred
-                case .dashboard, .pairing, .settings:
-                    if fittingHeight > 100 && abs(fittingHeight - preferred) < 60 {
-                        targetHeight = ceil(fittingHeight)
-                    } else {
-                        targetHeight = preferred
-                    }
-                }
-                let targetSize = NSSize(width: 365, height: targetHeight)
-                let currentFrame = window.frame
-                if abs(currentFrame.width - targetSize.width) > 1 || abs(currentFrame.height - targetSize.height) > 1 {
-                    let deltaHeight = targetSize.height - currentFrame.height
-                    let newOrigin = NSPoint(x: currentFrame.origin.x, y: currentFrame.origin.y - deltaHeight)
-                    let newFrame = NSRect(origin: newOrigin, size: targetSize)
-                    
-                    NSAnimationContext.runAnimationGroup { context in
-                        context.duration = 0.20
-                        context.allowsImplicitAnimation = true
-                        window.setFrame(newFrame, display: true, animate: true)
-                    }
-                }
-            }
-            
             if window.isVisible && !window.isKeyWindow {
                 window.makeKey()
             }
         }
+    }
+}
+
+// MARK: - Popover Segmented Tab Bar
+public struct PopoverTabBar: View {
+    @Binding var selectedScreen: ActiveScreen
+    @Environment(\.colorScheme) private var colorScheme
+    
+    struct TabItem {
+        let screen: ActiveScreen
+        let title: String
+        let icon: String
+    }
+    
+    let items: [TabItem] = [
+        TabItem(screen: .dashboard, title: "Genel", icon: "gauge.with.needle"),
+        TabItem(screen: .continuity, title: "Süreklilik", icon: "sparkles.tv"),
+        TabItem(screen: .remote, title: "Kumanda", icon: "slider.horizontal.3"),
+        TabItem(screen: .settings, title: "Ayarlar", icon: "gearshape")
+    ]
+    
+    public var body: some View {
+        HStack(spacing: 3) {
+            ForEach(items, id: \.screen) { item in
+                let isSelected = (selectedScreen == item.screen)
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
+                        selectedScreen = item.screen
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                        Text(item.title)
+                            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                    }
+                    .foregroundColor(isSelected ? Color(nsColor: .controlAccentColor) : .primary.opacity(0.75))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .background {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(nsColor: .controlAccentColor).opacity(colorScheme == .dark ? 0.22 : 0.14))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .strokeBorder(Color(nsColor: .controlAccentColor).opacity(0.4), lineWidth: 1)
+                                )
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(AdaptiveGlassTheme.glassBorder(for: colorScheme), lineWidth: 0.5)
+        )
     }
 }
 
@@ -1197,26 +1352,23 @@ public struct MenuBarContentView: View {
     @ObservedObject var remoteLock = RemoteLockManager.shared
     @ObservedObject var remoteVol = RemoteVolumeManager.shared
     @ObservedObject var caffeinate = CaffeinateManager.shared
+    @ObservedObject var themeMgr = AppThemeManager.shared
     
     public init() {}
     
     public var body: some View {
         ZStack {
-            switch router.currentScreen {
-            case .dashboard:
-                dashboardView
-                    .transition(.opacity)
-            case .deviceInfo:
+            if router.currentScreen == .deviceInfo {
                 DeviceTelemetryDetailView(
                     showInlineBack: true,
                     onBack: {
-                        router.popToDashboard()
+                        router.navigateTo(.settings)
                     }
                 )
                 .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
-            case .pairing:
+            } else if router.currentScreen == .pairing {
                 if network.isConnected {
-                    dashboardView
+                    tabContainerView
                         .transition(.opacity)
                 } else {
                     PairingQRView(
@@ -1227,18 +1379,13 @@ public struct MenuBarContentView: View {
                     )
                     .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
                 }
-            case .settings:
-                SettingsView(
-                    onBack: {
-                        router.popToDashboard()
-                    }
-                )
-                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
+            } else {
+                tabContainerView
+                    .transition(.opacity)
             }
         }
-        .frame(width: 365)
-        .fixedSize(horizontal: true, vertical: true)
-        .animation(.easeInOut(duration: 0.20), value: router.currentScreen)
+        .frame(width: PopoverRouter.defaultWidth, height: PopoverRouter.defaultHeight)
+        .animation(.spring(response: 0.32, dampingFraction: 0.8), value: router.currentScreen)
         .background(.ultraThinMaterial)
         .background(
             WindowBackgroundConfigurator(
@@ -1247,6 +1394,37 @@ public struct MenuBarContentView: View {
                 isMediaPlaying: network.mediaState?.isPlaying == true
             )
         )
+        .preferredColorScheme(themeMgr.preferredColorScheme)
+    }
+    
+    private var tabContainerView: some View {
+        VStack(spacing: 8) {
+            // Segmented Top Tab Bar
+            PopoverTabBar(selectedScreen: $router.currentScreen)
+            
+            // Tab Content
+            Group {
+                switch router.currentScreen {
+                case .dashboard:
+                    dashboardView
+                case .continuity:
+                    continuityView
+                case .remote:
+                    remoteView
+                case .settings:
+                    SettingsView(showHeader: false, onBack: {
+                        router.popToDashboard()
+                    })
+                default:
+                    dashboardView
+                }
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .frame(width: PopoverRouter.defaultWidth, height: PopoverRouter.defaultHeight)
     }
     
     // MARK: - Dashboard Content
@@ -1322,6 +1500,19 @@ public struct MenuBarContentView: View {
                         
                         Spacer().frame(width: 8)
                         
+                        // Quick Call Button
+                        Button(action: {
+                            router.navigateTo(.remote)
+                        }) {
+                            Image(systemName: "phone.arrow.up.right.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.green)
+                                .frame(width: 24, height: 24)
+                                .background(Circle().fill(Color.green.opacity(colorScheme == .dark ? 0.20 : 0.12)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Mac'ten Hızlı Arama (Kumanda)")
+                        
                         // Minimal Red Disconnect Button
                         Button(action: {
                             network.disconnectDevice(forget: false)
@@ -1377,9 +1568,226 @@ public struct MenuBarContentView: View {
                     .glassCard(cornerRadius: 14, padding: 10, isHighlighted: false)
                 }
                 
-                // 2. Interactive Quick Tiles (2-Column Grid)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                    // Tile 1: Ekran Yansıt (Wireless Screen Mirroring via scrcpy)
+            // 2. Interactive 2x2 Quick Action Tiles Grid
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                // Tile 1: Ping RTT Latency
+                Button(action: {
+                    guard network.isConnected else { return }
+                    telemetryMgr.sendPing()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bolt.horizontal.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(telemetryMgr.isPinging ? .orange : .cyan)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Ağ Gecikmesi")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(telemetryMgr.isPinging ? "Ölçülüyor..." : (telemetryMgr.lastPingMs != nil ? "\(Int(telemetryMgr.lastPingMs!)) ms" : "Test Et"))
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                }
+                .buttonStyle(.plain)
+                .glassTile(id: "quick_ping_tile", isActive: telemetryMgr.isPinging, activeTint: .cyan)
+                .disabled(!network.isConnected)
+                
+                // Tile 2: Kafein / Keep Awake
+                Button(action: {
+                    caffeinate.toggleCaffeinate()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: caffeinate.isCaffeinateActive ? "cup.and.saucer.fill" : "cup.and.saucer")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(caffeinate.isCaffeinateActive ? .orange : .secondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Kafein Modu")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(caffeinate.isCaffeinateActive ? "Mac Uyanık" : "Standart Uyku")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                }
+                .buttonStyle(.plain)
+                .glassTile(id: "quick_caffeinate_tile", isActive: caffeinate.isCaffeinateActive, activeTint: .orange)
+                
+                // Tile 3: Find My Phone
+                Button(action: {
+                    guard network.isConnected else { return }
+                    findMy.toggleRingPhone()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: findMy.isPhoneRinging ? "bell.and.waveform.fill" : "bell.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(findMy.isPhoneRinging ? .yellow : Color(nsColor: .controlAccentColor))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Telefonu Çaldır")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(findMy.isPhoneRinging ? "Sustur" : "Sesi Yükselt")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                }
+                .buttonStyle(.plain)
+                .glassTile(id: "quick_find_phone_tile", isActive: findMy.isPhoneRinging, activeTint: .yellow)
+                .disabled(!network.isConnected)
+                
+                // Tile 4: Remote Lock
+                Button(action: {
+                    guard network.isConnected else { return }
+                    remoteLock.lockPhone()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.red)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Telefonu Kilitle")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text("Ekranı Kapat")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                }
+                .buttonStyle(.plain)
+                .glassTile(id: "quick_lock_tile", isActive: false, activeTint: .red)
+                .disabled(!network.isConnected)
+            }
+            
+            // 3. Dynamic Media Player Card (If Media is Playing)
+            if let media = network.mediaState, media.isPlaying && !media.trackTitle.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: media.packageName.contains("spotify") ? "play.circle.fill" : "music.note")
+                        .font(.system(size: 20))
+                        .foregroundColor(media.packageName.contains("spotify") ? .green : .pink)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(media.trackTitle)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                        Text(media.artist.isEmpty ? (media.packageName.contains("spotify") ? "Spotify" : "Apple Music") : media.artist)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        MediaContinuityManager.shared.openCurrentMedia(media)
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.right.square")
+                            Text("Aç")
+                        }
+                        .font(.caption2.weight(.medium))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                    .glassTile(id: "open_media_player", isActive: false)
+                }
+                .glassCard(cornerRadius: 14, padding: 10)
+            }
+            
+            Spacer(minLength: 0)
+            
+            // 4. Minimal Balanced Footer Bar
+            HStack(spacing: 8) {
+                Button(action: {
+                    router.navigateTo(.deviceInfo)
+                    telemetryMgr.requestTelemetryRefresh()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "info.circle")
+                        Text("Bilgiler")
+                    }
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(.primary.opacity(0.75))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)))
+                }
+                .buttonStyle(.plain)
+                .help("Cihaz Bilgileri ve Donanım Telemetrisi")
+                
+                Button(action: {
+                    AetherWindowManager.shared.showOnboardingWindow()
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "sparkles")
+                        Text("Rehber")
+                    }
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(Color(nsColor: .controlAccentColor))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlAccentColor).opacity(colorScheme == .dark ? 0.15 : 0.08)))
+                }
+                .buttonStyle(.plain)
+                .help("Karşılama Ekranı ve İzin Yönetimi")
+                
+                Spacer()
+                
+                Text("v\(updater.currentVersion)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundColor(.primary.opacity(0.55))
+                
+                Button("Çıkış") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .buttonStyle(.plain)
+                .font(.caption2.weight(.medium))
+                .foregroundColor(.red.opacity(0.85))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.red.opacity(colorScheme == .dark ? 0.12 : 0.06)))
+            }
+            .padding(.top, 4)
+        }
+    }
+    
+    // MARK: - 2. Continuity View
+    private var continuityView: some View {
+        VStack(spacing: 8) {
+            // Screen Mirroring Card
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.blue.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: mirror.isScrcpyRunning ? "display.trianglebadge.exclamationmark" : "display")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.blue)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Kablosuz Ekran Yansıtma")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text(network.isConnected ? (mirror.isScrcpyRunning ? "Aktif • 60 FPS • Düşük Gecikme" : "Hazır • scrcpy Yüksek Performans") : "Telefon Bağlantısı Bekleniyor")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
                     Button(action: {
                         guard network.isConnected else { return }
                         if mirror.isScrcpyRunning {
@@ -1388,37 +1796,44 @@ public struct MenuBarContentView: View {
                             mirror.startMirroring()
                         }
                     }) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: mirror.isScrcpyRunning ? "display.trianglebadge.exclamationmark" : "display")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? (mirror.isScrcpyRunning ? .blue : Color(nsColor: .controlAccentColor)) : .secondary)
-                                Spacer()
-                                Circle()
-                                    .fill(network.isConnected && mirror.isScrcpyRunning ? Color.green : Color.secondary.opacity(0.25))
-                                    .frame(width: 6, height: 6)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Ekran Yansıt")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? .primary : .secondary)
-                                Text(network.isConnected ? (mirror.isScrcpyRunning ? "Aktif (60 FPS)" : "Durduruldu") : "Bağlantı Yok")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(mirror.isScrcpyRunning ? "Durdur" : "Başlat")
+                            .font(.caption.bold())
+                            .foregroundColor(mirror.isScrcpyRunning ? .red : .white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(mirror.isScrcpyRunning ? Color.red.opacity(0.20) : Color.blue)
+                            )
                     }
                     .buttonStyle(.plain)
-                    .glassTile(
-                        id: "screen_mirror",
-                        isActive: network.isConnected && mirror.isScrcpyRunning,
-                        activeTint: Color(nsColor: .controlAccentColor)
-                    )
+                    .disabled(!network.isConnected)
+                }
+            }
+            .glassCard(cornerRadius: 14, padding: 10, isHighlighted: mirror.isScrcpyRunning, highlightColor: .blue)
+            
+            // Continuity Camera & Studio Mic Card
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.green.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: camera.isStreaming ? "video.fill" : "video")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.green)
+                    }
                     
-                    // Tile 2: Süreklilik Kamerası (1080p Continuity Camera & Studio Mic)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Süreklilik Kamerası")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text(network.isConnected ? (camera.isStreaming ? "Canlı • \(camera.currentFps) FPS • \(camera.currentResolution.uppercased())" : "1080p Studio Kamera & Mikrofon") : "Telefon Bağlantısı Bekleniyor")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
                     Button(action: {
                         guard network.isConnected else { return }
                         if camera.isStreaming {
@@ -1427,142 +1842,86 @@ public struct MenuBarContentView: View {
                             camera.startStream()
                         }
                     }) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: camera.isStreaming ? "video.fill" : "video")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? (camera.isStreaming ? .green : Color(nsColor: .controlAccentColor)) : .secondary)
-                                Spacer()
-                                Circle()
-                                    .fill(network.isConnected && camera.isStreaming ? Color.green : Color.secondary.opacity(0.25))
-                                    .frame(width: 6, height: 6)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Süreklilik Kamerası")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? .primary : .secondary)
-                                Text(network.isConnected ? (camera.isStreaming ? "\(camera.currentFps) FPS • \(camera.currentResolution.uppercased())" : "Durduruldu") : "Bağlantı Yok")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(camera.isStreaming ? "Durdur" : "Başlat")
+                            .font(.caption.bold())
+                            .foregroundColor(camera.isStreaming ? .red : .white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(camera.isStreaming ? Color.red.opacity(0.20) : Color.green)
+                            )
                     }
                     .buttonStyle(.plain)
-                    .glassTile(
-                        id: "continuity_camera",
-                        isActive: network.isConnected && camera.isStreaming,
-                        activeTint: .green
-                    )
-                    
-                    // Tile 3: Bluetooth / Sistem Ses Senkronizasyonu
-                    Button(action: {
-                        guard network.isConnected else { return }
-                        state.isAudioRoutingActive.toggle()
-                    }) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: state.isAudioRoutingActive ? "speaker.wave.3.fill" : "speaker.wave.2")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? (state.isAudioRoutingActive ? .purple : .secondary) : .secondary)
-                                Spacer()
-                                Circle()
-                                    .fill(network.isConnected && state.isAudioRoutingActive ? Color.purple : Color.secondary.opacity(0.25))
-                                    .frame(width: 6, height: 6)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Bluetooth Ses")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? .primary : .secondary)
-                                Text(network.isConnected ? (state.isAudioRoutingActive ? "Aktif (Mac)" : "Telefon Sesinde") : "Bağlantı Yok")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(!network.isConnected)
+                }
+            }
+            .glassCard(cornerRadius: 14, padding: 10, isHighlighted: camera.isStreaming, highlightColor: .green)
+            
+            // Universal Clipboard Card
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.indigo.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: clipboard.isMonitoringActive ? "doc.on.clipboard.fill" : "doc.on.clipboard")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.indigo)
                     }
-                    .buttonStyle(.plain)
-                    .glassTile(
-                        id: "audio_sync",
-                        isActive: network.isConnected && state.isAudioRoutingActive,
-                        activeTint: .purple
-                    )
                     
-                    // Tile 4: Evrensel Pano (Universal Clipboard Sync)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Evrensel Pano Eşitleme")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text(clipboard.isMonitoringActive ? "Çift yönlü kopyala-yapıştır aktif" : "Pano izleme duraklatıldı")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
                     Button(action: {
                         guard network.isConnected else { return }
                         clipboard.toggleMonitoring()
                     }) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: clipboard.isMonitoringActive ? "doc.on.clipboard.fill" : "doc.on.clipboard")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? (clipboard.isMonitoringActive ? .blue : .secondary) : .secondary)
-                                Spacer()
-                                Circle()
-                                    .fill(network.isConnected && clipboard.isMonitoringActive ? Color.blue : Color.secondary.opacity(0.25))
-                                    .frame(width: 6, height: 6)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Evrensel Pano")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? .primary : .secondary)
-                            Text(network.isConnected ? (clipboard.isMonitoringActive ? "Eşzamanlı" : "Duraklatıldı") : "Bağlantı Yok")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(clipboard.isMonitoringActive ? "Aktif" : "Kapalı")
+                            .font(.caption2.bold())
+                            .foregroundColor(clipboard.isMonitoringActive ? .indigo : .secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(clipboard.isMonitoringActive ? Color.indigo.opacity(0.18) : Color.primary.opacity(0.08))
+                            )
                     }
                     .buttonStyle(.plain)
-                    .glassTile(
-                        id: "clipboard_sync",
-                        isActive: network.isConnected && clipboard.isMonitoringActive,
-                        activeTint: .blue
-                    )
-                    
-                    // Tile 5: Bildirimler ve Aramalar
-                    Button(action: {
-                        guard network.isConnected else { return }
-                        notifManager.toggleNotificationsPaused()
-                    }) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: notifManager.isNotificationsPaused ? "bell.slash.fill" : "bell.badge.fill")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? (!notifManager.isNotificationsPaused ? Color(nsColor: .controlAccentColor) : .orange) : .secondary)
-                                Spacer()
-                                Circle()
-                                    .fill(network.isConnected && !notifManager.isNotificationsPaused ? Color.green : Color.secondary.opacity(0.25))
-                                    .frame(width: 6, height: 6)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Bildirim & Çağrı")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? .primary : .secondary)
-                                Text(network.isConnected ? (notifManager.isNotificationsPaused ? "Sessizde" : "Canlı Akış") : "Bağlantı Yok")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(!network.isConnected)
+                }
+            }
+            .glassCard(cornerRadius: 14, padding: 10)
+            
+            // AetherDrop File Transfer Card
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.orange.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.orange)
                     }
-                    .buttonStyle(.plain)
-                    .glassTile(
-                        id: "notifications_sync",
-                        isActive: network.isConnected && !notifManager.isNotificationsPaused,
-                        activeTint: Color(nsColor: .controlAccentColor)
-                    )
                     
-                    // Tile 6: AetherDrop (Hızlı Dosya / Fotoğraf Gönderimi)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("AetherDrop Dosya Transferi")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text(network.isConnected ? "Telefona dosya veya fotoğraf aktar" : "Telefon bağlantısı bekleniyor")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
                     Button(action: {
                         guard network.isConnected else { return }
                         let panel = NSOpenPanel()
@@ -1577,241 +1936,183 @@ public struct MenuBarContentView: View {
                             }
                         }
                     }) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: "paperplane.fill")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? Color(nsColor: .controlAccentColor) : .secondary)
-                                Spacer()
-                                Circle()
-                                    .fill(network.isConnected ? Color(nsColor: .controlAccentColor) : Color.secondary.opacity(0.25))
-                                    .frame(width: 6, height: 6)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("AetherDrop")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(network.isConnected ? .primary : .secondary)
-                                Text(network.isConnected ? "Dosya Gönder" : "Bağlantı Yok")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                            }
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.up.circle.fill")
+                            Text("Gönder")
                         }
-                        .padding(9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .font(.caption2.bold())
+                        .foregroundColor(Color(nsColor: .controlAccentColor))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                     }
                     .buttonStyle(.plain)
-                    .glassTile(
-                        id: "aether_drop_quick",
-                        isActive: false,
-                        activeTint: Color(nsColor: .controlAccentColor)
-                    )
+                    .glassTile(id: "continuity_drop_btn", isActive: false)
+                    .disabled(!network.isConnected)
                 }
-                .opacity(network.isConnected ? 1.0 : (colorScheme == .dark ? 0.60 : 0.75))
-                .disabled(!network.isConnected)
+            }
+            .glassCard(cornerRadius: 14, padding: 10)
+            
+            Spacer(minLength: 0)
+        }
+    }
+    
+    // MARK: - 3. Remote Control View
+    private var remoteView: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 8) {
+                // Quick Dial Out Card
+                QuickDialCard()
                 
-                // 2.5 KDE Connect Quick Tools Row (Find My Phone, Remote Lock, Ping RTT)
-                if network.isConnected {
-                    HStack(spacing: 6) {
-                        // Find My Phone
+                // Volume Control Card
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "speaker.wave.3.fill")
+                            .foregroundColor(.purple)
+                        Text("Ses Düzeyi Kontrolü")
+                            .font(.system(size: 12.5, weight: .semibold))
+                        Spacer()
+                        Text("%\(remoteVol.macVolume)")
+                            .font(.caption2.bold())
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack(spacing: 8) {
                         Button(action: {
-                            findMy.toggleRingPhone()
+                            remoteVol.toggleMacMute()
+                        }) {
+                            Image(systemName: remoteVol.isMacMuted ? "speaker.slash.fill" : "speaker.fill")
+                                .foregroundColor(remoteVol.isMacMuted ? .red : .primary)
+                                .frame(width: 26, height: 26)
+                                .background(Circle().fill(Color.primary.opacity(0.08)))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Slider(value: Binding(
+                            get: { Double(remoteVol.macVolume) },
+                            set: { remoteVol.setMacVolume(Int($0)) }
+                        ), in: 0...100)
+                    }
+                }
+                .glassCard(cornerRadius: 14, padding: 10)
+                
+                // Presentation Controller (Keynote / PPT)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "play.rectangle.fill")
+                            .foregroundColor(.cyan)
+                        Text("Sunum Kumandası (Keynote / PPT)")
+                            .font(.system(size: 12.5, weight: .semibold))
+                        Spacer()
+                    }
+                    
+                    HStack(spacing: 8) {
+                        Button(action: {
+                            PresenterManager.shared.handleCommand("prev")
                         }) {
                             HStack(spacing: 4) {
-                                Image(systemName: findMy.isPhoneRinging ? "bell.and.waveform.fill" : "bell.fill")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(findMy.isPhoneRinging ? .yellow : .primary)
-                                Text(findMy.isPhoneRinging ? "Sustur" : "Çaldır")
-                                    .font(.system(size: 11, weight: .medium))
+                                Image(systemName: "chevron.left")
+                                Text("Önceki Slayt")
                             }
+                            .font(.caption.bold())
                             .frame(maxWidth: .infinity)
                             .frame(height: 28)
                         }
                         .buttonStyle(.plain)
-                        .glassTile(
-                            id: "find_my_phone_tile",
-                            isActive: findMy.isPhoneRinging,
-                            activeTint: .yellow
-                        )
-                        .help("Telefonu en yüksek sesle çaldır (Sessiz modda dahi)")
+                        .glassTile(id: "pres_prev_btn", isActive: false)
                         
-                        // Remote Lock Phone
                         Button(action: {
+                            PresenterManager.shared.handleCommand("fullscreen")
+                        }) {
+                            Image(systemName: "viewfinder")
+                                .font(.caption.bold())
+                                .frame(width: 32, height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "pres_fs_btn", isActive: false)
+                        .help("Tam Ekran Başlat")
+                        
+                        Button(action: {
+                            PresenterManager.shared.handleCommand("next")
+                        }) {
+                            HStack(spacing: 4) {
+                                Text("Sonraki Slayt")
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(.caption.bold())
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "pres_next_btn", isActive: false)
+                    }
+                }
+                .glassCard(cornerRadius: 14, padding: 10)
+                
+                // System Commands Card
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "terminal.fill")
+                            .foregroundColor(.orange)
+                        Text("Sistem & Güç Komutları")
+                            .font(.system(size: 12.5, weight: .semibold))
+                        Spacer()
+                    }
+                    
+                    HStack(spacing: 6) {
+                        Button(action: {
+                            RemoteCommandManager.shared.executeCommand("screenshot")
+                        }) {
+                            VStack(spacing: 3) {
+                                Image(systemName: "camera.viewfinder")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Ekran Resmi")
+                                    .font(.system(size: 10))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "cmd_screenshot_btn", isActive: false)
+                        
+                        Button(action: {
+                            RemoteCommandManager.shared.executeCommand("sleep")
+                        }) {
+                            VStack(spacing: 3) {
+                                Image(systemName: "moon.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Mac'i Uyut")
+                                    .font(.system(size: 10))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "cmd_sleep_btn", isActive: false)
+                        
+                        Button(action: {
+                            guard network.isConnected else { return }
                             remoteLock.lockPhone()
                         }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "lock.fill")
-                                    .font(.system(size: 11, weight: .semibold))
+                            VStack(spacing: 3) {
+                                Image(systemName: "lock.iphone")
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(.red)
-                                Text("Kilitle")
-                                    .font(.system(size: 11, weight: .medium))
+                                Text("Tel Kilitle")
+                                    .font(.system(size: 10))
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 28)
+                            .frame(height: 44)
                         }
                         .buttonStyle(.plain)
-                        .glassTile(
-                            id: "remote_lock_phone_tile",
-                            isActive: false,
-                            activeTint: .red
-                        )
-                        .help("Telefon ekranını uzaktan kilitle")
-                        
-                        // Ping RTT Test
-                        Button(action: {
-                            telemetryMgr.sendPing()
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "bolt.horizontal.fill")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(telemetryMgr.isPinging ? .orange : .cyan)
-                                Text(telemetryMgr.isPinging ? "..." : (telemetryMgr.lastPingMs != nil ? "\(Int(telemetryMgr.lastPingMs!))ms" : "Ping"))
-                                    .font(.system(size: 11, weight: .medium))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 28)
-                        }
-                        .buttonStyle(.plain)
-                        .glassTile(
-                            id: "ping_rtt_tile",
-                            isActive: telemetryMgr.isPinging,
-                            activeTint: .cyan
-                        )
-                        .help("Telefon ile Mac arasındaki anlık ağ gecikmesini (ping) ölç")
-                        
-                        // Kafein / Keep Awake
-                        Button(action: {
-                            caffeinate.toggleCaffeinate()
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: caffeinate.isCaffeinateActive ? "cup.and.saucer.fill" : "cup.and.saucer")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(caffeinate.isCaffeinateActive ? .orange : .secondary)
-                                Text("Kafein")
-                                    .font(.system(size: 11, weight: .medium))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 28)
-                        }
-                        .buttonStyle(.plain)
-                        .glassTile(
-                            id: "caffeinate_tile",
-                            isActive: caffeinate.isCaffeinateActive,
-                            activeTint: .orange
-                        )
-                        .help("Mac ekranının uykuya dalmasını engelle (Amphetamine / Caffeine)")
+                        .glassTile(id: "cmd_lockphone_btn", isActive: false)
+                        .disabled(!network.isConnected)
                     }
                 }
+                .glassCard(cornerRadius: 14, padding: 10)
                 
-                // 3. Dynamic Media Player Card (If Media is Playing)
-                if let media = network.mediaState, media.isPlaying && !media.trackTitle.isEmpty {
-                    HStack(spacing: 10) {
-                        Image(systemName: media.packageName.contains("spotify") ? "play.circle.fill" : "music.note")
-                            .font(.system(size: 20))
-                            .foregroundColor(media.packageName.contains("spotify") ? .green : .pink)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(media.trackTitle)
-                                .font(.system(size: 12, weight: .semibold))
-                                .lineLimit(1)
-                            Text(media.artist.isEmpty ? (media.packageName.contains("spotify") ? "Spotify" : "Apple Music") : media.artist)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            MediaContinuityManager.shared.openCurrentMedia(media)
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.up.right.square")
-                                Text("Aç")
-                            }
-                            .font(.caption2.weight(.medium))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                        }
-                        .buttonStyle(.plain)
-                        .glassTile(id: "open_media_player", isActive: false)
-                    }
-                    .glassCard(cornerRadius: 14, padding: 10)
-                }
-                
-                // 4. Minimal Balanced Footer Bar
-                HStack(spacing: 8) {
-                    // "Cihaz Bilgileri" Button
-                    Button(action: {
-                        router.navigateTo(.deviceInfo)
-                        telemetryMgr.requestTelemetryRefresh()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "info.circle")
-                            Text("Bilgiler")
-                        }
-                        .font(.caption2.weight(.medium))
-                        .foregroundColor(.primary.opacity(0.75))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Cihaz Bilgileri ve Donanım Telemetrisi")
-                    
-                    // "Ayarlar" Button
-                    Button(action: {
-                        router.navigateTo(.settings)
-                    }) {
-                        Image(systemName: "gearshape")
-                            .font(.caption2.weight(.medium))
-                            .foregroundColor(.primary.opacity(0.75))
-                            .padding(5)
-                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.04)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Uygulama Ayarları")
-                    
-                    // "Rehber & İzinler" Button
-                    Button(action: {
-                        AetherWindowManager.shared.showOnboardingWindow()
-                    }) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "sparkles")
-                            Text("Rehber")
-                        }
-                        .font(.caption2.weight(.medium))
-                        .foregroundColor(Color(nsColor: .controlAccentColor))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlAccentColor).opacity(colorScheme == .dark ? 0.15 : 0.08)))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Karşılama Ekranı ve İzin Yönetimi")
-                    
-                    Spacer()
-                    
-                    Text("v\(updater.currentVersion)")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundColor(.primary.opacity(0.55))
-                    
-                    Button("Çıkış") {
-                        NSApplication.shared.terminate(nil)
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(.red.opacity(0.85))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.red.opacity(colorScheme == .dark ? 0.12 : 0.06)))
-                }
-                .padding(.top, 2)
-                .padding(.horizontal, 2)
+                Spacer(minLength: 4)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 12)
-            .frame(width: 365)
+        }
     }
 }
 

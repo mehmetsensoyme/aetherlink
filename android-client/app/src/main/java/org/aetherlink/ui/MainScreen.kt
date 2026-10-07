@@ -1,11 +1,16 @@
 package org.aetherlink.ui
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -53,6 +58,15 @@ import org.aetherlink.findmyphone.FindMyPhoneManager
 import org.aetherlink.volume.RemoteVolumeManager
 import org.aetherlink.lock.RemoteLockManager
 import org.aetherlink.ping.PingManager
+import org.aetherlink.util.AppThemeMode
+import org.aetherlink.util.ThemePreferences
+
+enum class AetherTab(val title: String) {
+    DASHBOARD("Genel"),
+    CONTINUITY("Süreklilik"),
+    REMOTE("Kumanda"),
+    SETTINGS("Ayarlar")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +75,7 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    var selectedTab by remember { mutableStateOf(AetherTab.DASHBOARD) }
     val prefs = remember { context.getSharedPreferences("aetherlink_prefs", Context.MODE_PRIVATE) }
     var macIpInput by remember {
         mutableStateOf(prefs.getString("last_mac_ip", null) ?: "192.168.1.15")
@@ -105,6 +120,27 @@ fun MainScreen(
     var showPresenterSheet by remember { mutableStateOf(false) }
     var showCommandsSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val cameraGranted = permissions[Manifest.permission.CAMERA] == true
+        val audioGranted = permissions[Manifest.permission.RECORD_AUDIO] == true
+        if (cameraGranted) {
+            org.aetherlink.service.AetherCameraService.start(
+                context = context,
+                mic = audioGranted
+            )
+            isCameraStreaming = true
+            Toast.makeText(context, "Süreklilik Kamerası başlatıldı", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(
+                context,
+                "Kamera izni verilmedi. Ayarlardan izin verebilirsiniz.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
     // Category Expand/Collapse States (Useful & simple organization)
     var isPowerSectionExpanded by remember { mutableStateOf(true) }
@@ -228,6 +264,22 @@ fun MainScreen(
                     }
                 },
                 actions = {
+                    if (!permissionStatus.allCoreGranted) {
+                        IconButton(onClick = { showPermissionDialog = true }) {
+                            BadgedBox(
+                                badge = {
+                                    Badge(containerColor = Color(0xFFEF4444))
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Security,
+                                    contentDescription = "Eksik İzinler",
+                                    tint = Color(0xFFEF4444)
+                                )
+                            }
+                        }
+                    }
+
                     IconButton(onClick = onReplayOnboarding) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,
@@ -235,336 +287,657 @@ fun MainScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-
-                    IconButton(onClick = { showPermissionDialog = true }) {
-                        BadgedBox(
-                            badge = {
-                                if (!permissionStatus.allCoreGranted) {
-                                    Badge(containerColor = Color(0xFFEF4444))
-                                }
-                            }
-                        ) {
-                            Icon(
-                                Icons.Default.Security,
-                                contentDescription = "İzinler",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    IconButton(onClick = {
-                        coroutineScope.launch {
-                            isCheckingUpdate = true
-                            when (val result = AndroidUpdateChecker.check(context)) {
-                                is UpdateCheckResult.Available -> {
-                                    updateInfo = result.info
-                                }
-                                is UpdateCheckResult.UpToDate -> {
-                                    Toast.makeText(context, "AetherLink en güncel sürümde (v${result.currentVersion}).", Toast.LENGTH_SHORT).show()
-                                }
-                                is UpdateCheckResult.Error -> {
-                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
-                                }
-                            }
-                            isCheckingUpdate = false
-                        }
-                    }) {
-                        if (isCheckingUpdate) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(
-                                Icons.Default.Refresh,
-                                contentDescription = "Güncellemeleri Denetle",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
                 }
             )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Priority Alert Banner: Find My Phone Ringing
-            if (isPhoneRinging) {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFBBF24)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .padding(14.dp)
-                            .fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color.Black)
-                            Spacer(modifier = Modifier.width(10.dp))
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
+                tonalElevation = 8.dp
+            ) {
+                val tabItems = listOf(
+                    Triple(AetherTab.DASHBOARD, "Genel", Icons.Default.Dashboard),
+                    Triple(AetherTab.CONTINUITY, "Süreklilik", Icons.Default.CastConnected),
+                    Triple(AetherTab.REMOTE, "Kumanda", Icons.Default.Devices),
+                    Triple(AetherTab.SETTINGS, "Ayarlar", Icons.Default.Settings)
+                )
+                tabItems.forEach { (tab, label, icon) ->
+                    val isSelected = (selectedTab == tab)
+                    NavigationBarItem(
+                        selected = isSelected,
+                        onClick = { selectedTab = tab },
+                        icon = {
+                            Icon(icon, contentDescription = label)
+                        },
+                        label = {
                             Text(
-                                "Mac Telefonunuzu Çaldırıyor!",
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                fontSize = 14.sp
+                                text = label,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.sp
                             )
-                        }
-                        Button(
-                            onClick = { FindMyPhoneManager.stopRinging(context, notifyMac = true) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Sustur", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
                 }
             }
+        }
+    ) { padding ->
+        AnimatedContent(
+            targetState = selectedTab,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            transitionSpec = {
+                fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+            },
+            label = "tab_content_animation"
+        ) { currentTab ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                when (currentTab) {
+                    AetherTab.DASHBOARD -> {
+                        // Priority Alert Banner: Find My Phone Ringing
+                        if (isPhoneRinging) {
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFFBBF24)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(14.dp)
+                                        .fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color.Black)
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            "Mac Telefonunuzu Çaldırıyor!",
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                    Button(
+                                        onClick = { FindMyPhoneManager.stopRinging(context, notifyMac = true) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Sustur", color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
 
-            // Optional Missing Permission Banner (Only if missing)
-            if (!permissionStatus.allCoreGranted) {
-                PermissionStatusBanner(
-                    status = permissionStatus,
-                    onClick = { showPermissionDialog = true }
-                )
-            }
+                        // Optional Missing Permission Banner (Only if missing)
+                        if (!permissionStatus.allCoreGranted) {
+                            PermissionStatusBanner(
+                                status = permissionStatus,
+                                onClick = { showPermissionDialog = true }
+                            )
+                        }
 
-            // =========================================================================
-            // BÖLÜM 1: 🔗 BAĞLANTI & EŞLEŞTİRME (Kullanışlı, sade ve kompakt)
-            // =========================================================================
-            ConnectionCategoryCard(
-                isConnected = isServiceConnected,
-                discoveredMacName = discoveredMacName,
-                discoveredMacIp = discoveredMacIp,
-                macIpInput = macIpInput,
-                onMacIpChange = { macIpInput = it },
-                showAdvanced = showAdvancedConnection,
-                onToggleAdvanced = { showAdvancedConnection = !showAdvancedConnection },
-                onConnect = {
-                    val ip = discoveredMacIp ?: macIpInput.trim()
-                    AetherCoreService.instance?.connectToMacWebSocket(ip)
-                },
-                onDisconnect = {
-                    AetherCoreService.instance?.disconnect(userInitiated = true, forget = false)
-                },
-                onForgetPairing = {
-                    AetherCoreService.instance?.disconnect(userInitiated = true, forget = true)
-                },
-                onStartPairing = {
-                    pairingCode = String.format("%03d %03d", (100..999).random(), (100..999).random())
-                    val payload = JsonObject().apply {
-                        addProperty("deviceId", org.aetherlink.util.DeviceUtils.getDeviceId())
-                        addProperty("deviceName", org.aetherlink.util.DeviceUtils.getDeviceName())
-                        addProperty("confirmationCode", pairingCode)
-                        addProperty("timestamp", System.currentTimeMillis())
-                    }
-                    AetherCoreService.instance?.sendMessage("PAIRING_REQUEST", payload)
-                    showPairingDialog = true
-                },
-                onScanQr = {
-                    MainActivity.scanQrCode { raw ->
-                        try {
-                            val uri = Uri.parse(raw)
-                            if (uri.scheme == "aetherlink" && uri.host == "pair") {
-                                val ip = uri.getQueryParameter("ip") ?: macIpInput
-                                val code = uri.getQueryParameter("code") ?: "123456"
-                                val name = uri.getQueryParameter("name") ?: "MacBook"
-                                macIpInput = ip
+                        // BÖLÜM 1: 🔗 BAĞLANTI & EŞLEŞTİRME
+                        ConnectionCategoryCard(
+                            isConnected = isServiceConnected,
+                            discoveredMacName = discoveredMacName,
+                            discoveredMacIp = discoveredMacIp,
+                            macIpInput = macIpInput,
+                            onMacIpChange = { macIpInput = it },
+                            showAdvanced = showAdvancedConnection,
+                            onToggleAdvanced = { showAdvancedConnection = !showAdvancedConnection },
+                            onConnect = {
+                                val ip = discoveredMacIp ?: macIpInput.trim()
                                 AetherCoreService.instance?.connectToMacWebSocket(ip)
+                            },
+                            onDisconnect = {
+                                AetherCoreService.instance?.disconnect(userInitiated = true, forget = false)
+                            },
+                            onForgetPairing = {
+                                AetherCoreService.instance?.disconnect(userInitiated = true, forget = true)
+                            },
+                            onStartPairing = {
+                                pairingCode = String.format("%03d %03d", (100..999).random(), (100..999).random())
                                 val payload = JsonObject().apply {
                                     addProperty("deviceId", org.aetherlink.util.DeviceUtils.getDeviceId())
                                     addProperty("deviceName", org.aetherlink.util.DeviceUtils.getDeviceName())
-                                    addProperty("confirmationCode", code)
+                                    addProperty("confirmationCode", pairingCode)
                                     addProperty("timestamp", System.currentTimeMillis())
                                 }
                                 AetherCoreService.instance?.sendMessage("PAIRING_REQUEST", payload)
-                                Toast.makeText(context, "$name QR Kodu Başarıyla Eşleşildi!", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "Tanınmayan QR formatı: $raw", Toast.LENGTH_SHORT).show()
+                                showPairingDialog = true
+                            },
+                            onScanQr = {
+                                MainActivity.scanQrCode { raw ->
+                                    try {
+                                        val uri = Uri.parse(raw)
+                                        if (uri.scheme == "aetherlink" && uri.host == "pair") {
+                                            val ip = uri.getQueryParameter("ip") ?: macIpInput
+                                            val code = uri.getQueryParameter("code") ?: "123456"
+                                            val name = uri.getQueryParameter("name") ?: "MacBook"
+                                            macIpInput = ip
+                                            AetherCoreService.instance?.connectToMacWebSocket(ip)
+                                            val payload = JsonObject().apply {
+                                                addProperty("deviceId", org.aetherlink.util.DeviceUtils.getDeviceId())
+                                                addProperty("deviceName", org.aetherlink.util.DeviceUtils.getDeviceName())
+                                                addProperty("confirmationCode", code)
+                                                addProperty("timestamp", System.currentTimeMillis())
+                                            }
+                                            AetherCoreService.instance?.sendMessage("PAIRING_REQUEST", payload)
+                                            Toast.makeText(context, "$name QR Kodu Başarıyla Eşleşildi!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Tanınmayan QR formatı: $raw", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "QR İşleme Hatası: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
                             }
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "QR İşleme Hatası: ${e.message}", Toast.LENGTH_SHORT).show()
+                        )
+
+                        // BÖLÜM 2: ⚡ GÜÇ & PİL YÖNETİMİ
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Bolt,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Column {
+                                            Text(
+                                                text = "Güç & Pil Durumu",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Mac ve telefon şarj telemetrisi",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                            )
+                                        }
+                                    }
+                                    if (isServiceConnected) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF10B981).copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                text = "Canlı Veri",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF10B981),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                PowerManagementContent(
+                                    isConnected = isServiceConnected,
+                                    macBattery = macBattery,
+                                    macTelemetry = macTelemetry,
+                                    phoneBattery = phoneBattery,
+                                    isCaffeinateActive = isCaffeinateActive,
+                                    onToggleCaffeinate = {
+                                        org.aetherlink.caffeinate.CaffeinateManager.toggleCaffeinate()
+                                    },
+                                    onRefresh = {
+                                        AetherCoreService.instance?.requestMacBattery()
+                                        AetherCoreService.instance?.requestMacTelemetry()
+                                    }
+                                )
+                            }
+                        }
+
+                        // BÖLÜM 3: ⚡ HIZLI EYLEMLER (2x2 Grid)
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "Hızlı Araçlar",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Ağ Gecikmesi (Ping RTT)
+                                ActionButtonTile(
+                                    title = pingLatency?.let { "${it.toInt()} ms" } ?: (if (isServiceConnected) "Ping Testi" else "Bağlantı Yok"),
+                                    subtitle = "Ağ Gecikmesi",
+                                    icon = Icons.Default.Speed,
+                                    iconTint = Color(0xFF06B6D4),
+                                    enabled = isServiceConnected,
+                                    onClick = { PingManager.sendPing() },
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                // Kafein Modu
+                                ActionButtonTile(
+                                    title = if (isCaffeinateActive) "Kafein Açık" else "Kafein Modu",
+                                    subtitle = if (isCaffeinateActive) "Uyanık Tutuluyor" else "Standart Uyku",
+                                    icon = if (isCaffeinateActive) Icons.Default.Coffee else Icons.Default.CoffeeMaker,
+                                    iconTint = if (isCaffeinateActive) Color(0xFFF59E0B) else MaterialTheme.colorScheme.primary,
+                                    enabled = true,
+                                    onClick = { org.aetherlink.caffeinate.CaffeinateManager.toggleCaffeinate() },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Mac'i Çaldır
+                                ActionButtonTile(
+                                    title = if (isMacRinging) "Mac'i Sustur" else "Mac'i Çaldır",
+                                    subtitle = "Cihazı Bul",
+                                    icon = if (isMacRinging) Icons.Default.NotificationsOff else Icons.Default.NotificationsActive,
+                                    iconTint = if (isMacRinging) Color(0xFFEF4444) else Color(0xFFF59E0B),
+                                    enabled = isServiceConnected,
+                                    onClick = { FindMyPhoneManager.toggleRingMac() },
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                // Mac'i Kilitle
+                                ActionButtonTile(
+                                    title = "Mac'i Kilitle",
+                                    subtitle = "Ekranı Kapat",
+                                    icon = Icons.Default.Lock,
+                                    iconTint = Color(0xFFEF4444),
+                                    enabled = isServiceConnected,
+                                    onClick = {
+                                        RemoteLockManager.lockMac()
+                                        Toast.makeText(context, "Mac ekranı kilitlendi", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    AetherTab.CONTINUITY -> {
+                        // SÜREKLİLİK & MEDYA KÖPRÜSÜ
+                        MediaAndScreenContent(
+                            isConnected = isServiceConnected,
+                            isScreenStreaming = isScreenStreaming,
+                            onToggleScreenStream = {
+                                if (ScreenStreamManager.isStreaming) {
+                                    AetherCoreService.instance?.stopScreenCapture()
+                                    isScreenStreaming = false
+                                } else {
+                                    MainActivity.requestScreenCapture()
+                                }
+                            },
+                            isCameraStreaming = isCameraStreaming,
+                            isTorchOn = isTorchOn,
+                            onToggleCameraStream = {
+                                if (isCameraStreaming) {
+                                    org.aetherlink.service.AetherCameraService.stop(context)
+                                    isCameraStreaming = false
+                                } else {
+                                    val hasCamera = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                                    val hasAudio = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                                    if (hasCamera) {
+                                        org.aetherlink.service.AetherCameraService.start(
+                                            context = context,
+                                            mic = hasAudio
+                                        )
+                                        isCameraStreaming = true
+                                    } else {
+                                        cameraPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.CAMERA,
+                                                Manifest.permission.RECORD_AUDIO
+                                            )
+                                        )
+                                    }
+                                }
+                            },
+                            onSwitchCameraLens = {
+                                org.aetherlink.service.AetherCameraService.switchLens(context)
+                                cameraLens = org.aetherlink.service.AetherCameraService.currentLens
+                            },
+                            onToggleTorch = {
+                                org.aetherlink.service.AetherCameraService.toggleTorch(context)
+                                isTorchOn = org.aetherlink.service.AetherCameraService.isTorchOn
+                            },
+                            isBtPaired = isBtPaired,
+                            onManageBluetooth = {
+                                org.aetherlink.bluetooth.BluetoothAudioManager.initiateBonding(context)
+                                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                context.startActivity(intent)
+                            },
+                            onOpenAetherDrop = { showShareSheet = true }
+                        )
+                    }
+
+                    AetherTab.REMOTE -> {
+                        // UZAKTAN KONTROL & SUNUM
+                        if (!isServiceConnected) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        "Mac'e bağlandığınızda Touchpad, Sunum ve Sistem komutları aktifleşir.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        RemoteControlContent(
+                            isEnabled = isServiceConnected,
+                            isMacRinging = isMacRinging,
+                            onToggleRingMac = { FindMyPhoneManager.toggleRingMac() },
+                            onOpenTrackpad = { showTrackpadSheet = true },
+                            onLockMac = {
+                                RemoteLockManager.lockMac()
+                                Toast.makeText(context, "Mac ekranı kilitlendi", Toast.LENGTH_SHORT).show()
+                            },
+                            onOpenVolume = { showVolumeDialog = true },
+                            onOpenPresenter = { showPresenterSheet = true },
+                            onOpenCommands = { showCommandsSheet = true }
+                        )
+                    }
+
+                    AetherTab.SETTINGS -> {
+                        // 1. Theme Selection Card
+                        ThemeSelectionCard(context = context)
+
+                        // 2. System & Network Telemetry Card
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFF06B6D4).copy(alpha = 0.15f),
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Speed,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF06B6D4),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Column {
+                                            Text(
+                                                text = "Sistem & Donanım Telemetrisi",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Ağ gecikmesi ve ısı sensörleri",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                            )
+                                        }
+                                    }
+
+                                    pingLatency?.let {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF06B6D4).copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                text = "${it.toInt()} ms",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF06B6D4),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                SystemAndNetworkContent(
+                                    isConnected = isServiceConnected,
+                                    pingLatency = pingLatency,
+                                    isPinging = isPinging,
+                                    onSendPing = { PingManager.sendPing() },
+                                    phoneBattery = phoneBattery,
+                                    macTelemetry = macTelemetry,
+                                    onOpenDetails = { showTelemetryDialog = true },
+                                    onRefreshSensors = {
+                                        DeviceTelemetryManager.dispatchTelemetry(context)
+                                        AetherCoreService.instance?.requestMacBattery()
+                                        AetherCoreService.instance?.requestMacTelemetry()
+                                    }
+                                )
+                            }
+                        }
+
+                        // 3. System Permissions Card
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = (if (permissionStatus.allCoreGranted) Color(0xFF10B981) else Color(0xFFF59E0B)).copy(alpha = 0.15f),
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Shield,
+                                                    contentDescription = null,
+                                                    tint = if (permissionStatus.allCoreGranted) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Column {
+                                            Text(
+                                                text = "Sistem İzinleri & Güvenlik",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Süreklilik köprüsü için gereken izinler",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = (if (permissionStatus.allCoreGranted) Color(0xFF10B981) else Color(0xFFF59E0B)).copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = if (permissionStatus.allCoreGranted) "Tam Yetkili" else "İzin Gerekli",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (permissionStatus.allCoreGranted) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+
+                                PermissionsContent(
+                                    allGranted = permissionStatus.allCoreGranted,
+                                    onOpenNotificationListener = {
+                                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                                    },
+                                    onOpenAppSettings = {
+                                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                            data = Uri.fromParts("package", context.packageName, null)
+                                        }
+                                        context.startActivity(intent)
+                                    },
+                                    onOpenBatteryOptimization = {
+                                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                        context.startActivity(intent)
+                                    },
+                                    onOpenAccessibility = {
+                                        AetherPermissionManager.openAccessibilitySettings(context)
+                                    }
+                                )
+                            }
+                        }
+
+                        // 4. Hakkında & Sürüm Bilgisi
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        "AetherLink v${AndroidUpdateChecker.getAppVersion(context)}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        "Açık Kaynaklı Süreklilik Köprüsü",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            isCheckingUpdate = true
+                                            when (val result = AndroidUpdateChecker.check(context)) {
+                                                is UpdateCheckResult.Available -> {
+                                                    updateInfo = result.info
+                                                }
+                                                is UpdateCheckResult.UpToDate -> {
+                                                    Toast.makeText(context, "AetherLink güncel (v${result.currentVersion}).", Toast.LENGTH_SHORT).show()
+                                                }
+                                                is UpdateCheckResult.Error -> {
+                                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                            isCheckingUpdate = false
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    if (isCheckingUpdate) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Güncelle", fontSize = 12.sp)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-            )
 
-            // =========================================================================
-            // BÖLÜM 2: ⚡ GÜÇ & PİL YÖNETİMİ
-            // =========================================================================
-            CategorySection(
-                title = "Güç & Pil Durumu",
-                icon = Icons.Default.Bolt,
-                badgeText = if (isServiceConnected) "Canlı Veri" else null,
-                isExpanded = isPowerSectionExpanded,
-                onToggleExpand = { isPowerSectionExpanded = !isPowerSectionExpanded }
-            ) {
-                PowerManagementContent(
-                    isConnected = isServiceConnected,
-                    macBattery = macBattery,
-                    macTelemetry = macTelemetry,
-                    phoneBattery = phoneBattery,
-                    isCaffeinateActive = isCaffeinateActive,
-                    onToggleCaffeinate = {
-                        org.aetherlink.caffeinate.CaffeinateManager.toggleCaffeinate()
-                    },
-                    onRefresh = {
-                        AetherCoreService.instance?.requestMacBattery()
-                        AetherCoreService.instance?.requestMacTelemetry()
-                    }
-                )
+                Spacer(modifier = Modifier.height(16.dp))
             }
-
-            // =========================================================================
-            // BÖLÜM 3: 🎮 UZAKTAN KONTROL
-            // =========================================================================
-            CategorySection(
-                title = "Uzaktan Kontrol",
-                icon = Icons.Default.Devices,
-                badgeText = if (isServiceConnected) "Aktif" else "Bağlantı Gerekli",
-                isExpanded = isRemoteSectionExpanded,
-                onToggleExpand = { isRemoteSectionExpanded = !isRemoteSectionExpanded }
-            ) {
-                RemoteControlContent(
-                    isEnabled = isServiceConnected,
-                    isMacRinging = isMacRinging,
-                    onToggleRingMac = { FindMyPhoneManager.toggleRingMac() },
-                    onOpenTrackpad = { showTrackpadSheet = true },
-                    onLockMac = {
-                        RemoteLockManager.lockMac()
-                        Toast.makeText(context, "Mac ekranı kilitlendi", Toast.LENGTH_SHORT).show()
-                    },
-                    onOpenVolume = { showVolumeDialog = true },
-                    onOpenPresenter = { showPresenterSheet = true },
-                    onOpenCommands = { showCommandsSheet = true }
-                )
-            }
-
-            // =========================================================================
-            // BÖLÜM 4: 📺 MEDYA & EKRAN KÖPRÜSÜ
-            // =========================================================================
-            CategorySection(
-                title = "Medya & Ekran Köprüsü",
-                icon = Icons.Default.CastConnected,
-                badgeText = if (isScreenStreaming || isCameraStreaming) "Yayında" else null,
-                badgeColor = Color(0xFF10B981),
-                isExpanded = isMediaSectionExpanded,
-                onToggleExpand = { isMediaSectionExpanded = !isMediaSectionExpanded }
-            ) {
-                MediaAndScreenContent(
-                    isConnected = isServiceConnected,
-                    isScreenStreaming = isScreenStreaming,
-                    onToggleScreenStream = {
-                        if (ScreenStreamManager.isStreaming) {
-                            AetherCoreService.instance?.stopScreenCapture()
-                            isScreenStreaming = false
-                        } else {
-                            MainActivity.requestScreenCapture()
-                        }
-                    },
-                    isCameraStreaming = isCameraStreaming,
-                    isTorchOn = isTorchOn,
-                    onToggleCameraStream = {
-                        if (isCameraStreaming) {
-                            org.aetherlink.service.AetherCameraService.stop(context)
-                            isCameraStreaming = false
-                        } else {
-                            org.aetherlink.service.AetherCameraService.start(context)
-                            isCameraStreaming = true
-                        }
-                    },
-                    onSwitchCameraLens = {
-                        org.aetherlink.service.AetherCameraService.switchLens(context)
-                        cameraLens = org.aetherlink.service.AetherCameraService.currentLens
-                    },
-                    onToggleTorch = {
-                        org.aetherlink.service.AetherCameraService.toggleTorch(context)
-                        isTorchOn = org.aetherlink.service.AetherCameraService.isTorchOn
-                    },
-                    isBtPaired = isBtPaired,
-                    onManageBluetooth = {
-                        org.aetherlink.bluetooth.BluetoothAudioManager.initiateBonding(context)
-                        val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-                        context.startActivity(intent)
-                    },
-                    onOpenAetherDrop = { showShareSheet = true }
-                )
-            }
-
-            // =========================================================================
-            // BÖLÜM 5: 📊 SİSTEM & AĞ TELEMETRİSİ
-            // =========================================================================
-            CategorySection(
-                title = "Sistem & Ağ Durumu",
-                icon = Icons.Default.Speed,
-                badgeText = pingLatency?.let { "${it.toInt()} ms" },
-                badgeColor = Color(0xFF06B6D4),
-                isExpanded = isSystemSectionExpanded,
-                onToggleExpand = { isSystemSectionExpanded = !isSystemSectionExpanded }
-            ) {
-                SystemAndNetworkContent(
-                    isConnected = isServiceConnected,
-                    pingLatency = pingLatency,
-                    isPinging = isPinging,
-                    onSendPing = { PingManager.sendPing() },
-                    phoneBattery = phoneBattery,
-                    macTelemetry = macTelemetry,
-                    onOpenDetails = { showTelemetryDialog = true },
-                    onRefreshSensors = {
-                        DeviceTelemetryManager.dispatchTelemetry(context)
-                        AetherCoreService.instance?.requestMacBattery()
-                        AetherCoreService.instance?.requestMacTelemetry()
-                    }
-                )
-            }
-
-            // =========================================================================
-            // BÖLÜM 6: 🔒 SİSTEM İZİNLERİ (Kompakt / Akordiyon)
-            // =========================================================================
-            CategorySection(
-                title = "Sistem İzinleri & Güvenlik",
-                icon = Icons.Default.Shield,
-                badgeText = if (permissionStatus.allCoreGranted) "Tam Yetkili" else "İzin Gerekli",
-                badgeColor = if (permissionStatus.allCoreGranted) Color(0xFF10B981) else Color(0xFFF59E0B),
-                isExpanded = isPermissionsExpanded,
-                onToggleExpand = { isPermissionsExpanded = !isPermissionsExpanded }
-            ) {
-                PermissionsContent(
-                    allGranted = permissionStatus.allCoreGranted,
-                    onOpenNotificationListener = {
-                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                    },
-                    onOpenAppSettings = {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.fromParts("package", context.packageName, null)
-                        }
-                        context.startActivity(intent)
-                    },
-                    onOpenBatteryOptimization = {
-                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
-                        context.startActivity(intent)
-                    },
-                    onOpenAccessibility = {
-                        AetherPermissionManager.openAccessibilitySettings(context)
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                "AetherLink v${AndroidUpdateChecker.getAppVersion(context)} • Açık Kaynaklı Süreklilik Köprüsü",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
@@ -1297,13 +1670,14 @@ fun PowerManagementContent(
         // MacBook Pro Battery Row
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1312,14 +1686,22 @@ fun PowerManagementContent(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        Icons.Default.Laptop,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Laptop,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Column {
-                        Text("MacBook Pro", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("MacBook Pro", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         val desc = if (!isConnected || macBattery == null) {
                             "Bağlantı Bekleniyor..."
                         } else if (macBattery.isCharging) {
@@ -1332,7 +1714,7 @@ fun PowerManagementContent(
                         Text(
                             desc,
                             fontSize = 11.sp,
-                            color = if (macBattery?.isCharging == true) Color(0xFF10B981) else Color.Gray
+                            color = if (macBattery?.isCharging == true) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
                         )
                     }
                 }
@@ -1366,7 +1748,7 @@ fun PowerManagementContent(
                     Icon(
                         if (macBattery?.isCharging == true) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
                         contentDescription = null,
-                        tint = if (macBattery?.isCharging == true) Color(0xFF10B981) else Color.Gray,
+                        tint = if (macBattery?.isCharging == true) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1376,13 +1758,14 @@ fun PowerManagementContent(
         // Phone Battery Row
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1391,17 +1774,26 @@ fun PowerManagementContent(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        Icons.Default.Smartphone,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Smartphone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Column {
                         Text(
                             "${org.aetherlink.util.DeviceUtils.getDeviceName()} (Bu Cihaz)",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1415,7 +1807,7 @@ fun PowerManagementContent(
                         Text(
                             phoneDesc,
                             fontSize = 11.sp,
-                            color = if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Color(0xFF10B981) else Color.Gray
+                            color = if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
                         )
                     }
                 }
@@ -1447,7 +1839,7 @@ fun PowerManagementContent(
                     Icon(
                         if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
                         contentDescription = null,
-                        tint = if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Color(0xFF10B981) else Color.Gray,
+                        tint = if (phoneBattery.isCharging || phoneBattery.isPluggedIn) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1459,16 +1851,17 @@ fun PowerManagementContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedButton(
+            Button(
                 onClick = onToggleCaffeinate,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = if (isCaffeinateActive) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurface
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isCaffeinateActive) Color(0xFFF59E0B) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    contentColor = if (isCaffeinateActive) Color.White else MaterialTheme.colorScheme.onSurface
                 ),
                 border = BorderStroke(
                     1.dp,
-                    if (isCaffeinateActive) Color(0xFFF59E0B) else MaterialTheme.colorScheme.outlineVariant
+                    if (isCaffeinateActive) Color(0xFFD97706) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 )
             ) {
                 Icon(
@@ -1477,17 +1870,21 @@ fun PowerManagementContent(
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(if (isCaffeinateActive) "Kafein Açık (Uyanık)" else "Kafein Modu", fontSize = 12.sp)
+                Text(if (isCaffeinateActive) "Kafein Açık (Uyanık)" else "Kafein Modu", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
 
-            IconButton(
-                onClick = onRefresh,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.size(42.dp)
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Yenile", modifier = Modifier.size(18.dp))
+                IconButton(
+                    onClick = onRefresh,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Yenile", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
@@ -1595,34 +1992,54 @@ fun MediaAndScreenContent(
     onManageBluetooth: () -> Unit,
     onOpenAetherDrop: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Feature 1: Screen Mirroring (Scrcpy 60 FPS)
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        Icons.Default.CastConnected,
-                        contentDescription = null,
-                        tint = if (isScreenStreaming) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = (if (isScreenStreaming) Color(0xFF10B981) else MaterialTheme.colorScheme.primary).copy(alpha = 0.15f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.CastConnected,
+                                contentDescription = null,
+                                tint = if (isScreenStreaming) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
                     Column {
-                        Text("Ekran Yansıtma", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Text("Mac penceresine 60 FPS canlı akış", fontSize = 11.sp, color = Color.Gray)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Ekran Yansıtma", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            if (isScreenStreaming) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFF10B981).copy(alpha = 0.15f)
+                                ) {
+                                    Text("60 FPS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981), modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                }
+                            }
+                        }
+                        Text("Mac ekranına ultra düşük gecikmeli canlı akış", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
                     }
                 }
                 Button(
@@ -1631,7 +2048,7 @@ fun MediaAndScreenContent(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isScreenStreaming) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary
                     ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Icon(
                         if (isScreenStreaming) Icons.Default.Stop else Icons.Default.PlayArrow,
@@ -1639,22 +2056,24 @@ fun MediaAndScreenContent(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isScreenStreaming) "Durdur" else "Yansıt", fontSize = 12.sp)
+                    Text(if (isScreenStreaming) "Durdur" else "Yansıt", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
 
         // Feature 2: Continuity Camera & Studio Mic
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1663,18 +2082,34 @@ fun MediaAndScreenContent(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(
-                            Icons.Default.CameraAlt,
-                            contentDescription = null,
-                            tint = if (isCameraStreaming) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = (if (isCameraStreaming) Color(0xFF10B981) else MaterialTheme.colorScheme.primary).copy(alpha = 0.15f),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.CameraAlt,
+                                    contentDescription = null,
+                                    tint = if (isCameraStreaming) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
                         Column {
-                            Text("Süreklilik Kamerası", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text("Mac için 1080p kablosuz web kamera", fontSize = 11.sp, color = Color.Gray)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Süreklilik Kamerası", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = (if (isCameraStreaming) Color(0xFF10B981) else MaterialTheme.colorScheme.primary).copy(alpha = 0.15f)
+                                ) {
+                                    Text(if (isCameraStreaming) "1080p Yayında" else "1080p HD", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isCameraStreaming) Color(0xFF10B981) else MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                }
+                            }
+                            Text("Mac için kablosuz web kamera & stüdyo mikrofonu", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
                         }
                     }
 
@@ -1684,7 +2119,7 @@ fun MediaAndScreenContent(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isCameraStreaming) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary
                         ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Icon(
                             if (isCameraStreaming) Icons.Default.Stop else Icons.Default.PlayArrow,
@@ -1692,7 +2127,7 @@ fun MediaAndScreenContent(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (isCameraStreaming) "Durdur" else "Başlat", fontSize = 12.sp)
+                        Text(if (isCameraStreaming) "Durdur" else "Başlat", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -1703,92 +2138,165 @@ fun MediaAndScreenContent(
                     ) {
                         OutlinedButton(
                             onClick = onSwitchCameraLens,
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 4.dp)
+                            contentPadding = PaddingValues(vertical = 6.dp)
                         ) {
                             Icon(Icons.Default.Cameraswitch, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Lens Değiştir", fontSize = 11.sp)
+                            Text("Lens Değiştir", fontSize = 12.sp)
                         }
 
                         OutlinedButton(
                             onClick = onToggleTorch,
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 4.dp),
+                            contentPadding = PaddingValues(vertical = 6.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = if (isTorchOn) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurface
                             )
                         ) {
                             Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(if (isTorchOn) "Flaş Açık" else "Flaş", fontSize = 11.sp)
+                            Text(if (isTorchOn) "Flaş Açık" else "Flaş", fontSize = 12.sp)
                         }
                     }
                 }
             }
         }
 
-        // Feature 3: Bluetooth Audio & AetherDrop Row
+        // Feature 3: Universal Clipboard Card
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF06B6D4).copy(alpha = 0.15f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.ContentPaste,
+                                contentDescription = null,
+                                tint = Color(0xFF06B6D4),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Evrensel Pano", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.15f)
+                            ) {
+                                Text("Canlı Senkron", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981), modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                            }
+                        }
+                        Text("Mac ve telefon arasında iki yönlü anlık metin kopyalama", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
+                    }
+                }
+            }
+        }
+
+        // Feature 4: Bluetooth Audio & AetherDrop Row
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Bluetooth Audio Sync
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                shadowElevation = 1.dp,
                 modifier = Modifier
                     .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable { onManageBluetooth() }
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Bluetooth,
-                        contentDescription = null,
-                        tint = Color(0xFF3B82F6),
-                        modifier = Modifier.size(22.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF3B82F6).copy(alpha = 0.15f),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Bluetooth,
+                                contentDescription = null,
+                                tint = Color(0xFF3B82F6),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Column {
-                        Text("Bluetooth Ses", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text(if (isBtPaired) "Ses Aktif" else "Eşleşme", fontSize = 11.sp, color = Color.Gray)
+                        Text("Bluetooth Ses", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(if (isBtPaired) "Ses Aktif" else "Eşleşme Ayarla", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
                     }
                 }
             }
 
             // AetherDrop Share
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                shadowElevation = 1.dp,
                 modifier = Modifier
                     .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable { onOpenAetherDrop() }
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Share,
-                        contentDescription = null,
-                        tint = Color(0xFF8B5CF6),
-                        modifier = Modifier.size(22.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF8B5CF6).copy(alpha = 0.15f),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = null,
+                                tint = Color(0xFF8B5CF6),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Column {
-                        Text("AetherDrop", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Dosya / Metin", fontSize = 11.sp, color = Color.Gray)
+                        Text("AetherDrop", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Dosya & Paylaşım", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
                     }
                 }
             }
         }
     }
 }
+
 
 // 5. System & Network Content
 @Composable
@@ -1964,14 +2472,15 @@ fun PermissionRow(
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1980,27 +2489,37 @@ fun PermissionRow(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
                 Column {
-                    Text(title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Text(desc, fontSize = 11.sp, color = Color.Gray)
+                    Text(title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(desc, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
                 }
             }
 
-            TextButton(
+            OutlinedButton(
                 onClick = onClick,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
             ) {
                 Text("Ayarla", fontSize = 12.sp)
             }
         }
     }
 }
+
 
 // Reusable Action Tile for Grid
 @Composable
@@ -2015,10 +2534,15 @@ fun ActionButtonTile(
 ) {
     val context = LocalContext.current
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (enabled) 0.5f else 0.25f),
+        shape = RoundedCornerShape(16.dp),
+        color = if (enabled) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (enabled) 0.55f else 0.25f)
+        ),
+        shadowElevation = if (enabled) 1.dp else 0.dp,
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .clickable {
                 if (enabled) {
                     onClick()
@@ -2030,37 +2554,37 @@ fun ActionButtonTile(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = iconTint.copy(alpha = if (enabled) 0.15f else 0.08f),
-                modifier = Modifier.size(36.dp)
+                shape = RoundedCornerShape(12.dp),
+                color = iconTint.copy(alpha = if (enabled) 0.16f else 0.08f),
+                modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         icon,
                         contentDescription = null,
-                        tint = if (enabled) iconTint else Color.Gray,
-                        modifier = Modifier.size(20.dp)
+                        tint = if (enabled) iconTint else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
-                    color = if (enabled) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = subtitle,
                     fontSize = 11.sp,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 0.85f else 0.5f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -2068,3 +2592,122 @@ fun ActionButtonTile(
         }
     }
 }
+
+@Composable
+fun ThemeSelectionCard(context: Context) {
+    val currentTheme = ThemePreferences.themeModeState.value
+
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Column {
+                    Text(
+                        text = "Uygulama Teması",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Arayüz rengini ve kontrastını özelleştirin",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AppThemeMode.values().forEach { mode ->
+                    val isSelected = currentTheme == mode
+                    val icon = when (mode) {
+                        AppThemeMode.SYSTEM -> Icons.Default.BrightnessAuto
+                        AppThemeMode.LIGHT -> Icons.Default.LightMode
+                        AppThemeMode.DARK -> Icons.Default.DarkMode
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                ThemePreferences.setThemeMode(context, mode)
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        },
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            }
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 11.dp, horizontal = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isSelected) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = mode.title,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

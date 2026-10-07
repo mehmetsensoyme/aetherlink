@@ -3,37 +3,25 @@ import SwiftUI
 
 public enum ActiveScreen: String, CaseIterable, Equatable {
     case dashboard
+    case continuity
+    case remote
+    case settings
     case pairing
     case deviceInfo
-    case settings
     
     public static var telemetry: ActiveScreen { .deviceInfo }
     
-    public static let defaultWidth: CGFloat = 365
+    public static let defaultWidth: CGFloat = 380
+    public static let defaultHeight: CGFloat = 460
     
     @MainActor
     public var preferredHeight: CGFloat {
-        switch self {
-        case .dashboard:
-            if NetworkManager.shared.mediaState?.isPlaying == true {
-                return 420
-            } else if NetworkManager.shared.isConnected {
-                return 360
-            } else {
-                return 320
-            }
-        case .pairing:
-            return 320
-        case .deviceInfo:
-            return NetworkManager.shared.isConnected ? 380 : 240
-        case .settings:
-            return 450
-        }
+        return Self.defaultHeight
     }
     
     @MainActor
     public var preferredSize: NSSize {
-        return NSSize(width: Self.defaultWidth, height: preferredHeight)
+        return NSSize(width: Self.defaultWidth, height: Self.defaultHeight)
     }
 }
 
@@ -42,6 +30,8 @@ public typealias PopoverPage = ActiveScreen
 @MainActor
 public final class PopoverRouter: ObservableObject {
     public static let shared = PopoverRouter()
+    public static let defaultWidth: CGFloat = ActiveScreen.defaultWidth
+    public static let defaultHeight: CGFloat = ActiveScreen.defaultHeight
     
     @Published public var currentScreen: ActiveScreen = .dashboard {
         didSet {

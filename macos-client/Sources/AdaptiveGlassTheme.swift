@@ -13,8 +13,59 @@ public final class PopoverStateManager: ObservableObject {
     @Published public var isAudioRoutingActive: Bool = false
     @Published public var isPulsing: Bool = false
     @Published public var hoveredTile: String? = nil
+    @Published public var quickDialNumber: String = ""
     
     public init() {}
+}
+
+// MARK: - App Theme Mode & Manager
+public enum AppThemeMode: String, CaseIterable, Identifiable {
+    case system = "system"
+    case light = "light"
+    case dark = "dark"
+    
+    public var id: String { rawValue }
+    
+    public var displayName: String {
+        switch self {
+        case .system: return "Sistem"
+        case .light: return "Açık"
+        case .dark: return "Koyu"
+        }
+    }
+}
+
+@MainActor
+public final class AppThemeManager: ObservableObject {
+    public static let shared = AppThemeManager()
+    private let key = "aetherlink_app_theme_mode"
+    private let pingKey = "aetherlink_show_ping_in_menubar"
+    
+    @Published public var currentTheme: AppThemeMode {
+        didSet {
+            UserDefaults.standard.set(currentTheme.rawValue, forKey: key)
+        }
+    }
+    
+    @Published public var showPingInMenuBar: Bool {
+        didSet {
+            UserDefaults.standard.set(showPingInMenuBar, forKey: pingKey)
+        }
+    }
+    
+    private init() {
+        let saved = UserDefaults.standard.string(forKey: key) ?? AppThemeMode.system.rawValue
+        self.currentTheme = AppThemeMode(rawValue: saved) ?? .system
+        self.showPingInMenuBar = UserDefaults.standard.object(forKey: pingKey) as? Bool ?? true
+    }
+    
+    public var preferredColorScheme: ColorScheme? {
+        switch currentTheme {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
 }
 
 // MARK: - Adaptive Liquid Glass Theme & Visual Hierarchy

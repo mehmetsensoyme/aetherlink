@@ -105,6 +105,38 @@ public final class CallManager: ObservableObject {
     public func startOutgoingCall(phoneNumber: String) {
         let trimmed = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        
+        let callId = "outgoing-\(Int(Date().timeIntervalSince1970))"
+        let payload = CallIncomingPayload(
+            callId: callId,
+            appType: .cellular,
+            callerName: trimmed,
+            contact_name: trimmed,
+            phoneNumber: trimmed,
+            avatarBase64: nil,
+            timestamp: Date().timeIntervalSince1970 * 1000,
+            hasVideo: false,
+            direction: "outgoing"
+        )
+        
+        self.activeCall = payload
+        self.isCallActive = false
+        
+        MediaContinuityManager.shared.pauseMediaForIncomingCall()
+        
+        if bannerPosition == .notch || bannerPosition == .floating {
+            NotchCallManager.shared.show(
+                caller: trimmed,
+                number: trimmed,
+                callId: callId,
+                appType: .cellular,
+                avatarBase64: nil,
+                isOutgoing: true
+            )
+        } else {
+            showCallBanner(payload)
+        }
+        
         NetworkManager.shared.send(type: "START_CALL", payload: ["phoneNumber": trimmed])
         print("[CallManager] Outgoing call triggered from Mac for: \(trimmed)")
     }

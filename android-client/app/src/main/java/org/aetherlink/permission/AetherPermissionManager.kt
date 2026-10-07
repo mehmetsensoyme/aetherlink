@@ -19,7 +19,9 @@ data class PermissionStatusReport(
     val notificationListenerGranted: Boolean,
     val networkAvailable: Boolean,
     val batteryOptimizationIgnored: Boolean = true,
-    val accessibilityServiceEnabled: Boolean = false
+    val accessibilityServiceEnabled: Boolean = false,
+    val cameraGranted: Boolean = false,
+    val recordAudioGranted: Boolean = false
 ) {
     val allCoreGranted: Boolean
         get() = notificationsGranted && phoneCallsGranted && nearbyDevicesGranted
@@ -120,6 +122,26 @@ object AetherPermissionManager {
     }
 
     /**
+     * Checks if Camera permission is granted (for Continuity Camera).
+     */
+    fun isCameraPermissionGranted(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Checks if Audio Recording permission is granted (for Studio Microphone).
+     */
+    fun isRecordAudioPermissionGranted(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
      * Returns a full status report of all permission domains.
      */
     fun checkAllPermissions(context: Context): PermissionStatusReport {
@@ -130,7 +152,9 @@ object AetherPermissionManager {
             notificationListenerGranted = isNotificationListenerGranted(context),
             networkAvailable = isNetworkAvailable(context),
             batteryOptimizationIgnored = isBatteryOptimizationIgnored(context),
-            accessibilityServiceEnabled = isAccessibilityServiceEnabled(context)
+            accessibilityServiceEnabled = isAccessibilityServiceEnabled(context),
+            cameraGranted = isCameraPermissionGranted(context),
+            recordAudioGranted = isRecordAudioPermissionGranted(context)
         )
     }
 
@@ -148,7 +172,9 @@ object AetherPermissionManager {
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.SEND_SMS,
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO
         )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

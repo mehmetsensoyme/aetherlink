@@ -15,8 +15,8 @@ public final class SnapshotInspector {
         captureView(
             name: "mac_menubar_disconnected",
             outputDirectory: outputDirectory,
-            width: 365,
-            height: 330
+            width: 380,
+            height: 460
         ) {
             MenuBarContentView()
         }
@@ -33,11 +33,35 @@ public final class SnapshotInspector {
         captureView(
             name: "mac_menubar_connected",
             outputDirectory: outputDirectory,
-            width: 365,
-            height: 370
+            width: 380,
+            height: 460
         ) {
             MenuBarContentView()
         }
+        
+        // 2b. Continuity Tab
+        PopoverRouter.shared.currentScreen = .continuity
+        captureView(
+            name: "mac_menubar_continuity",
+            outputDirectory: outputDirectory,
+            width: 380,
+            height: 460
+        ) {
+            MenuBarContentView()
+        }
+        
+        // 2c. Remote Tab
+        PopoverRouter.shared.currentScreen = .remote
+        captureView(
+            name: "mac_menubar_remote",
+            outputDirectory: outputDirectory,
+            width: 380,
+            height: 460
+        ) {
+            MenuBarContentView()
+        }
+        
+        PopoverRouter.shared.currentScreen = .dashboard
         
         // Restore connection state
         NetworkManager.shared.isConnected = origConnected
@@ -68,8 +92,8 @@ public final class SnapshotInspector {
         captureView(
             name: "mac_pairing_qr",
             outputDirectory: outputDirectory,
-            width: 365,
-            height: 330
+            width: 380,
+            height: 460
         ) {
             PairingQRView(showInlineBack: true, onBack: {})
         }
@@ -78,8 +102,8 @@ public final class SnapshotInspector {
         captureView(
             name: "mac_device_telemetry_disconnected",
             outputDirectory: outputDirectory,
-            width: 365,
-            height: 240
+            width: 380,
+            height: 460
         ) {
             DeviceTelemetryDetailView(showInlineBack: true, onBack: {})
         }
@@ -92,8 +116,8 @@ public final class SnapshotInspector {
         captureView(
             name: "mac_device_telemetry_connected",
             outputDirectory: outputDirectory,
-            width: 365,
-            height: 380
+            width: 380,
+            height: 460
         ) {
             DeviceTelemetryDetailView(showInlineBack: true, onBack: {})
         }
@@ -104,8 +128,8 @@ public final class SnapshotInspector {
         captureView(
             name: "mac_settings",
             outputDirectory: outputDirectory,
-            width: 365,
-            height: 450
+            width: 380,
+            height: 460
         ) {
             SettingsView(onBack: {})
         }
@@ -114,8 +138,8 @@ public final class SnapshotInspector {
         captureView(
             name: "mac_menubar_light_disconnected",
             outputDirectory: outputDirectory,
-            width: 365,
-            height: 330,
+            width: 380,
+            height: 460,
             colorScheme: .light
         ) {
             MenuBarContentView()
@@ -129,8 +153,8 @@ public final class SnapshotInspector {
         captureView(
             name: "mac_menubar_light_connected",
             outputDirectory: outputDirectory,
-            width: 365,
-            height: 370,
+            width: 380,
+            height: 460,
             colorScheme: .light
         ) {
             MenuBarContentView()

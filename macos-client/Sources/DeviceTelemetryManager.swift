@@ -31,6 +31,19 @@ public final class DeviceTelemetryManager: ObservableObject {
         print("[DeviceTelemetryManager] Sent PING to Android")
     }
     
+    private var pingTimer: Timer?
+    
+    public func startPeriodicPing() {
+        pingTimer?.invalidate()
+        pingTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                if NetworkManager.shared.isConnected {
+                    self?.sendPing()
+                }
+            }
+        }
+    }
+    
     public func handlePong(_ payload: PingPayload) {
         self.isPinging = false
         let now = Date().timeIntervalSince1970 * 1000

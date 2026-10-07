@@ -3,7 +3,7 @@
 # ⚡ AetherLink
 ### Android ile macOS Arasındaki Kayıp Süreklilik (Continuity) Köprüsü
 
-[![Version: v1.1.0-beta.1](https://img.shields.io/badge/S%C3%BCr%C3%BCm-v1.1.0--beta.1-purple.svg)](https://github.com/mehmetsensoyme/aetherlink/releases)
+[![Version: v1.8.0](https://img.shields.io/badge/S%C3%BCr%C3%BCm-v1.8.0-purple.svg)](https://github.com/mehmetsensoyme/aetherlink/releases)
 [![License: MIT](https://img.shields.io/badge/Lisans-MIT-blue.svg)](LICENSE)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2014%2B%20%7C%2015%20Sequoia-black)](macos-client)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android%2014%20%7C%2015%20%7C%2016-green)](android-client)

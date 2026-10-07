@@ -29,11 +29,19 @@ object DeviceUtils {
     )
 
     fun getDeviceName(): String {
+        val model = Build.MODEL ?: "Android Cihazı"
+        if (model.contains("sdk_gphone", ignoreCase = true) ||
+            model.contains("emulator", ignoreCase = true) ||
+            Build.HARDWARE == "goldfish" ||
+            Build.HARDWARE == "ranchu"
+        ) {
+            return "Android Emülatör"
+        }
+
         val rawManufacturer = Build.MANUFACTURER ?: ""
         val manufacturer = rawManufacturer.replaceFirstChar {
             if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
         }
-        val model = Build.MODEL ?: "Android Cihazı"
 
         for ((prefix, marketName) in modelMap) {
             if (model.startsWith(prefix, ignoreCase = true)) {

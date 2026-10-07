@@ -24,53 +24,20 @@ public final class StatusBarController: NSObject {
     }
     
     public func syncPopoverToFittingSize() {
-        let preferred = PopoverRouter.shared.currentScreen.preferredHeight
-        var calculatedTargetHeight = preferred
-        
-        for window in NSApp.windows {
-            if window.isVisible {
-                window.isOpaque = false
-                window.backgroundColor = .clear
-                window.contentView?.wantsLayer = true
-                window.contentView?.layer?.backgroundColor = .clear
-                
-                let fittingHeight = window.contentView?.fittingSize.height ?? 0
-                let targetHeight: CGFloat
-                if fittingHeight > 100 {
-                    targetHeight = max(ceil(fittingHeight), preferred)
-                } else {
-                    targetHeight = preferred
-                }
-                calculatedTargetHeight = targetHeight
-                let targetSize = NSSize(width: 365, height: targetHeight)
-                
-                let currentFrame = window.frame
-                if abs(currentFrame.width - targetSize.width) > 1 || abs(currentFrame.height - targetSize.height) > 1 {
-                    let deltaHeight = targetSize.height - currentFrame.height
-                    let newOrigin = NSPoint(x: currentFrame.origin.x, y: currentFrame.origin.y - deltaHeight)
-                    let newFrame = NSRect(origin: newOrigin, size: targetSize)
-                    
-                    NSAnimationContext.runAnimationGroup { context in
-                        context.duration = 0.20
-                        context.allowsImplicitAnimation = true
-                        window.setFrame(newFrame, display: true, animate: true)
-                    }
-                }
-            }
-        }
-        
         if let popover = popover {
-            let finalSize = NSSize(width: 365, height: calculatedTargetHeight)
+            let targetSize = PopoverRouter.shared.currentScreen.preferredSize
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.20
                 context.allowsImplicitAnimation = true
-                popover.contentSize = finalSize
+                popover.contentSize = targetSize
             }
         }
     }
     
     public func updatePopoverSize(_ newSize: NSSize) {
-        syncPopoverToFittingSize()
+        if let popover = popover {
+            popover.contentSize = newSize
+        }
     }
     
     public func configurePopover(_ popover: NSPopover) {
