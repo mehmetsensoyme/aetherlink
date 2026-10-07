@@ -3,7 +3,7 @@
 # ⚡ AetherLink
 ### The Missing Continuity Bridge Between Android & macOS
 
-[![Version: v1.8.0](https://img.shields.io/badge/Version-v1.8.0-purple.svg)](https://github.com/mehmetsensoyme/aetherlink/releases)
+[![Version: v1.9.0](https://img.shields.io/badge/Version-v1.9.0-purple.svg)](https://github.com/mehmetsensoyme/aetherlink/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2014%2B%20%7C%2015%20Sequoia-black)](macos-client)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android%2014%20%7C%2015%20%7C%2016-green)](android-client)
@@ -18,7 +18,7 @@
 
 ## 📖 Overview
 
-**AetherLink** brings native Apple-like ecosystem continuity to Android and macOS devices. It seamlessly unifies phone calls, VoIP calls (WhatsApp, Telegram), universal notifications with inline replies, universal clipboard, wireless screen mirroring, and camera continuity — all without proprietary cloud lock-in.
+**AetherLink** brings native Apple-like ecosystem continuity to Android and macOS devices. It seamlessly unifies phone calls, VoIP calls (WhatsApp, Telegram), universal notifications with inline replies, universal clipboard, wireless screen mirroring, camera continuity, zero-ADB wireless audio streaming, and an automotive desktop console — all without proprietary cloud lock-in.
 
 Built with native performance in mind: **Swift & SwiftUI** for macOS and **Kotlin & Jetpack Compose** for Android.
 
@@ -26,6 +26,10 @@ Built with native performance in mind: **Swift & SwiftUI** for macOS and **Kotli
 
 ## 🌟 Key Features
 
+* 🎵 **AetherAudio Zero-ADB Wireless Audio Bridge:**
+  Wirelessly route Spotify and Android media audio directly to your Mac's studio speakers over low-latency UDP (port 8446) without needing Bluetooth pairing or developer ADB. Includes full-duplex two-way voice call relay with hardware acoustic echo cancellation.
+* 🚗 **Aether Auto (Desktop Car Console):**
+  An Android Auto / Apple CarPlay inspired 780×500 desktop dashboard with glanceable large media controls, live telemetry, 3×4 numeric phone dialer, and quick action dock.
 * 📱 **Wireless Screen Mirroring (Apple iPhone Mirroring Alternative):**
   Mirror your Android phone screen directly onto your Mac screen in a floating, ultra-responsive window at smooth 30 FPS over local Wi-Fi or USB/ADB with zero cloud.
 * 📞 **Cellular & VoIP Call Mirroring:**

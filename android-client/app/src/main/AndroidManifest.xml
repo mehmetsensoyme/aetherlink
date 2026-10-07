@@ -242,6 +242,12 @@
             </intent-filter>
         </service>
 
+        <!-- Zero-ADB AetherAudio Service for Wireless Media & Calling Audio -->
+        <service
+            android:name=".service.AetherAudioService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|microphone" />
+
     </application>
 
 </manifest>

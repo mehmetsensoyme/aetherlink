@@ -89,6 +89,7 @@ class AetherCoreService : Service() {
     private var webSocket: WebSocket? = null
     private var isConnected = false
     private var macIpAddress: String = "127.0.0.1" // Local loopback via ADB reverse or Wi-Fi IP
+    fun getConnectedMacIp(): String = macIpAddress
     private var connectedMacName: String = "MacBook"
     private var isMediaProjectionRunning: Boolean = false
 
@@ -714,6 +715,19 @@ class AetherCoreService : Service() {
                 }
                 "CONTINUITY_CAMERA_MIC" -> {
                     AetherCameraService.toggleMic(this)
+                }
+                "AUDIO_STREAM_START" -> {
+                    val modeStr = payload.get("mode")?.asString ?: "hybrid"
+                    val mode = AetherAudioService.AudioMode.values().find { it.id == modeStr } ?: AetherAudioService.AudioMode.HYBRID
+                    AetherAudioService.start(this, mode)
+                }
+                "AUDIO_STREAM_STOP" -> {
+                    AetherAudioService.stop(this)
+                }
+                "AUDIO_STREAM_MODE" -> {
+                    val modeStr = payload.get("mode")?.asString ?: "hybrid"
+                    val mode = AetherAudioService.AudioMode.values().find { it.id == modeStr } ?: AetherAudioService.AudioMode.HYBRID
+                    AetherAudioService.setMode(this, mode)
                 }
                 "MAC_SLEEP" -> {
                     isMacSleeping = true

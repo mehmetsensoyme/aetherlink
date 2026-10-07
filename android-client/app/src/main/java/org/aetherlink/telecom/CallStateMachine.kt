@@ -160,6 +160,10 @@ object CallStateMachine {
             CallActionHelper.routeAudioForRemoteAnswer(context)
         }
 
+        if (org.aetherlink.service.AetherAudioService.isStreaming) {
+            org.aetherlink.service.AetherAudioService.start(context, org.aetherlink.service.AetherAudioService.currentMode)
+        }
+
         broadcastStatus(updated)
 
         // Dispatch backwards-compatible CALL_ACTION "answered"
@@ -233,6 +237,9 @@ object CallStateMachine {
         CallActionHelper.setSpeakerphone(context, false)
         AetherNotificationListener.clearActiveCallIntents()
         org.aetherlink.audio.CallAudioRelayManager.stop(context)
+        if (org.aetherlink.service.AetherAudioService.isStreaming) {
+            org.aetherlink.service.AetherAudioService.start(context, org.aetherlink.service.AetherAudioService.currentMode)
+        }
     }
 
     private fun broadcastStatus(session: Session) {

@@ -953,6 +953,33 @@ public struct SettingsView: View {
                     }
                     .glassCard(cornerRadius: 12, padding: 10)
                     
+                    // AetherAudio Streaming Preference Card
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Image(systemName: "speaker.wave.3.fill")
+                                .foregroundColor(.teal)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("AetherAudio Ses Modu")
+                                    .font(.caption.weight(.semibold))
+                                Text("Sıfır-ADB UDP 8446 kablosuz ses köprüsü")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        
+                        Picker("", selection: Binding(
+                            get: { AetherAudioManager.shared.currentMode },
+                            set: { AetherAudioManager.shared.setAudioMode($0) }
+                        )) {
+                            ForEach(AudioStreamMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .glassCard(cornerRadius: 12, padding: 10)
+                    
                     // Environment & OS Status Card
                     VStack(spacing: 6) {
                         HStack {
@@ -1343,6 +1370,7 @@ public struct MenuBarContentView: View {
     @ObservedObject var pairing = PairingManager.shared
     @ObservedObject var mirror = ScreenMirrorManager.shared
     @ObservedObject var camera = ContinuityCameraManager.shared
+    @ObservedObject var audioMgr = AetherAudioManager.shared
     @ObservedObject var telemetryMgr = DeviceTelemetryManager.shared
     @ObservedObject var notifManager = NotificationManager.shared
     @ObservedObject var clipboard = ClipboardManager.shared
@@ -1764,195 +1792,311 @@ public struct MenuBarContentView: View {
     
     // MARK: - 2. Continuity View
     private var continuityView: some View {
-        VStack(spacing: 8) {
-            // Screen Mirroring Card
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.blue.opacity(colorScheme == .dark ? 0.22 : 0.12))
-                            .frame(width: 32, height: 32)
-                        Image(systemName: mirror.isScrcpyRunning ? "display.trianglebadge.exclamationmark" : "display")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.blue)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Kablosuz Ekran Yansıtma")
-                            .font(.system(size: 12.5, weight: .semibold))
-                            .foregroundColor(.primary)
-                        Text(network.isConnected ? (mirror.isScrcpyRunning ? "Aktif • 60 FPS • Düşük Gecikme" : "Hazır • scrcpy Yüksek Performans") : "Telefon Bağlantısı Bekleniyor")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        guard network.isConnected else { return }
-                        if mirror.isScrcpyRunning {
-                            mirror.stopMirroring()
-                        } else {
-                            mirror.startMirroring()
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 8) {
+                // AetherAudio Zero-ADB Wireless Audio Bridge Card
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.teal.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: audioMgr.isStreaming ? "speaker.wave.3.fill" : "speaker.wave.2")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.teal)
                         }
-                    }) {
-                        Text(mirror.isScrcpyRunning ? "Durdur" : "Başlat")
-                            .font(.caption.bold())
-                            .foregroundColor(mirror.isScrcpyRunning ? .red : .white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule().fill(mirror.isScrcpyRunning ? Color.red.opacity(0.20) : Color.blue)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!network.isConnected)
-                }
-            }
-            .glassCard(cornerRadius: 14, padding: 10, isHighlighted: mirror.isScrcpyRunning, highlightColor: .blue)
-            
-            // Continuity Camera & Studio Mic Card
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.green.opacity(colorScheme == .dark ? 0.22 : 0.12))
-                            .frame(width: 32, height: 32)
-                        Image(systemName: camera.isStreaming ? "video.fill" : "video")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.green)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Süreklilik Kamerası")
-                            .font(.system(size: 12.5, weight: .semibold))
-                            .foregroundColor(.primary)
-                        Text(network.isConnected ? (camera.isStreaming ? "Canlı • \(camera.currentFps) FPS • \(camera.currentResolution.uppercased())" : "1080p Studio Kamera & Mikrofon") : "Telefon Bağlantısı Bekleniyor")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        guard network.isConnected else { return }
-                        if camera.isStreaming {
-                            camera.stopStream()
-                        } else {
-                            camera.startStream()
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("AetherAudio Ses Köprüsü")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(network.isConnected ? (audioMgr.isStreaming ? "Aktif • \(audioMgr.currentMode.title) (\(audioMgr.packetsReceived) pkt)" : "Hazır • UDP 8446 Sıfır-ADB") : "Telefon Bağlantısı Bekleniyor")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
                         }
-                    }) {
-                        Text(camera.isStreaming ? "Durdur" : "Başlat")
-                            .font(.caption.bold())
-                            .foregroundColor(camera.isStreaming ? .red : .white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule().fill(camera.isStreaming ? Color.red.opacity(0.20) : Color.green)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!network.isConnected)
-                }
-            }
-            .glassCard(cornerRadius: 14, padding: 10, isHighlighted: camera.isStreaming, highlightColor: .green)
-            
-            // Universal Clipboard Card
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.indigo.opacity(colorScheme == .dark ? 0.22 : 0.12))
-                            .frame(width: 32, height: 32)
-                        Image(systemName: clipboard.isMonitoringActive ? "doc.on.clipboard.fill" : "doc.on.clipboard")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.indigo)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            guard network.isConnected else { return }
+                            if audioMgr.isStreaming {
+                                audioMgr.stopAudioStream()
+                            } else {
+                                audioMgr.startAudioStream(mode: audioMgr.currentMode)
+                            }
+                        }) {
+                            Text(audioMgr.isStreaming ? "Durdur" : "Başlat")
+                                .font(.caption.bold())
+                                .foregroundColor(audioMgr.isStreaming ? .red : .white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule().fill(audioMgr.isStreaming ? Color.red.opacity(0.20) : Color.teal)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!network.isConnected)
                     }
                     
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Evrensel Pano Eşitleme")
-                            .font(.system(size: 12.5, weight: .semibold))
-                            .foregroundColor(.primary)
-                        Text(clipboard.isMonitoringActive ? "Çift yönlü kopyala-yapıştır aktif" : "Pano izleme duraklatıldı")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        guard network.isConnected else { return }
-                        clipboard.toggleMonitoring()
-                    }) {
-                        Text(clipboard.isMonitoringActive ? "Aktif" : "Kapalı")
-                            .font(.caption2.bold())
-                            .foregroundColor(clipboard.isMonitoringActive ? .indigo : .secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule().fill(clipboard.isMonitoringActive ? Color.indigo.opacity(0.18) : Color.primary.opacity(0.08))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!network.isConnected)
-                }
-            }
-            .glassCard(cornerRadius: 14, padding: 10)
-            
-            // AetherDrop File Transfer Card
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.orange.opacity(colorScheme == .dark ? 0.22 : 0.12))
-                            .frame(width: 32, height: 32)
-                        Image(systemName: "paperplane.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.orange)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("AetherDrop Dosya Transferi")
-                            .font(.system(size: 12.5, weight: .semibold))
-                            .foregroundColor(.primary)
-                        Text(network.isConnected ? "Telefona dosya veya fotoğraf aktar" : "Telefon bağlantısı bekleniyor")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        guard network.isConnected else { return }
-                        let panel = NSOpenPanel()
-                        panel.allowsMultipleSelection = false
-                        panel.canChooseDirectories = false
-                        panel.canCreateDirectories = false
-                        panel.prompt = "Gönder"
-                        panel.message = "Telefona gönderilecek dosyayı seçin"
-                        panel.begin { response in
-                            if response == .OK, let url = panel.url {
-                                AetherShareManager.shared.sendFileToPhone(fileURL: url)
+                    if audioMgr.isStreaming {
+                        HStack(spacing: 5) {
+                            ForEach(AudioStreamMode.allCases) { mode in
+                                let isSelected = (audioMgr.currentMode == mode)
+                                Button(action: {
+                                    audioMgr.setAudioMode(mode)
+                                }) {
+                                    Text(mode.title)
+                                        .font(.system(size: 9.5, weight: isSelected ? .bold : .medium))
+                                        .foregroundColor(isSelected ? .white : .primary.opacity(0.7))
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 3)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 5)
+                                                .fill(isSelected ? Color.teal : Color.primary.opacity(0.06))
+                                        )
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
-                    }) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "arrow.up.circle.fill")
-                            Text("Gönder")
-                        }
-                        .font(.caption2.bold())
-                        .foregroundColor(Color(nsColor: .controlAccentColor))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.top, 2)
                     }
-                    .buttonStyle(.plain)
-                    .glassTile(id: "continuity_drop_btn", isActive: false)
-                    .disabled(!network.isConnected)
                 }
+                .glassCard(cornerRadius: 14, padding: 10, isHighlighted: audioMgr.isStreaming, highlightColor: .teal)
+                
+                // Aether Auto Car Console Card
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(nsColor: .controlAccentColor).opacity(colorScheme == .dark ? 0.22 : 0.12))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: "car.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(Color(nsColor: .controlAccentColor))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Aether Auto Konsolu")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text("Masaüstü Araç Paneli • Medya & Arama")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            AetherWindowManager.shared.showAutoWindow()
+                        }) {
+                            HStack(spacing: 4) {
+                                Text("Aç")
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.system(size: 10))
+                            }
+                            .font(.caption.bold())
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(Color(nsColor: .controlAccentColor).opacity(0.15))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .glassCard(cornerRadius: 14, padding: 10)
+                
+                // Screen Mirroring Card
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.blue.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: mirror.isScrcpyRunning ? "display.trianglebadge.exclamationmark" : "display")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.blue)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Kablosuz Ekran Yansıtma")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(network.isConnected ? (mirror.isScrcpyRunning ? "Aktif • 60 FPS • Düşük Gecikme" : "Hazır • scrcpy Yüksek Performans") : "Telefon Bağlantısı Bekleniyor")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            guard network.isConnected else { return }
+                            if mirror.isScrcpyRunning {
+                                mirror.stopMirroring()
+                            } else {
+                                mirror.startMirroring()
+                            }
+                        }) {
+                            Text(mirror.isScrcpyRunning ? "Durdur" : "Başlat")
+                                .font(.caption.bold())
+                                .foregroundColor(mirror.isScrcpyRunning ? .red : .white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule().fill(mirror.isScrcpyRunning ? Color.red.opacity(0.20) : Color.blue)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!network.isConnected)
+                    }
+                }
+                .glassCard(cornerRadius: 14, padding: 10, isHighlighted: mirror.isScrcpyRunning, highlightColor: .blue)
+                
+                // Continuity Camera & Studio Mic Card
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.green.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: camera.isStreaming ? "video.fill" : "video")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.green)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Süreklilik Kamerası")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(network.isConnected ? (camera.isStreaming ? "Canlı • \(camera.currentFps) FPS • \(camera.currentResolution.uppercased())" : "1080p Studio Kamera & Mikrofon") : "Telefon Bağlantısı Bekleniyor")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            guard network.isConnected else { return }
+                            if camera.isStreaming {
+                                camera.stopStream()
+                            } else {
+                                camera.startStream()
+                            }
+                        }) {
+                            Text(camera.isStreaming ? "Durdur" : "Başlat")
+                                .font(.caption.bold())
+                                .foregroundColor(camera.isStreaming ? .red : .white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule().fill(camera.isStreaming ? Color.red.opacity(0.20) : Color.green)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!network.isConnected)
+                    }
+                }
+                .glassCard(cornerRadius: 14, padding: 10, isHighlighted: camera.isStreaming, highlightColor: .green)
+                
+                // Universal Clipboard Card
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.indigo.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: clipboard.isMonitoringActive ? "doc.on.clipboard.fill" : "doc.on.clipboard")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.indigo)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Evrensel Pano Eşitleme")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(clipboard.isMonitoringActive ? "Çift yönlü kopyala-yapıştır aktif" : "Pano izleme duraklatıldı")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            guard network.isConnected else { return }
+                            clipboard.toggleMonitoring()
+                        }) {
+                            Text(clipboard.isMonitoringActive ? "Aktif" : "Kapalı")
+                                .font(.caption2.bold())
+                                .foregroundColor(clipboard.isMonitoringActive ? .indigo : .secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule().fill(clipboard.isMonitoringActive ? Color.indigo.opacity(0.18) : Color.primary.opacity(0.08))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!network.isConnected)
+                    }
+                }
+                .glassCard(cornerRadius: 14, padding: 10)
+                
+                // AetherDrop File Transfer Card
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.orange.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.orange)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("AetherDrop Dosya Transferi")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text(network.isConnected ? "Telefona dosya veya fotoğraf aktar" : "Telefon bağlantısı bekleniyor")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            guard network.isConnected else { return }
+                            let panel = NSOpenPanel()
+                            panel.allowsMultipleSelection = false
+                            panel.canChooseDirectories = false
+                            panel.canCreateDirectories = false
+                            panel.prompt = "Gönder"
+                            panel.message = "Telefona gönderilecek dosyayı seçin"
+                            panel.begin { response in
+                                if response == .OK, let url = panel.url {
+                                    AetherShareManager.shared.sendFileToPhone(fileURL: url)
+                                }
+                            }
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.up.circle.fill")
+                                Text("Gönder")
+                            }
+                            .font(.caption2.bold())
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                        .glassTile(id: "continuity_drop_btn", isActive: false)
+                        .disabled(!network.isConnected)
+                    }
+                }
+                .glassCard(cornerRadius: 14, padding: 10)
+                
+                Spacer(minLength: 4)
             }
-            .glassCard(cornerRadius: 14, padding: 10)
-            
-            Spacer(minLength: 0)
+            .padding(.vertical, 2)
         }
     }
     

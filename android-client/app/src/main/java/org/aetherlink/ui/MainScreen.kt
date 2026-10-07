@@ -2215,6 +2215,105 @@ fun MediaAndScreenContent(
             }
         }
 
+        // Feature 3.5: Zero-ADB AetherAudio Wireless Audio & Call Bridge Card
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val isAudioStreaming = org.aetherlink.service.AetherAudioService.streamingState.value
+        val audioMode = org.aetherlink.service.AetherAudioService.modeState.value
+
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, if (isAudioStreaming) Color(0xFF8B5CF6).copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = (if (isAudioStreaming) Color(0xFF8B5CF6) else MaterialTheme.colorScheme.primary).copy(alpha = 0.15f),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Headphones,
+                                    contentDescription = null,
+                                    tint = if (isAudioStreaming) Color(0xFF8B5CF6) else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("AetherAudio Ses Köprüsü", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = (if (isAudioStreaming) Color(0xFF8B5CF6) else Color(0xFF10B981)).copy(alpha = 0.15f)
+                                ) {
+                                    Text(if (isAudioStreaming) "Canlı Akış" else "Sıfır-ADB", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isAudioStreaming) Color(0xFF8B5CF6) else Color(0xFF10B981), modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                }
+                            }
+                            Text("Kablosuz medya ses aktarımı ve Mac'ten telefon görüşmesi", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
+                        }
+                    }
+
+                    Switch(
+                        checked = isAudioStreaming,
+                        onCheckedChange = { enable ->
+                            if (enable) {
+                                org.aetherlink.service.AetherAudioService.start(context, audioMode)
+                            } else {
+                                org.aetherlink.service.AetherAudioService.stop(context)
+                            }
+                        }
+                    )
+                }
+
+                if (isAudioStreaming) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        org.aetherlink.service.AetherAudioService.AudioMode.values().forEach { mode ->
+                            val isSelected = (audioMode == mode)
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        org.aetherlink.service.AetherAudioService.setMode(context, mode)
+                                    },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) Color(0xFF8B5CF6).copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                border = BorderStroke(1.dp, if (isSelected) Color(0xFF8B5CF6) else Color.Transparent)
+                            ) {
+                                Box(modifier = Modifier.padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = mode.title,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color(0xFF8B5CF6) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Feature 4: Bluetooth Audio & AetherDrop Row
         Row(
             modifier = Modifier.fillMaxWidth(),

@@ -9,6 +9,7 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
     private var pairingQRWindow: NSWindow?
     private var updateWindow: NSWindow?
     private var pairingPromptWindow: NSPanel?
+    private var autoWindow: NSWindow?
     
     public override init() {
         super.init()
@@ -271,6 +272,45 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
         continuityCameraWindow?.orderOut(nil)
     }
     
+    // MARK: - Aether Auto Window ("Aether Auto Konsolu")
+    public func showAutoWindow() {
+        if let win = autoWindow {
+            win.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 780, height: 500),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        win.title = "Aether Auto • Araç Konsolu"
+        win.titleVisibility = .hidden
+        win.titlebarAppearsTransparent = true
+        win.isMovableByWindowBackground = true
+        win.isReleasedWhenClosed = false
+        win.isOpaque = false
+        win.backgroundColor = .clear
+        win.delegate = self
+        win.center()
+        
+        let hostingView = NSHostingView(
+            rootView: AetherAutoView(onDismiss: { [weak self] in
+                self?.closeAutoWindow()
+            })
+        )
+        win.contentView = hostingView
+        self.autoWindow = win
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    public func closeAutoWindow() {
+        autoWindow?.orderOut(nil)
+    }
+    
     // MARK: - NSWindowDelegate Safe Isolation
     // When the user clicks the standard Mac close button (traffic light),
     // we orderOut the window rather than deallocating or letting it terminate the application.
@@ -286,6 +326,8 @@ public final class AetherWindowManager: NSObject, ObservableObject, NSWindowDele
             PairingManager.shared.pendingPairingRequest = nil
         } else if sender === continuityCameraWindow {
             ContinuityCameraManager.shared.stopStream()
+        } else if sender === autoWindow {
+            // Aether Auto closed
         }
         return false // Handled safely via orderOut
     }

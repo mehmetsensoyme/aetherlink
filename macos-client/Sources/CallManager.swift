@@ -55,6 +55,7 @@ public final class CallManager: ObservableObject {
         ringtoneSound = nil
         isCallActive = true
         NotchCallManager.shared.handleCallAnswered()
+        AetherAudioManager.shared.handleCallStateChanged(isActive: true)
         print("[CallManager] Call answered -> ringtone silenced, call state synced.")
     }
     
@@ -228,6 +229,7 @@ public final class CallManager: ObservableObject {
         NotchCallManager.shared.dismiss()
         MediaContinuityManager.shared.resumeMediaAfterCall()
         CallAudioStreamEngine.shared.stop()
+        AetherAudioManager.shared.handleCallStateChanged(isActive: false)
         
         if let window = callWindow, let screen = NSScreen.main, window.isVisible {
             let visibleFrame = screen.visibleFrame

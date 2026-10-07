@@ -3,7 +3,7 @@
 # ⚡ AetherLink
 ### Android ile macOS Arasındaki Kayıp Süreklilik (Continuity) Köprüsü
 
-[![Version: v1.8.0](https://img.shields.io/badge/S%C3%BCr%C3%BCm-v1.8.0-purple.svg)](https://github.com/mehmetsensoyme/aetherlink/releases)
+[![Version: v1.9.0](https://img.shields.io/badge/S%C3%BCr%C3%BCm-v1.9.0-purple.svg)](https://github.com/mehmetsensoyme/aetherlink/releases)
 [![License: MIT](https://img.shields.io/badge/Lisans-MIT-blue.svg)](LICENSE)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2014%2B%20%7C%2015%20Sequoia-black)](macos-client)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android%2014%20%7C%2015%20%7C%2016-green)](android-client)
@@ -20,7 +20,7 @@
 
 **AetherLink**, Apple ekosisteminin en sevilen "Süreklilik" (Continuity) deneyimini Android telefonlar ile Mac bilgisayarlar arasına getiren açık kaynaklı bir köprüdür. 
 
-Hücresel telefon aramaları, VoIP görüşmeleri (WhatsApp, Telegram vb.), doğrudan Mac'ten yanıtlanabilen bildirimler, evrensel pano, kablosuz ekran yansıtma ve kablosuz stüdyo kamerası gibi tüm kritik özellikleri tek bir çatı altında birleştirir.
+Hücresel telefon aramaları, VoIP görüşmeleri (WhatsApp, Telegram vb.), doğrudan Mac'ten yanıtlanabilen bildirimler, evrensel pano, kablosuz ekran yansıtma, kablosuz stüdyo kamerası, sıfır-ADB kablosuz ses köprüsü ve masaüstü araç konsolunu tek bir çatı altında birleştirir.
 
 Sistem, en yüksek performans ve pil tasarrufu için Mac tarafında **Swift & SwiftUI**, Android tarafında ise **Kotlin & Jetpack Compose** ile yerel (native) olarak inşa edilmiştir.
 
@@ -28,6 +28,10 @@ Sistem, en yüksek performans ve pil tasarrufu için Mac tarafında **Swift & Sw
 
 ## 🌟 Temel Özellikler
 
+* 🎵 **AetherAudio Sıfır-ADB Kablosuz Ses Köprüsü:**
+  Bluetooth eşleştirmesine ya da ADB/Geliştirici Seçeneklerine gerek kalmadan, Spotify ve telefon medya seslerini yerel UDP (port 8446) üzerinden Mac stüdyo hoparlörlerine kristal netliğinde aktarın. Donanımsal yankı engellemeli (AEC) çift yönlü Mac mikrofonlu arama köprüsünü destekler.
+* 🚗 **Aether Auto (Masaüstü Araç Konsolu):**
+  Android Auto ve Apple CarPlay ilhamlı 780×500 boyutunda geniş kontrol paneli; dev medya kontrolleri, ses ayarları, 3×4 numerik telefon tuş takımı ve tek tıkla arama yapma olanağı sunar.
 * 📱 **Kablosuz Canlı Ekran Yansıtma (iPhone Mirroring Alternatifi):**
   Android telefon ekranınızı sıfır bulut ile, doğrudan yerel ağ veya USB/ADB üzerinden saniyede 30 kare (FPS) hızında Mac masaüstünüzdeki yüzen pencereye canlı olarak yansıtın.
 * 📞 **Hücresel & VoIP Arama Yansıtma:**
